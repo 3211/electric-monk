@@ -374,8 +374,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 4. ROW LEVEL SECURITY (RLS)
 -- ============================================
 
--- Enable RLS on all tables
+-- Enable RLS on all tables (FORCE ensures service_role RLS bypass is still tracked)
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles FORCE ROW LEVEL SECURITY;
 ALTER TABLE prayers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE indulgences ENABLE ROW LEVEL SECURITY;
 
@@ -384,9 +385,14 @@ CREATE POLICY "Users can view own profile"
   ON profiles FOR SELECT
   USING (auth.uid() = id);
 
+CREATE POLICY "Users can insert own profile"
+  ON profiles FOR INSERT
+  WITH CHECK (auth.uid() = id);
+
 CREATE POLICY "Users can update own profile"
   ON profiles FOR UPDATE
-  USING (auth.uid() = id);
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
 
 -- Prayers Policies
 CREATE POLICY "Users can view own prayers"
@@ -415,25 +421,42 @@ CREATE POLICY "Users can insert own indulgences"
 -- ============================================
 
 -- Ensure the public schema is accessible
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 
--- Grant permissions on tables
+-- Grant permissions on tables — authenticated (frontend users)
 GRANT ALL ON TABLE prayers TO authenticated;
 GRANT ALL ON TABLE profiles TO authenticated;
 GRANT ALL ON TABLE indulgences TO authenticated;
 
+-- Grant permissions on tables — service_role (Edge Functions)
+GRANT ALL ON TABLE prayers TO service_role;
+GRANT ALL ON TABLE profiles TO service_role;
+GRANT ALL ON TABLE indulgences TO service_role;
+
 -- Grant permissions on sequences (for IDs)
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
 
 -- Grant permissions for anonymous users (if needed for login/signup checks)
 GRANT SELECT ON TABLE profiles TO anon;
 
--- Grant execute permissions on RPC functions
-GRANT EXECUTE ON FUNCTION submit_prayer TO authenticated;
-GRANT EXECUTE ON FUNCTION refill_tokens TO authenticated;
-GRANT EXECUTE ON FUNCTION reset_daily_prayer_count TO authenticated;
-GRANT EXECUTE ON FUNCTION reduce_ban_time TO authenticated;
-GRANT EXECUTE ON FUNCTION sync_prayer_count TO authenticated;
-GRANT EXECUTE ON FUNCTION deactivate_prayer TO authenticated;
-GRANT EXECUTE ON FUNCTION activate_prayer TO authenticated;
-GRANT EXECUTE ON FUNCTION update_karma TO authenticated;
+-- Grant execute permissions on RPC functions — authenticated (frontend users)
+GRANT EXECUTE ON FUNCTION submit_prayer(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION refill_tokens(INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION reset_daily_prayer_count(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION reduce_ban_time(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION sync_prayer_count(UUID, INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION deactivate_prayer(UUID, INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION activate_prayer(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION update_karma(UUID, INT) TO authenticated;
+
+-- Grant execute permissions on RPC functions — service_role (Edge Functions)
+GRANT EXECUTE ON FUNCTION create_profile_on_signup() TO service_role;
+GRANT EXECUTE ON FUNCTION submit_prayer(TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION activate_prayer(UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION sync_prayer_count(UUID, INT) TO service_role;
+GRANT EXECUTE ON FUNCTION deactivate_prayer(UUID, INT) TO service_role;
+GRANT EXECUTE ON FUNCTION reduce_ban_time(UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION refill_tokens(INT) TO service_role;
+GRANT EXECUTE ON FUNCTION update_karma(UUID, INT) TO service_role;
+GRANT EXECUTE ON FUNCTION reset_daily_prayer_count(UUID) TO service_role;

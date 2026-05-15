@@ -310,14 +310,16 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- 6. SECURITY (RLS Policies)
 -- =====================================================
 
--- Enable RLS
+-- Enable RLS (FORCE ensures service_role RLS bypass is still tracked)
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles FORCE ROW LEVEL SECURITY;
 ALTER TABLE prayers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE indulgences ENABLE ROW LEVEL SECURITY;
 
 -- Profile policies
 CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can insert own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
 -- Prayer policies
 CREATE POLICY "Users can view own prayers" ON prayers FOR SELECT USING (auth.uid() = user_id);
@@ -333,24 +335,45 @@ CREATE POLICY "Users can insert own indulgences" ON indulgences FOR INSERT WITH 
 -- =====================================================
 
 -- Schema access
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 
--- Table access
+-- Table access — authenticated (frontend users)
 GRANT ALL ON TABLE prayers TO authenticated;
 GRANT ALL ON TABLE profiles TO authenticated;
 GRANT ALL ON TABLE indulgences TO authenticated;
 
+-- Table access — service_role (Edge Functions)
+GRANT ALL ON TABLE prayers TO service_role;
+GRANT ALL ON TABLE profiles TO service_role;
+GRANT ALL ON TABLE indulgences TO service_role;
+
 -- Sequence access (for UUIDs/IDs)
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
 
 -- Anonymous can read profiles (for signup/login checks)
 GRANT SELECT ON TABLE profiles TO anon;
 
--- Function permissions
+-- Function permissions — authenticated (frontend users)
 GRANT EXECUTE ON FUNCTION update_karma(UUID, INT) TO authenticated;
 GRANT EXECUTE ON FUNCTION sync_prayer_count(UUID, INT) TO authenticated;
 GRANT EXECUTE ON FUNCTION deactivate_prayer(UUID, INT) TO authenticated;
 GRANT EXECUTE ON FUNCTION activate_prayer(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION submit_prayer(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION refill_tokens(INT) TO authenticated;
+GRANT EXECUTE ON FUNCTION reset_daily_prayer_count(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION reduce_ban_time(UUID) TO authenticated;
+
+-- Function permissions — service_role (Edge Functions)
+GRANT EXECUTE ON FUNCTION create_profile_on_signup() TO service_role;
+GRANT EXECUTE ON FUNCTION submit_prayer(TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION activate_prayer(UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION sync_prayer_count(UUID, INT) TO service_role;
+GRANT EXECUTE ON FUNCTION deactivate_prayer(UUID, INT) TO service_role;
+GRANT EXECUTE ON FUNCTION reduce_ban_time(UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION refill_tokens(INT) TO service_role;
+GRANT EXECUTE ON FUNCTION update_karma(UUID, INT) TO service_role;
+GRANT EXECUTE ON FUNCTION reset_daily_prayer_count(UUID) TO service_role;
 
 -- =====================================================
 -- 8. INDEXES
