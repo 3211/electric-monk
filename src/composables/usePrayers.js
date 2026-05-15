@@ -140,7 +140,7 @@ export function usePrayers() {
         throw new Error(`Prayer exceeds maximum length of ${MAX_PRAYER_CHARS} characters.`)
       }
 
-      // Call the secure RPC function
+      // Step 1: Call the secure RPC function to deduct tokens and create prayer record
       const { data: result, error: rpcError } = await supabase
         .rpc('submit_prayer', { prayer_content: content })
 
@@ -162,7 +162,37 @@ export function usePrayers() {
       const tokenCost = result.cost
       dailyTokensSpent.value += tokenCost
 
-      return { prayer: newPrayer, cost: tokenCost }
+      // Step 2: Invoke the Edge Function to process prayer with Venice AI
+      // This happens asynchronously but we keep loading state until it completes
+      const { data: aiResult, error: aiError } = await supabase.functions.invoke('process-prayer', {
+        body: {
+          prayer_id: newPrayer.id,
+          content: newPrayer.content,
+          user_id: newPrayer.user_id,
+        },
+      })
+
+      if (aiError) {
+        console.error('[usePrayers] Edge Function error:', aiError)
+        // Don't throw here - the prayer was already submitted successfully
+        // Just log the error and let the user know AI processing failed
+        newPrayer.processing_error = true
+      } else if (aiResult) {
+        // Update the prayer with AI judgment results
+        newPrayer.judgment = aiResult.judgment
+        newPrayer.ai_response = aiResult.response
+        newPrayer.rejection_reason = aiResult.rejection_reason
+        newPrayer.is_rejected = aiResult.judgment === 'rejected'
+        newPrayer.is_praying = aiResult.judgment === 'approved'
+        
+        // Update local prayers list with the new status
+        const index = prayers.value.findIndex(p => p.id === newPrayer.id)
+        if (index !== -1) {
+          prayers.value[index] = { ...prayers.value[index], ...newPrayer }
+        }
+      }
+
+      return { prayer: newPrayer, cost: tokenCost, aiResult }
     } catch (err) {
       error.value = err.message
       console.error('[usePrayers] Submit error:', err)
