@@ -25,27 +25,25 @@ async function testConnection() {
   const startTime = performance.now()
   
   try {
-    // Simple test: try to get the current timestamp from Supabase
+    // Simple test: try to query a test table
     const { data, error } = await supabase.from('_ping').select('*').limit(1)
     
-    // Note: _ping table may not exist, so we also check for generic success
-    // A better test is just checking if the client initialized
-    if (error && error.code !== 'PGRST116') {
+    // Check for specific "table not found" errors which mean connection IS working
+    const isTableNotFound = error?.code === 'PGRST116' ||
+                            error?.message?.includes('relation') ||
+                            error?.message?.includes('does not exist');
+    
+    if (error && !isTableNotFound) {
       throw error
     }
     
     status.value = 'connected'
     latency.value = Math.round(performance.now() - startTime)
+    errorMessage.value = isTableNotFound ? 'Connected! (Test table not found - this is normal for new projects)' : '';
   } catch (err) {
-    // If _ping doesn't exist, that's okay - client still works
-    if (err.message?.includes('relation') || err.code === 'PGRST116') {
-      status.value = 'connected'
-      latency.value = Math.round(performance.now() - startTime)
-      errorMessage.value = 'Connected (no _ping table - this is normal)'
-    } else {
-      status.value = 'error'
-      errorMessage.value = err.message
-    }
+    // Real connection error
+    status.value = 'error'
+    errorMessage.value = err.message
   }
 }
 

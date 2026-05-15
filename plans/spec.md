@@ -8,6 +8,7 @@ Electric Monk is a dynamic web application designed to run as a standalone GitHu
 - **Styling:** Tailwind CSS
 - **Build Tool:** Vite
 - **Backend:** Supabase (Auth, Database, Storage)
+- **AI Integration:** Venice AI API
 - **Deployment:** GitHub Pages via GitHub Actions
 
 ## AI-Agent Optimized Architecture
