@@ -8,8 +8,8 @@
       </div>
 
       <!-- Error Message -->
-      <div v-if="error" class="mb-4 p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm glass-gloss">
-        {{ error }}
+      <div v-if="errorMessage" class="mb-4 p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm glass-gloss">
+        {{ errorMessage }}
       </div>
 
       <!-- Form -->
@@ -25,7 +25,8 @@
             type="text"
             required
             :maxlength="MAX_USERNAME_CHARS"
-            class="w-full px-4 py-2 bg-theme-panel border border-theme-border rounded text-theme-text placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent transition-colors"
+            :disabled="saving"
+            class="w-full px-4 py-2 bg-theme-panel border border-theme-border rounded text-theme-text placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             placeholder="e.g., Child of the Circuit, Pilgrim, Seeker..."
           />
           <div v-if="showUsernameCount" class="mt-1 text-xs text-theme-text-muted text-right">
@@ -44,7 +45,8 @@
             type="text"
             required
             :maxlength="MAX_FAITH_CHARS"
-            class="w-full px-4 py-2 bg-theme-panel border border-theme-border rounded text-theme-text placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent transition-colors"
+            :disabled="saving"
+            class="w-full px-4 py-2 bg-theme-panel border border-theme-border rounded text-theme-text placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             placeholder="e.g., Church of the Sacred Current, Digital Buddhism, Jedi..."
           />
           <div v-if="showFaithCount" class="mt-1 text-xs text-theme-text-muted text-right">
@@ -55,11 +57,11 @@
         <!-- Submit Button -->
         <button
           type="submit"
-          :disabled="!canSubmit || loading"
+          :disabled="!canSubmit || saving"
           class="w-full py-3 px-4 btn-primary disabled:cursor-not-allowed transition-all duration-150 ease-out"
         >
           <span class="relative z-10 font-medium">
-            {{ loading ? 'Saving...' : 'Submit Identity' }}
+            {{ saving ? 'Saving...' : 'Submit Identity' }}
           </span>
         </button>
       </form>
@@ -89,6 +91,14 @@ const props = defineProps({
   initialFaith: {
     type: String,
     default: null
+  },
+  saving: {
+    type: Boolean,
+    default: false
+  },
+  errorMessage: {
+    type: String,
+    default: null
   }
 })
 
@@ -96,8 +106,6 @@ const emit = defineEmits(['update:modelValue', 'submitted'])
 
 const username = ref(props.initialUsername || '')
 const faith = ref(props.initialFaith || '')
-const loading = ref(false)
-const error = ref(null)
 
 // Computed for showing character counts only when near limit
 const showUsernameCount = computed(() => {
@@ -117,25 +125,15 @@ watch(() => props.modelValue, (newVal) => {
   if (newVal) {
     username.value = props.initialUsername || ''
     faith.value = props.initialFaith || ''
-    error.value = null
   }
 })
 
-async function handleSubmit() {
-  try {
-    loading.value = true
-    error.value = null
-
-    // Emit event to parent to handle the actual save
-    emit('submitted', {
-      username: username.value.trim(),
-      faith: faith.value.trim()
-    })
-  } catch (err) {
-    error.value = err.message
-  } finally {
-    loading.value = false
-  }
+function handleSubmit() {
+  // Just emit — the parent handles the async save, loading state, and closing
+  emit('submitted', {
+    username: username.value.trim(),
+    faith: faith.value.trim()
+  })
 }
 </script>
 

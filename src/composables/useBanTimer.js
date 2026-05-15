@@ -2,15 +2,20 @@ import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'
 import { supabase } from '@/lib/supabase'
 
 /**
- * useBanTimer Composable
+ * useBanTimer Composable (Singleton Pattern)
  * 
  * Manages the ban timer system for users who submit malicious prayers.
  * - Tracks ban status and countdown
  * - Provides method to watch "Indulgence" ad to reduce ban time
+ * - Uses shared state so all components see the same ban status
  * 
  * @returns {Object} Ban timer state and methods
  */
-export function useBanTimer() {
+
+// Shared state — created once, reused by all useBanTimer() calls
+let sharedState = null
+
+function createBanTimerState() {
   const banUntil = ref(null)
   const isBanned = ref(false)
   const timeRemaining = ref(null)
@@ -35,54 +40,6 @@ export function useBanTimer() {
   })
 
   const canWatchIndulgence = computed(() => isBanned.value && !loading.value)
-
-  /**
-   * Initialize ban timer check
-   */
-  onMounted(async () => {
-    await checkBanStatus()
-    startCountdown()
-  })
-
-  /**
-   * Cleanup interval on unmount
-   */
-  onUnmounted(() => {
-    if (countdownInterval.value) {
-      clearInterval(countdownInterval.value)
-    }
-  })
-
-  /**
-   * Fetch current ban status from profile
-   */
-  async function checkBanStatus() {
-    try {
-      error.value = null
-      
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        banUntil.value = null
-        isBanned.value = false
-        timeRemaining.value = null
-        return
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('ban_until')
-        .eq('id', user.id)
-        .single()
-
-      if (profileError) throw profileError
-
-      banUntil.value = profile?.ban_until || null
-      updateBanState()
-    } catch (err) {
-      error.value = err.message
-      console.error('[useBanTimer] Check ban status error:', err)
-    }
-  }
 
   /**
    * Update ban state based on current time
@@ -123,6 +80,37 @@ export function useBanTimer() {
         timeRemaining.value--
       }
     }, 1000)
+  }
+
+  /**
+   * Fetch current ban status from profile
+   */
+  async function checkBanStatus() {
+    try {
+      error.value = null
+      
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        banUntil.value = null
+        isBanned.value = false
+        timeRemaining.value = null
+        return
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('ban_until')
+        .eq('id', user.id)
+        .single()
+
+      if (profileError) throw profileError
+
+      banUntil.value = profile?.ban_until || null
+      updateBanState()
+    } catch (err) {
+      error.value = err.message
+      console.error('[useBanTimer] Check ban status error:', err)
+    }
   }
 
   /**
@@ -227,5 +215,27 @@ export function useBanTimer() {
     checkBanStatus,
     watchIndulgence,
     setBan,
+    // Lifecycle
+    startCountdown,
+    countdownInterval,
   })
+}
+
+// Module-level flag to ensure initialization happens only once
+let initialized = false
+
+export function useBanTimer() {
+  // Create shared state on first call, reuse on subsequent calls
+  if (!sharedState) {
+    sharedState = createBanTimerState()
+  }
+
+  // Initialize ban check and countdown only once across all component instances
+  if (!initialized) {
+    initialized = true
+    sharedState.checkBanStatus()
+    sharedState.startCountdown()
+  }
+
+  return sharedState
 }

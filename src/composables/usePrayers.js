@@ -227,75 +227,102 @@ export function usePrayers() {
         throw new Error(`Prayer exceeds maximum length of ${MAX_PRAYER_CHARS} characters.`)
       }
 
+      // Get current user ID once for reuse
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No user logged in')
+
       // Step 1: Call the secure RPC function to deduct tokens and create prayer record
       const { data: result, error: rpcError } = await supabase
         .rpc('submit_prayer', { prayer_content: content })
 
       if (rpcError) throw rpcError
 
-      // Fetch the newly created prayer
-      const { data: newPrayer, error: fetchError } = await supabase
-        .from('prayers')
-        .select('*')
-        .eq('id', result.id)
-        .single()
-
-      if (fetchError) throw fetchError
-
-      // Update local state
-      prayers.value.unshift(newPrayer)
-      
       // Update Mana spent (RPC already updated in DB)
       const manaCost = result.cost
       dailyManaSpent.value += manaCost
 
+      // Deactivate any previously active prayer in local state
+      // (the RPC already deactivated it server-side)
+      const prevActive = prayers.value.find(p => p.is_praying && !p.is_archived && !p.is_rejected)
+      if (prevActive) {
+        prevActive.is_praying = false
+        prevActive.activated_at = null
+      }
+
       // Step 2: Invoke the Edge Function to process prayer with Venice AI
-      // This happens asynchronously - the Aether modal will show processing state
+      // The Aether modal covers the UI during processing — we do NOT add the prayer
+      // to the local list until classification is complete, so it doesn't appear
+      // as "Being Prayed" before the monk has judged it.
       const { data: aiResult, error: aiError } = await supabase.functions.invoke('process-prayer', {
         body: {
-          prayer_id: newPrayer.id,
-          content: newPrayer.content,
-          user_id: newPrayer.user_id,
+          prayer_id: result.id,
+          content: content,
+          user_id: user.id,
         },
       })
 
       // Always set processing to false when AI returns (success or failure)
       isAetherProcessing.value = false
 
+      // Fetch the prayer from the server — it now has the final status from the Edge Function
+      const { data: fetchedPrayer, error: fetchError } = await supabase
+        .from('prayers')
+        .select('*')
+        .eq('id', result.id)
+        .single()
+
+      if (fetchError) {
+        console.error('[usePrayers] Failed to fetch classified prayer:', fetchError)
+      }
+
+      // Use the fetched prayer (with final status) or construct a fallback from what we know
+      const finalPrayer = fetchedPrayer || {
+        id: result.id,
+        content: content,
+        user_id: user.id,
+        is_praying: false,
+        is_rejected: false,
+        is_archived: false,
+        prayer_count: 0,
+        created_at: new Date().toISOString(),
+        processing_error: true,
+      }
+
       if (aiError) {
         console.error('[usePrayers] Edge Function error:', aiError)
-        // Don't throw here - the prayer was already submitted successfully
-        // Just log the error and let the user know AI processing failed
-        newPrayer.processing_error = true
+        // The prayer was submitted but AI processing failed
+        finalPrayer.processing_error = true
+        finalPrayer.is_praying = false
         aetherResult.value = {
           success: false,
           error: aiError.message || 'AI processing failed',
         }
       } else if (aiResult) {
-        // Update the prayer with AI judgment results
-        newPrayer.judgment = aiResult.judgment
-        newPrayer.response_content = aiResult.response
-        newPrayer.rejection_reason = aiResult.rejection_reason
-        newPrayer.is_rejected = aiResult.judgment === 'rejected'
-        newPrayer.is_praying = aiResult.judgment === 'approved'
-        
-        // Update local prayers list with the new status
-        const index = prayers.value.findIndex(p => p.id === newPrayer.id)
-        if (index !== -1) {
-          prayers.value[index] = { ...prayers.value[index], ...newPrayer }
-        }
-        
+        // Update the prayer object with AI judgment results
+        finalPrayer.judgment = aiResult.judgment
+        finalPrayer.response_content = aiResult.response
+        finalPrayer.rejection_reason = aiResult.rejection_reason
+        finalPrayer.is_rejected = aiResult.judgment === 'rejected'
+        finalPrayer.is_praying = aiResult.judgment === 'approved'
+
+        // Update karma locally based on judgment (server already updated via update_karma RPC)
+        const karmaChange = aiResult.judgment === 'approved' ? 1 : -1
+        karma.value += karmaChange
+
         // Set the result for the Aether modal to display
         aetherResult.value = {
           success: true,
           judgment: aiResult.judgment,
           response: aiResult.response,
           rejection_reason: aiResult.rejection_reason,
-          karmaChange: aiResult.judgment === 'approved' ? 1 : -1,
+          karmaChange: karmaChange,
         }
       }
 
-      return { prayer: newPrayer, cost: manaCost, aiResult }
+      // NOW add the prayer to the local list with its final classified status
+      prayers.value.unshift(finalPrayer)
+
+      return { prayer: finalPrayer, cost: manaCost, aiResult }
     } catch (err) {
       error.value = err.message
       console.error('[usePrayers] Submit error:', err)

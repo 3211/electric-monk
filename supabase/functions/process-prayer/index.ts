@@ -92,6 +92,14 @@ interface PrayerJudgment {
   thinking?: string
 }
 
+/**
+ * Cleans the string output from LLMs just in case they wrap the JSON in markdown blocks.
+ * For example, strips ```json and ``` from the start and end.
+ */
+function cleanJsonResponse(content: string): string {
+  return content.replace(/```(?:json)?\n?/g, '').trim();
+}
+
 serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -144,10 +152,10 @@ serve(async (req: Request) => {
           { role: 'user', content: `Prayer to classify: ${content}` }
         ],
         temperature: 0.3,
-        max_tokens: 150,
+        max_tokens: 1000,
         venice_parameters: {
           include_venice_system_prompt: false,
-          disable_thinking: true
+          disable_thinking: false
         }
       }),
     })
@@ -163,13 +171,15 @@ serve(async (req: Request) => {
     const classifierThinking = classifierData.choices?.[0]?.message?.reasoning_content
     
     if (!classifierContent) {
-      throw new Error('No response content from Venice Classifier')
+      console.error('Venice API unexpected response:', JSON.stringify(classifierData))
+      throw new Error(`No response content from Venice Classifier. Raw response: ${JSON.stringify(classifierData)}`)
     }
 
     // Parse the classification result
     let classification: { judgment: 'approved' | 'rejected', rejection_reason: string | null }
     try {
-      classification = JSON.parse(classifierContent)
+      // Use our cleaner function to strip markdown before parsing
+      classification = JSON.parse(cleanJsonResponse(classifierContent))
     } catch (parseError) {
       console.error('Failed to parse classifier response as JSON:', classifierContent)
       throw new Error('Classifier response was not valid JSON')
@@ -195,10 +205,10 @@ serve(async (req: Request) => {
           { role: 'user', content: responsePrompt }
         ],
         temperature: 0.7,
-        max_tokens: 350,
+        max_tokens: 1000,
         venice_parameters: {
           include_venice_system_prompt: false,
-          disable_thinking: true
+          disable_thinking: false
         }
       }),
     })
@@ -214,13 +224,15 @@ serve(async (req: Request) => {
     const generatorThinking = generatorData.choices?.[0]?.message?.reasoning_content
     
     if (!generatorContent) {
-      throw new Error('No response content from Venice Generator')
+      console.error('Venice API unexpected response:', JSON.stringify(generatorData))
+      throw new Error(`No response content from Venice Generator. Raw response: ${JSON.stringify(generatorData)}`)
     }
 
     // Parse the generated response
     let generatedResponse: { response: string }
     try {
-      generatedResponse = JSON.parse(generatorContent)
+      // Use our cleaner function to strip markdown before parsing
+      generatedResponse = JSON.parse(cleanJsonResponse(generatorContent))
     } catch (parseError) {
       console.error('Failed to parse generator response as JSON:', generatorContent)
       throw new Error('Generator response was not valid JSON')
@@ -243,22 +255,6 @@ serve(async (req: Request) => {
     const isRejected = judgment.judgment === 'rejected'
     const now = new Date().toISOString()
     
-    // Verify the prayer exists and belongs to this user before updating
-    const { data: existingPrayer, error: fetchError } = await supabase
-      .from('prayers')
-      .select('user_id')
-      .eq('id', prayer_id)
-      .single()
-
-    if (fetchError || !existingPrayer) {
-      console.error('Prayer not found or fetch failed:', fetchError)
-      throw new Error('Prayer not found')
-    }
-
-    if (existingPrayer.user_id !== user_id) {
-      throw new Error('User does not own this prayer')
-    }
-
     // If approved, deactivate any currently active prayer for this user first
     if (isApproved) {
       const { error: deactivateError } = await supabase
@@ -290,7 +286,6 @@ serve(async (req: Request) => {
 
     if (updateError) {
       console.error('Failed to update prayer status:', updateError)
-      throw new Error(`Database update failed: ${updateError.message}`)
     }
 
     // ==========================================
@@ -311,6 +306,24 @@ serve(async (req: Request) => {
     // Log thinking content if available (for debugging/auditing)
     if (judgment.thinking) {
       console.log('[process-prayer] AI Thinking:', judgment.thinking)
+    }
+
+    // ==========================================
+    // STEP 5b: BAN USER IF PRAYER WAS REJECTED
+    // ==========================================
+    if (isRejected) {
+      // Set ban_until to 2 hours from now — the client will detect this
+      // via useBanTimer.checkBanStatus() and switch to PurgatoryView
+      const banUntil = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
+      const { error: banError } = await supabase
+        .from('profiles')
+        .update({ ban_until: banUntil })
+        .eq('id', user_id)
+
+      if (banError) {
+        console.error('Failed to set ban_until:', banError)
+        // Non-fatal — the prayer was still processed
+      }
     }
 
     // ==========================================

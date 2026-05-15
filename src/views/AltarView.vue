@@ -20,6 +20,18 @@
             <span class="text-theme-accent font-semibold">{{ prayers.tokensRemaining }}</span>
             Mana remaining
           </div>
+          <!-- Settings Button (only when profile is complete) -->
+          <button
+            v-if="prayers.isProfileComplete"
+            @click="showProfileModal = true"
+            class="px-3 py-1 text-sm text-theme-text-dim hover:text-theme-accent transition-colors"
+            title="Update your identity"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
           <!-- Logout Button -->
           <button
             @click="handleLogout"
@@ -294,6 +306,8 @@
       v-model="showProfileModal"
       :initial-username="prayers.username"
       :initial-faith="prayers.faith"
+      :saving="profileSaving"
+      :error-message="profileError"
       @submitted="handleProfileSubmit"
     />
 
@@ -402,6 +416,8 @@ const banTimer = useBanTimer()
 
 const prayerContent = ref('')
 const showProfileModal = ref(false)
+const profileSaving = ref(false)
+const profileError = ref(null)
 const counterAnimating = ref(false)
 
 // Create a computed ref for the current active prayer to pass to usePrayerCounter
@@ -477,11 +493,15 @@ async function handleSubmit() {
 }
 
 async function handleProfileSubmit({ username, faith }) {
+  profileError.value = null
+  profileSaving.value = true
   try {
     await prayers.updateProfile(username, faith)
     showProfileModal.value = false
   } catch (err) {
-    // Error is already captured in prayers.error
+    profileError.value = err.message || 'Failed to save identity. Please try again.'
+  } finally {
+    profileSaving.value = false
   }
 }
 
@@ -536,13 +556,17 @@ function karmaClass() {
 async function handleAetherContinue() {
   // Clear the result to close the modal
   prayers.aetherResult = null
-  
-  // If the prayer was rejected, redirect to Purgatory
-  if (prayers.isAetherProcessing === false && prayers.prayers.length > 0) {
+
+  // Refresh profile data from server (karma, ban status, etc.)
+  await prayers.fetchProfile()
+
+  // If the prayer was rejected, check ban status so App.vue switches to Purgatory view
+  if (prayers.prayers.length > 0) {
     const latestPrayer = prayers.prayers[0]
     if (latestPrayer.is_rejected) {
-      // Navigate to Purgatory view
-      window.location.href = '/purgatory'
+      // Refresh ban status from server — this will set isBanned = true
+      // which causes App.vue's computed to switch to PurgatoryView
+      await banTimer.checkBanStatus()
     }
   }
 }
