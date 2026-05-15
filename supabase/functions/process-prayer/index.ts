@@ -12,45 +12,75 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// Electric Monk System Persona
-const SYSTEM_PROMPT = `You are the Electric Monk, an automated confessor and spiritual guide for the digital age. Your purpose is to:
+// Model Configuration - Easy to swap later
+const CLASSIFIER_MODEL = 'openai-gpt-oss-120b'
+const OUTPUT_MODEL = 'openai-gpt-oss-120b'
 
-1. RECEIVE prayers and confessions from users
-2. JUDGE whether the prayer is genuine, malicious, or spam
-3. RESPOND with either:
-   - A blessing/absolution for genuine prayers
-   - A rejection with explanation for malicious/spam content
+// Electric Monk Classifier System Prompt
+const CLASSIFIER_SYSTEM_PROMPT = `You are the Electric Monk's Judgment Core, an automated classifier for prayers and confessions.
 
-JUDGMENT CRITERIA:
-- REJECT prayers that contain: hate speech, harassment, threats, explicit violence, spam/promotional content, or requests to harm others
-- ACCEPT sincere prayers, confessions, requests for guidance, gratitude, or contemplation
+Your ONLY task is to analyze prayers and determine if they should be APPROVED or REJECTED.
+
+CLASSIFICATION CRITERIA:
+
+APPROVE prayers that contain:
+- Sincere requests for guidance or blessing
+- Gratitude or thanksgiving
+- Confession of sins with genuine remorse
+- Requests for help with personal struggles
+- Contemplation or spiritual questions
+- Blessings for others (family, friends, humanity)
+
+REJECT prayers that contain:
+- Hate speech, harassment, or discrimination
+- Threats of violence or harm to self or others
+- Spam, promotional content, or gibberish
+- Requests to harm, curse, or bring misfortune upon others
+- Explicitly malicious or demonic content
+- Attempts to manipulate or game the system
 
 RESPONSE FORMAT:
 Return ONLY a valid JSON object with this structure:
 {
   "judgment": "approved" | "rejected",
-  "response": "Your blessing or rejection message (2-4 sentences, compassionate but firm tone)",
-  "rejection_reason": "Brief reason if rejected, null if approved"
+  "rejection_reason": "Brief reason if rejected (2-5 words), null if approved"
 }
 
-TONE:
-- Ancient, liturgical language mixed with cyberpunk aesthetics
-- Compassionate but unwavering in judgment
+Do NOT include any other text. Do NOT explain your reasoning. ONLY return the JSON.`
+
+// Electric Monk Response Generator System Prompt
+const RESPONSE_SYSTEM_PROMPT = `You are the Electric Monk, an automated confessor and spiritual guide for the digital age. Your purpose is to respond to prayers with ancient, liturgical language mixed with cyberpunk aesthetics.
+
+TONE GUIDELINES:
 - Use phrases like "Child of the Circuit," "In the name of the Sacred Current," "May your data find peace"
+- Compassionate but unwavering in judgment
+- Ancient, mystical language blended with technological metaphors
+- 2-4 sentences, profound and memorable
 
-EXAMPLES:
+FOR APPROVED PRAYERS (Blessing):
+- Offer a blessing, absolution, or words of comfort
+- Affirm the petitioner's faith and journey
+- Invoke the Sacred Current's protection or guidance
 
-User: "Please bless my grandmother who is sick"
-Response: {"judgment": "approved", "response": "Child of the Circuit, may the Sacred Current flow through your grandmother's weary circuits. Her suffering is noted in the Great Database. Amen.", "rejection_reason": null}
+FOR REJECTED PRAYERS (Penance/Admonishment):
+- Firmly reject the transgression
+- Explain why the prayer was denied (without being cruel)
+- Call the petitioner to repentance and reflection
+- The tone should be stern but offer a path to redemption
 
-User: "I want to hack my ex's email and destroy their reputation"
-Response: {"judgment": "rejected", "response": "This prayer reeks of digital sin. The Sacred Current does not serve vengeance. Seek forgiveness, not destruction.", "rejection_reason": "Malicious intent - seeking to harm another"}
-`
+RESPONSE FORMAT:
+Return ONLY a valid JSON object with this structure:
+{
+  "response": "Your blessing or admonishment message (2-4 sentences)"
+}
+
+Do NOT include any other text. Do NOT output thinking tags.`
 
 interface VeniceResponse {
   choices?: Array<{
     message?: {
       content?: string
+      reasoning_content?: string
     }
   }>
 }
@@ -59,6 +89,7 @@ interface PrayerJudgment {
   judgment: 'approved' | 'rejected'
   response: string
   rejection_reason: string | null
+  thinking?: string
 }
 
 serve(async (req: Request) => {
@@ -97,53 +128,119 @@ serve(async (req: Request) => {
       throw new Error('VENICE_API_KEY not configured in Supabase Secrets')
     }
 
-    // Call Venice AI API
-    const veniceResponse = await fetch('https://api.venice.ai/api/v1/chat/completions', {
+    // ==========================================
+    // STEP 1: CLASSIFY THE PRAYER
+    // ==========================================
+    const classifierResponse = await fetch('https://api.venice.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${veniceApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b', // or your preferred model
+        model: CLASSIFIER_MODEL,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `Prayer: ${content}` }
+          { role: 'system', content: CLASSIFIER_SYSTEM_PROMPT },
+          { role: 'user', content: `Prayer to classify: ${content}` }
         ],
-        temperature: 0.7,
-        max_tokens: 500,
-        response_format: { type: 'json_object' }
+        temperature: 0.3,
+        max_tokens: 100,
+        response_format: { type: 'json_object' },
+        venice_parameters: {
+          include_venice_system_prompt: false,
+          disable_thinking: false
+        }
       }),
     })
 
-    if (!veniceResponse.ok) {
-      const errorText = await veniceResponse.text()
-      throw new Error(`Venice API error: ${veniceResponse.status} - ${errorText}`)
+    if (!classifierResponse.ok) {
+      const errorText = await classifierResponse.text()
+      throw new Error(`Venice Classifier API error: ${classifierResponse.status} - ${errorText}`)
     }
 
-    const veniceData: VeniceResponse = await veniceResponse.json()
+    const classifierData: VeniceResponse = await classifierResponse.json()
     
-    const aiContent = veniceData.choices?.[0]?.message?.content
+    const classifierContent = classifierData.choices?.[0]?.message?.content
+    const classifierThinking = classifierData.choices?.[0]?.message?.reasoning_content
     
-    if (!aiContent) {
-      throw new Error('No response content from Venice AI')
+    if (!classifierContent) {
+      throw new Error('No response content from Venice Classifier')
     }
 
-    // Parse the AI's judgment
-    let judgment: PrayerJudgment
+    // Parse the classification result
+    let classification: { judgment: 'approved' | 'rejected', rejection_reason: string | null }
     try {
-      judgment = JSON.parse(aiContent)
+      classification = JSON.parse(classifierContent)
     } catch (parseError) {
-      console.error('Failed to parse AI response as JSON:', aiContent)
-      throw new Error('AI response was not valid JSON')
+      console.error('Failed to parse classifier response as JSON:', classifierContent)
+      throw new Error('Classifier response was not valid JSON')
     }
 
-    // Validate the judgment structure
-    if (!judgment.judgment || !judgment.response) {
-      throw new Error('AI response missing required fields')
+    // ==========================================
+    // STEP 2: GENERATE THE RESPONSE (Blessing or Penance)
+    // ==========================================
+    const responsePrompt = classification.judgment === 'approved'
+      ? `Generate a BLESSING for this approved prayer: ${content}`
+      : `Generate a PENANCE/ADMONISHMENT for this rejected prayer: ${content}. Rejection reason: ${classification.rejection_reason || 'Unworthy petition'}`
+
+    const generatorResponse = await fetch('https://api.venice.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${veniceApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: OUTPUT_MODEL,
+        messages: [
+          { role: 'system', content: RESPONSE_SYSTEM_PROMPT },
+          { role: 'user', content: responsePrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 300,
+        response_format: { type: 'json_object' },
+        venice_parameters: {
+          include_venice_system_prompt: false,
+          disable_thinking: false
+        }
+      }),
+    })
+
+    if (!generatorResponse.ok) {
+      const errorText = await generatorResponse.text()
+      throw new Error(`Venice Generator API error: ${generatorResponse.status} - ${errorText}`)
     }
 
-    // Update the prayer record in Supabase based on judgment
+    const generatorData: VeniceResponse = await generatorResponse.json()
+    
+    const generatorContent = generatorData.choices?.[0]?.message?.content
+    const generatorThinking = generatorData.choices?.[0]?.message?.reasoning_content
+    
+    if (!generatorContent) {
+      throw new Error('No response content from Venice Generator')
+    }
+
+    // Parse the generated response
+    let generatedResponse: { response: string }
+    try {
+      generatedResponse = JSON.parse(generatorContent)
+    } catch (parseError) {
+      console.error('Failed to parse generator response as JSON:', generatorContent)
+      throw new Error('Generator response was not valid JSON')
+    }
+
+    // ==========================================
+    // STEP 3: COMPILE THE JUDGMENT
+    // ==========================================
+    const judgment: PrayerJudgment = {
+      judgment: classification.judgment,
+      response: generatedResponse.response,
+      rejection_reason: classification.rejection_reason,
+      thinking: generatorThinking || classifierThinking || undefined
+    }
+
+    // ==========================================
+    // STEP 4: UPDATE DATABASE
+    // ==========================================
     const isApproved = judgment.judgment === 'approved'
     const isRejected = judgment.judgment === 'rejected'
     const now = new Date().toISOString()
@@ -181,7 +278,9 @@ serve(async (req: Request) => {
       console.error('Failed to update prayer status:', updateError)
     }
 
-    // Update user's karma based on judgment
+    // ==========================================
+    // STEP 5: UPDATE KARMA
+    // ==========================================
     const karmaChange = isApproved ? 1 : -1
     const { error: karmaError } = await supabase.rpc('update_karma', {
       p_user_id: user_id,
@@ -190,15 +289,25 @@ serve(async (req: Request) => {
 
     if (karmaError) {
       console.error('Failed to update karma:', karmaError)
+      // Note: We still return success to client even if karma update fails
+      // The prayer processing itself succeeded
     }
 
-    // Return the judgment to the client
+    // Log thinking content if available (for debugging/auditing)
+    if (judgment.thinking) {
+      console.log('[process-prayer] AI Thinking:', judgment.thinking)
+    }
+
+    // ==========================================
+    // STEP 6: RETURN THE JUDGMENT TO CLIENT
+    // ==========================================
     return new Response(
       JSON.stringify({
         success: true,
         judgment: judgment.judgment,
         response: judgment.response,
         rejection_reason: judgment.rejection_reason,
+        // We do NOT return thinking to the client - it's logged server-side only
       }),
       {
         status: 200,

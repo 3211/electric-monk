@@ -75,6 +75,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger: Auto-create profile when user signs up via Auth
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.create_profile_on_signup();
@@ -198,6 +199,18 @@ BEGIN
   VALUES (p_user_id, 900);
   
   RETURN reduction;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function: Update user karma (+1 for blessings, -1 for penance)
+-- Called by the Edge Function after prayer classification
+CREATE OR REPLACE FUNCTION update_karma(p_user_id UUID, p_karma_change INT)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE profiles
+  SET karma = COALESCE(karma, 0) + p_karma_change,
+      updated_at = now()
+  WHERE id = p_user_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -414,3 +427,4 @@ GRANT EXECUTE ON FUNCTION reduce_ban_time TO authenticated;
 GRANT EXECUTE ON FUNCTION sync_prayer_count TO authenticated;
 GRANT EXECUTE ON FUNCTION deactivate_prayer TO authenticated;
 GRANT EXECUTE ON FUNCTION activate_prayer TO authenticated;
+GRANT EXECUTE ON FUNCTION update_karma TO authenticated;

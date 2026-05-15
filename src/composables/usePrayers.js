@@ -31,6 +31,10 @@ export function usePrayers() {
   const faith = ref(null)
   const loading = ref(false)
   const error = ref(null)
+  
+  // Aether Modal State
+  const isAetherProcessing = ref(false)
+  const aetherResult = ref(null)
 
   /**
    * Calculate Mana cost for a prayer based on character count
@@ -197,10 +201,22 @@ export function usePrayers() {
    * @param {string} content - The prayer text
    * @returns {Object} Result containing prayer ID and Mana cost
    */
+  /**
+   * Submit a new prayer for processing using the secure RPC function.
+   * The database function submit_prayer() handles:
+   * - Character limit validation (1500 chars)
+   * - Mana budget validation (daily_token_limit)
+   * - Atomic insert of prayer and update of tokens_spent_today
+   *
+   * @param {string} content - The prayer text
+   * @returns {Object} Result containing prayer ID and Mana cost
+   */
   async function submitPrayer(content) {
     try {
       loading.value = true
       error.value = null
+      isAetherProcessing.value = true
+      aetherResult.value = null
 
       // Client-side validation for UX (server also validates)
       if (content.length > MAX_PRAYER_CHARS) {
@@ -230,7 +246,7 @@ export function usePrayers() {
       dailyManaSpent.value += manaCost
 
       // Step 2: Invoke the Edge Function to process prayer with Venice AI
-      // This happens asynchronously but we keep loading state until it completes
+      // This happens asynchronously - the Aether modal will show processing state
       const { data: aiResult, error: aiError } = await supabase.functions.invoke('process-prayer', {
         body: {
           prayer_id: newPrayer.id,
@@ -239,15 +255,22 @@ export function usePrayers() {
         },
       })
 
+      // Always set processing to false when AI returns (success or failure)
+      isAetherProcessing.value = false
+
       if (aiError) {
         console.error('[usePrayers] Edge Function error:', aiError)
         // Don't throw here - the prayer was already submitted successfully
         // Just log the error and let the user know AI processing failed
         newPrayer.processing_error = true
+        aetherResult.value = {
+          success: false,
+          error: aiError.message || 'AI processing failed',
+        }
       } else if (aiResult) {
         // Update the prayer with AI judgment results
         newPrayer.judgment = aiResult.judgment
-        newPrayer.ai_response = aiResult.response
+        newPrayer.response_content = aiResult.response
         newPrayer.rejection_reason = aiResult.rejection_reason
         newPrayer.is_rejected = aiResult.judgment === 'rejected'
         newPrayer.is_praying = aiResult.judgment === 'approved'
@@ -257,12 +280,22 @@ export function usePrayers() {
         if (index !== -1) {
           prayers.value[index] = { ...prayers.value[index], ...newPrayer }
         }
+        
+        // Set the result for the Aether modal to display
+        aetherResult.value = {
+          success: true,
+          judgment: aiResult.judgment,
+          response: aiResult.response,
+          rejection_reason: aiResult.rejection_reason,
+          karmaChange: aiResult.judgment === 'approved' ? 1 : -1,
+        }
       }
 
       return { prayer: newPrayer, cost: manaCost, aiResult }
     } catch (err) {
       error.value = err.message
       console.error('[usePrayers] Submit error:', err)
+      isAetherProcessing.value = false
       throw err
     } finally {
       loading.value = false
@@ -544,6 +577,9 @@ export function usePrayers() {
     faith,
     loading,
     error,
+    // Aether Modal State
+    isAetherProcessing,
+    aetherResult,
     // Computed
     canPray,
     tokensRemaining,

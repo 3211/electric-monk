@@ -296,6 +296,80 @@
       :initial-faith="prayers.faith"
       @submitted="handleProfileSubmit"
     />
+
+    <!-- Aether Processing Modal -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="prayers.isAetherProcessing || prayers.aetherResult" class="aether-modal-overlay">
+          <div class="aether-modal-container">
+            <!-- Processing State -->
+            <div v-if="prayers.isAetherProcessing" class="aether-processing-state">
+              <div class="aether-icon animate-pulse">
+                <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+              </div>
+              <h3 class="aether-title">Sent to the Aether...</h3>
+              <p class="aether-description">The Electric Monk is weighing your prayer in the Sacred Circuit.</p>
+              <div class="aether-loader">
+                <div class="aether-loader-bar"></div>
+              </div>
+            </div>
+
+            <!-- Result State -->
+            <div v-else-if="prayers.aetherResult" class="aether-result-state">
+              <!-- Judgment Icon -->
+              <div class="aether-judgment-icon" :class="prayers.aetherResult.success ? (prayers.aetherResult.judgment === 'approved' ? 'approved' : 'rejected') : 'error'">
+                <svg v-if="prayers.aetherResult.success && prayers.aetherResult.judgment === 'approved'" class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <svg v-else-if="prayers.aetherResult.success && prayers.aetherResult.judgment === 'rejected'" class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <svg v-else class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+              </div>
+
+              <!-- Title -->
+              <h3 class="aether-title" :class="prayers.aetherResult.success ? (prayers.aetherResult.judgment === 'approved' ? 'text-theme-accent' : 'text-theme-purgatory') : 'text-theme-text'">
+                {{ prayers.aetherResult.success ? (prayers.aetherResult.judgment === 'approved' ? 'Blessing Granted' : 'Penance Assigned') : 'Processing Error' }}
+              </h3>
+
+              <!-- Karma Change Display -->
+              <div v-if="prayers.aetherResult.success" class="aether-karma-display">
+                <span :class="prayers.aetherResult.karmaChange > 0 ? 'text-theme-accent' : 'text-theme-purgatory'" class="text-2xl font-bold">
+                  {{ prayers.aetherResult.karmaChange > 0 ? '+' : '' }}{{ prayers.aetherResult.karmaChange }}
+                </span>
+                <span class="text-sm text-theme-text-muted ml-1">Karma</span>
+              </div>
+
+              <!-- Response Content -->
+              <div class="aether-response-content glass-panel glass-gloss p-4 my-4">
+                <p class="text-theme-text leading-relaxed">
+                  {{ prayers.aetherResult.response }}
+                </p>
+              </div>
+
+              <!-- Rejection Reason (if applicable) -->
+              <div v-if="prayers.aetherResult.rejection_reason" class="aether-rejection-reason text-sm text-theme-purgatory mb-3">
+                <span class="font-semibold">Reason:</span> {{ prayers.aetherResult.rejection_reason }}
+              </div>
+
+              <!-- Continue Button -->
+              <button
+                @click="handleAetherContinue"
+                class="btn-primary w-full mt-2"
+              >
+                <span class="relative z-10 font-medium">
+                  Continue
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -446,6 +520,21 @@ function karmaClass() {
   if (prayers.karma < 0) return 'text-theme-purgatory'
   return 'text-theme-text-dim'
 }
+
+// Handle Continue button click in Aether modal
+async function handleAetherContinue() {
+  // Clear the result to close the modal
+  prayers.aetherResult = null
+  
+  // If the prayer was rejected, redirect to Purgatory
+  if (prayers.isAetherProcessing === false && prayers.prayers.length > 0) {
+    const latestPrayer = prayers.prayers[0]
+    if (latestPrayer.is_rejected) {
+      // Navigate to Purgatory view
+      window.location.href = '/purgatory'
+    }
+  }
+}
 </script>
 
 <style scoped>
@@ -519,5 +608,191 @@ function karmaClass() {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+/* ==========================================
+   AETHER MODAL STYLES
+   ========================================== */
+
+/* Modal Overlay - Full screen, covers everything */
+.aether-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Modal Container - Slightly larger than submission area */
+.aether-modal-container {
+  width: 90%;
+  max-width: 520px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 2rem;
+  background: linear-gradient(
+    135deg,
+    rgba(20, 20, 30, 0.95),
+    rgba(30, 30, 45, 0.95)
+  );
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 40%, transparent);
+  border-radius: 16px;
+  box-shadow:
+    0 0 60px color-mix(in srgb, var(--theme-accent) 20%, transparent),
+    0 0 120px color-mix(in srgb, var(--theme-accent) 10%, transparent);
+  animation: modalSlideIn 0.4s ease-out;
+}
+
+/* Processing State */
+.aether-processing-state {
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.aether-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  color: var(--theme-accent);
+}
+
+.aether-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  text-align: center;
+  letter-spacing: 0.05em;
+}
+
+.aether-description {
+  color: var(--theme-text-dim);
+  font-size: 0.95rem;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+/* Animated Loader */
+.aether-loader {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 1.5rem;
+}
+
+.aether-loader-bar {
+  height: 100%;
+  width: 30%;
+  background: linear-gradient(
+    90deg,
+    var(--theme-accent),
+    var(--theme-accent-2),
+    var(--theme-accent)
+  );
+  border-radius: 2px;
+  animation: loaderShimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes loaderShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(333%);
+  }
+}
+
+/* Result State */
+.aether-result-state {
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+.aether-judgment-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  margin: 0 auto 1.25rem;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.aether-judgment-icon.approved {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+}
+
+.aether-judgment-icon.rejected {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+
+.aether-judgment-icon.error {
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+}
+
+.aether-karma-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  padding: 0.75rem 1.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.aether-response-content {
+  text-align: left;
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 25%, transparent);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.aether-rejection-reason {
+  text-align: center;
+  font-style: italic;
+}
+
+/* Fade Transition */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* Modal Slide In Animation */
+@keyframes modalSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 </style>
