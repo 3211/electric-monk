@@ -5,10 +5,10 @@
       <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
         <h1 class="text-2xl font-bold text-theme-accent">The Altar</h1>
         <div class="flex items-center gap-4">
-          <!-- Daily Prayer Counter -->
+          <!-- Daily Token Budget Counter -->
           <div class="text-sm text-theme-text-dim">
-            <span class="text-theme-accent font-semibold">{{ prayers.prayersRemaining }}</span>
-            prayers remaining today
+            <span class="text-theme-accent font-semibold">{{ prayers.tokensRemaining }}</span>
+            tokens remaining today
           </div>
           <!-- Logout Button -->
           <button
@@ -40,13 +40,23 @@
             placeholder="Speak your prayer into the void..."
           ></textarea>
           
+          <!-- Character Count & Token Cost -->
+          <div class="mt-2 flex items-center justify-between text-xs">
+            <span class="text-theme-text-muted">
+              {{ prayerContent.length }} / {{ maxPrayerChars }} chars
+            </span>
+            <span class="text-theme-accent font-medium">
+              ~{{ estimatedTokenCost }} tokens
+            </span>
+          </div>
+          
           <div class="mt-4 flex items-center justify-between">
             <p v-if="!prayers.canPray" class="text-sm text-theme-text-dim">
-              Daily limit reached. Return tomorrow.
+              Daily token budget exhausted. Return tomorrow.
             </p>
             <button
               type="submit"
-              :disabled="!prayerContent.trim() || !prayers.canPray || prayers.loading"
+              :disabled="!prayerContent.trim() || !prayers.canPray || prayers.loading || prayerContent.length > maxPrayerChars"
               class="btn-primary disabled:cursor-not-allowed transition-all duration-150 ease-out"
             >
               <span class="relative z-10 font-medium">
@@ -113,16 +123,26 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { usePrayers } from '@/composables/usePrayers'
 import { useAuth } from '@/composables/useAuth'
 import { useBanTimer } from '@/composables/useBanTimer'
+
+// Environment variable for max prayer characters
+const maxPrayerChars = parseInt(import.meta.env.VITE_MAX_PRAYER_CHARS || '1500', 10)
+const tokenRatio = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5', 10)
 
 const prayers = usePrayers()
 const auth = useAuth()
 const banTimer = useBanTimer()
 
 const prayerContent = ref('')
+
+// Computed for character count and token cost
+const estimatedTokenCost = computed(() => {
+  if (!prayerContent.value) return 0
+  return Math.ceil(prayerContent.value.length / tokenRatio)
+})
 
 onMounted(async () => {
   // Fetch prayers

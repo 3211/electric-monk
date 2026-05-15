@@ -1,24 +1,39 @@
 import { ref, computed, reactive } from 'vue'
 import { supabase } from '@/lib/supabase'
 
+// Environment variables for token-based limits
+const MAX_PRAYER_CHARS = parseInt(import.meta.env.VITE_MAX_PRAYER_CHARS || '1500', 10)
+const DAILY_TOKEN_LIMIT = parseInt(import.meta.env.VITE_DAILY_TOKEN_LIMIT || '1000', 10)
+const PRAYER_TOKEN_RATIO = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5', 10)
+
 /**
  * usePrayers Composable
- * 
+ *
  * Manages prayer submission, retrieval, and status tracking.
- * Handles daily prayer limits and interfaces with Venice AI for validation.
- * 
+ * Handles daily token limits and interfaces with Venice AI for validation.
+ *
  * @returns {Object} Prayer state and methods
  */
 export function usePrayers() {
   const prayers = ref([])
-  const dailyLimit = 10 // Default daily prayer limit
-  const dailyCount = ref(0)
+  const dailyTokenLimit = DAILY_TOKEN_LIMIT
+  const dailyTokensSpent = ref(0)
   const loading = ref(false)
   const error = ref(null)
 
+  /**
+   * Calculate token cost for a prayer based on character count
+   * @param {string} content - The prayer text
+   * @returns {number} Estimated token cost
+   */
+  function calculateTokenCost(content) {
+    const charCount = content.length
+    return Math.ceil(charCount / PRAYER_TOKEN_RATIO)
+  }
+
   // Computed properties
-  const canPray = computed(() => dailyCount.value < dailyLimit)
-  const prayersRemaining = computed(() => dailyLimit - dailyCount.value)
+  const canPray = computed(() => dailyTokensSpent.value < dailyTokenLimit)
+  const tokensRemaining = computed(() => Math.max(0, dailyTokenLimit - dailyTokensSpent.value))
 
   /**
    * Fetch user's prayers from database
@@ -51,7 +66,7 @@ export function usePrayers() {
   }
 
   /**
-   * Get current daily prayer count from profile
+   * Get current daily token spending from profile
    */
   async function fetchDailyCount() {
     try {
@@ -66,19 +81,19 @@ export function usePrayers() {
 
       // Check if we need to reset the daily count
       const today = new Date().toDateString()
-      const lastPrayerDate = profile?.last_prayer_date 
-        ? new Date(profile.last_prayer_date).toDateString() 
+      const lastPrayerDate = profile?.last_prayer_date
+        ? new Date(profile.last_prayer_date).toDateString()
         : null
 
       if (lastPrayerDate !== today) {
         // Reset count via database function
         await supabase.rpc('reset_daily_prayer_count', { user_id: user.id })
-        dailyCount.value = 0
+        dailyTokensSpent.value = 0
       } else {
-        dailyCount.value = profile?.daily_prayers_count || 0
+        dailyTokensSpent.value = profile?.daily_prayers_count || 0
       }
 
-      return dailyCount.value
+      return dailyTokensSpent.value
     } catch (err) {
       console.error('[usePrayers] Daily count error:', err)
       return 0
@@ -98,10 +113,16 @@ export function usePrayers() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user logged in')
 
-      // Check daily limit
+      // Validate character limit
+      if (content.length > MAX_PRAYER_CHARS) {
+        throw new Error(`Prayer exceeds maximum length of ${MAX_PRAYER_CHARS} characters.`)
+      }
+
+      // Check daily token budget
       await fetchDailyCount()
-      if (!canPray.value) {
-        throw new Error('Daily prayer limit reached. Return tomorrow.')
+      const tokenCost = calculateTokenCost(content)
+      if (dailyTokensSpent.value + tokenCost > dailyTokenLimit) {
+        throw new Error(`Insufficient tokens. This prayer costs ${tokenCost} tokens, but you only have ${tokensRemaining.value} remaining.`)
       }
 
       // TODO: Integrate Venice AI validation here before inserting
@@ -121,8 +142,8 @@ export function usePrayers() {
 
       if (insertError) throw insertError
 
-      // Increment daily count
-      await incrementDailyCount()
+      // Increment daily token spending
+      await incrementDailyCount(tokenCost)
 
       // Add to local list
       prayers.value.unshift(newPrayer)
@@ -141,9 +162,10 @@ export function usePrayers() {
   }
 
   /**
-   * Increment the daily prayer count in the database
+   * Increment the daily token spending in the database
+   * @param {number} tokenCost - The token cost to add
    */
-  async function incrementDailyCount() {
+  async function incrementDailyCount(tokenCost) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -151,14 +173,14 @@ export function usePrayers() {
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
-          daily_prayers_count: dailyCount.value + 1,
+          daily_prayers_count: dailyTokensSpent.value + tokenCost,
           last_prayer_date: new Date().toISOString(),
         })
         .eq('id', user.id)
 
       if (updateError) throw updateError
 
-      dailyCount.value++
+      dailyTokensSpent.value += tokenCost
     } catch (err) {
       console.error('[usePrayers] Increment count error:', err)
     }
@@ -262,17 +284,18 @@ export function usePrayers() {
   return reactive({
     // State
     prayers,
-    dailyLimit,
-    dailyCount,
+    dailyTokenLimit,
+    dailyTokensSpent,
     loading,
     error,
     // Computed
     canPray,
-    prayersRemaining,
+    tokensRemaining,
     // Methods
     fetchPrayers,
     fetchDailyCount,
     submitPrayer,
+    calculateTokenCost,
     processPrayerWithVenice,
     markPrayerRejected,
     markPrayerApproved,
