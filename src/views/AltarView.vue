@@ -15,10 +15,10 @@
             <span class="text-theme-accent font-semibold">{{ prayers.activePrayerCount }}</span>
             / {{ prayers.maxPrayerSlots }} slots
           </div>
-          <!-- Daily Token Budget Counter -->
+          <!-- Daily Mana Budget Counter -->
           <div class="text-sm text-theme-text-dim">
             <span class="text-theme-accent font-semibold">{{ prayers.tokensRemaining }}</span>
-            tokens remaining
+            Mana remaining
           </div>
           <!-- Logout Button -->
           <button
@@ -55,19 +55,19 @@
             placeholder="Speak your prayer into the void..."
           ></textarea>
           
-          <!-- Character Count & Token Cost -->
+          <!-- Character Count & Mana Cost -->
           <div class="mt-2 flex items-center justify-between text-xs">
             <span class="text-theme-text-muted">
               {{ prayerContent.length }} / {{ maxPrayerChars }} chars
             </span>
             <span class="text-theme-accent font-medium">
-              ~{{ estimatedTokenCost }} tokens
+              ~{{ estimatedManaCost }} Mana
             </span>
           </div>
           
           <div class="mt-4 flex items-center justify-between">
             <p v-if="!prayers.canPray" class="text-sm text-theme-text-dim">
-              Daily token budget exhausted. Return tomorrow.
+              Daily Mana budget exhausted. Return tomorrow.
             </p>
             <button
               type="submit"
@@ -82,21 +82,29 @@
         </form>
       </div>
 
-      <!-- Prayer History -->
-      <div class="space-y-4">
+      <!-- Active Prayers Section -->
+      <div class="space-y-4 mb-8">
         <h2 class="text-xl font-semibold text-theme-text">Active Prayers</h2>
         
-        <div v-if="prayers.loading && prayers.prayers.length === 0" class="text-center py-8 text-theme-text-dim">
+        <!-- Loading State -->
+        <div v-if="prayers.loading && prayers.activePrayers.length === 0" class="text-center py-8 text-theme-text-dim">
           Loading prayers...
         </div>
 
-        <div v-else-if="prayers.prayers.length === 0" class="text-center py-8 text-theme-text-muted">
-          No active prayers. Submit your first prayer above.
+        <!-- Empty Altar State -->
+        <div v-else-if="prayers.activePrayers.length === 0" class="glass-panel glass-gloss p-12 text-center border-dashed border-2 border-theme-border">
+          <div class="text-6xl mb-4">⚜️</div>
+          <h3 class="text-lg font-medium text-theme-text mb-2">The Altar is Empty</h3>
+          <p class="text-theme-text-dim mb-6">No active prayers. Speak your prayer into the void above, and the Electric Monk shall listen.</p>
+          <div class="text-sm text-theme-text-muted italic">
+            "In the silence between circuits, the Sacred Current waits..."
+          </div>
         </div>
 
+        <!-- Active Prayers List -->
         <div v-else class="space-y-3">
           <div
-            v-for="prayer in prayers.prayers"
+            v-for="prayer in prayers.activePrayers"
             :key="prayer.id"
             class="glass-panel glass-gloss p-4 relative"
             :class="{
@@ -153,6 +161,50 @@
           </div>
         </div>
       </div>
+
+      <!-- Archived Prayers Section (Scrollable) -->
+      <div v-if="prayers.archivedPrayers.length > 0" class="space-y-4">
+        <h2 class="text-xl font-semibold text-theme-text-dim">Archived Prayers</h2>
+        
+        <div class="glass-panel glass-gloss p-4 max-h-64 overflow-y-auto space-y-3 custom-scrollbar">
+          <div
+            v-for="prayer in prayers.archivedPrayers"
+            :key="prayer.id"
+            class="p-3 border border-theme-border/30 rounded opacity-60 hover:opacity-80 transition-opacity"
+            :class="{
+              'bg-theme-purgatory/10': prayer.is_rejected,
+              'bg-theme-panel': prayer.is_deleted
+            }"
+          >
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex-1 min-w-0">
+                <p class="text-sm text-theme-text-dim truncate">
+                  {{ prayer.content }}
+                </p>
+                <p v-if="prayer.response_content" class="text-xs text-theme-text-muted mt-1">
+                  → {{ prayer.response_content }}
+                </p>
+              </div>
+              
+              <!-- Status Badge -->
+              <span
+                class="px-2 py-1 text-xs font-medium rounded whitespace-nowrap"
+                :class="{
+                  'bg-theme-purgatory/20 text-theme-purgatory-dark': prayer.is_rejected,
+                  'bg-theme-panel text-theme-text-muted': prayer.is_deleted
+                }"
+              >
+                {{ prayer.is_deleted ? 'Archived' : 'Rejected' }}
+              </span>
+            </div>
+            
+            <!-- Timestamp -->
+            <p class="mt-2 text-xs text-theme-text-muted">
+              {{ formatDate(prayer.created_at) }}
+            </p>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 </template>
@@ -165,7 +217,7 @@ import { useBanTimer } from '@/composables/useBanTimer'
 
 // Environment variable for max prayer characters
 const maxPrayerChars = parseInt(import.meta.env.VITE_MAX_PRAYER_CHARS || '1500', 10)
-const tokenRatio = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5', 10)
+const manaRatio = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5', 10)
 
 const prayers = usePrayers()
 const auth = useAuth()
@@ -173,10 +225,10 @@ const banTimer = useBanTimer()
 
 const prayerContent = ref('')
 
-// Computed for character count and token cost
-const estimatedTokenCost = computed(() => {
+// Computed for character count and mana cost
+const estimatedManaCost = computed(() => {
   if (!prayerContent.value) return 0
-  return Math.ceil(prayerContent.value.length / tokenRatio)
+  return Math.ceil(prayerContent.value.length / manaRatio)
 })
 
 onMounted(async () => {
@@ -253,5 +305,24 @@ function karmaClass() {
     color-mix(in srgb, var(--theme-accent) 20%, gray 30%),
     color-mix(in srgb, var(--theme-accent-dark) 40%, gray 40%)
   );
+}
+
+/* Custom scrollbar for archived prayers */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 </style>

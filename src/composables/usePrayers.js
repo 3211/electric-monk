@@ -1,21 +1,21 @@
 import { ref, computed, reactive } from 'vue'
 import { supabase } from '@/lib/supabase'
 
-// Environment variables for token-based limits
+// Environment variables for Mana-based limits
 // Note: These are used for UI display only. Actual limits are enforced server-side via RPC.
 const MAX_PRAYER_CHARS = parseInt(import.meta.env.VITE_MAX_PRAYER_CHARS || '1500', 10)
-const DAILY_TOKEN_LIMIT = parseInt(import.meta.env.VITE_DAILY_TOKEN_LIMIT || '1000', 10)
-const PRAYER_TOKEN_RATIO = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5', 10)
+const DAILY_MANA_LIMIT = parseInt(import.meta.env.VITE_DAILY_TOKEN_LIMIT || '1000', 10)
+const PRAYER_MANA_RATIO = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5', 10)
 
 /**
  * usePrayers Composable
  *
  * Manages prayer submission, retrieval, and status tracking.
- * Uses Supabase RPC functions for secure, server-side token validation.
+ * Uses Supabase RPC functions for secure, server-side Mana validation.
  *
  * Database Schema Notes:
- * - profiles.tokens_spent_today (INT): Tracks tokens spent today (was daily_prayers_count)
- * - profiles.daily_token_limit (INT): User's daily token budget (default 1000)
+ * - profiles.tokens_spent_today (INT): Tracks Mana spent today (was daily_prayers_count)
+ * - profiles.daily_token_limit (INT): User's daily Mana budget (default 1000)
  * - RPC submit_prayer(content): Atomically inserts prayer and updates tokens_spent_today
  * - RPC refill_tokens(amount): Reduces tokens_spent_today (for ad rewards)
  *
@@ -23,30 +23,30 @@ const PRAYER_TOKEN_RATIO = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '
  */
 export function usePrayers() {
   const prayers = ref([])
-  const dailyTokenLimit = DAILY_TOKEN_LIMIT
-  const dailyTokensSpent = ref(0)
+  const dailyManaLimit = DAILY_MANA_LIMIT
+  const dailyManaSpent = ref(0)
   const karma = ref(0)
   const maxPrayerSlots = ref(1)
   const loading = ref(false)
   const error = ref(null)
 
   /**
-   * Calculate token cost for a prayer based on character count
+   * Calculate Mana cost for a prayer based on character count
    * Used for UI estimation only. Actual cost calculated server-side.
    * @param {string} content - The prayer text
-   * @returns {number} Estimated token cost
+   * @returns {number} Estimated Mana cost
    */
-  function calculateTokenCost(content) {
+  function calculateManaCost(content) {
     const charCount = content.length
-    return Math.ceil(charCount / PRAYER_TOKEN_RATIO)
+    return Math.ceil(charCount / PRAYER_MANA_RATIO)
   }
 
   // Computed properties
-  const canPray = computed(() => dailyTokensSpent.value < dailyTokenLimit)
-  const tokensRemaining = computed(() => Math.max(0, dailyTokenLimit - dailyTokensSpent.value))
+  const canPray = computed(() => dailyManaSpent.value < dailyManaLimit)
+  const tokensRemaining = computed(() => Math.max(0, dailyManaLimit - dailyManaSpent.value))
 
   /**
-   * Fetch user's prayers from database (excludes soft-deleted prayers)
+   * Fetch user's prayers from database (includes both active and archived prayers)
    */
   async function fetchPrayers() {
     try {
@@ -100,7 +100,7 @@ export function usePrayers() {
   }
 
   /**
-   * Get current daily token spending from profile
+   * Get current daily Mana spending from profile
    * Reads from profiles.tokens_spent_today column
    */
   async function fetchDailyCount() {
@@ -127,19 +127,19 @@ export function usePrayers() {
         if (resetError) {
           console.warn('[usePrayers] Reset RPC failed (may need to run schema SQL):', resetError)
           // Fallback: just set to 0 locally if RPC fails
-          dailyTokensSpent.value = 0
+          dailyManaSpent.value = 0
         } else {
-          dailyTokensSpent.value = 0
+          dailyManaSpent.value = 0
         }
         // Update local limit if DB has different value
         if (profile?.daily_token_limit) {
-          // Note: dailyTokenLimit is a const, would need refactoring to update
+          // Note: dailyManaLimit is a const, would need refactoring to update
         }
       } else {
-        dailyTokensSpent.value = profile?.tokens_spent_today || 0
+        dailyManaSpent.value = profile?.tokens_spent_today || 0
       }
 
-      return dailyTokensSpent.value
+      return dailyManaSpent.value
     } catch (err) {
       console.error('[usePrayers] Daily count error:', err)
       return 0
@@ -150,11 +150,11 @@ export function usePrayers() {
    * Submit a new prayer for processing using the secure RPC function.
    * The database function submit_prayer() handles:
    * - Character limit validation (1500 chars)
-   * - Token budget validation (daily_token_limit)
+   * - Mana budget validation (daily_token_limit)
    * - Atomic insert of prayer and update of tokens_spent_today
    *
    * @param {string} content - The prayer text
-   * @returns {Object} Result containing prayer ID and token cost
+   * @returns {Object} Result containing prayer ID and Mana cost
    */
   async function submitPrayer(content) {
     try {
@@ -184,9 +184,9 @@ export function usePrayers() {
       // Update local state
       prayers.value.unshift(newPrayer)
       
-      // Update tokens spent (RPC already updated in DB)
-      const tokenCost = result.cost
-      dailyTokensSpent.value += tokenCost
+      // Update Mana spent (RPC already updated in DB)
+      const manaCost = result.cost
+      dailyManaSpent.value += manaCost
 
       // Step 2: Invoke the Edge Function to process prayer with Venice AI
       // This happens asynchronously but we keep loading state until it completes
@@ -218,7 +218,7 @@ export function usePrayers() {
         }
       }
 
-      return { prayer: newPrayer, cost: tokenCost, aiResult }
+      return { prayer: newPrayer, cost: manaCost, aiResult }
     } catch (err) {
       error.value = err.message
       console.error('[usePrayers] Submit error:', err)
@@ -328,9 +328,9 @@ export function usePrayers() {
   }
 
   /**
-   * Refill tokens by reducing tokens_spent_today
+   * Refill Mana by reducing tokens_spent_today
    * Used for ad-watching rewards. Calls the refill_tokens RPC function.
-   * @param {number} amount - Number of tokens to refill (e.g., 100 for watching an ad)
+   * @param {number} amount - Number of Mana to refill (e.g., 100 for watching an ad)
    * @returns {number} New tokens_spent_today value
    */
   async function refillTokens(amount) {
@@ -340,10 +340,10 @@ export function usePrayers() {
 
       if (rpcError) throw rpcError
 
-      dailyTokensSpent.value = newSpent
+      dailyManaSpent.value = newSpent
       return newSpent
     } catch (err) {
-      console.error('[usePrayers] Refill tokens error:', err)
+      console.error('[usePrayers] Refill Mana error:', err)
       throw err
     }
   }
@@ -357,12 +357,16 @@ export function usePrayers() {
   
   const activePrayerCount = computed(() => prayers.value.filter(p => !p.is_deleted).length)
   const canAddPrayer = computed(() => activePrayerCount.value < maxPrayerSlots.value)
+  
+  // Computed properties for active and archived prayers
+  const activePrayers = computed(() => prayers.value.filter(p => !p.is_rejected && !p.is_deleted))
+  const archivedPrayers = computed(() => prayers.value.filter(p => p.is_rejected || p.is_deleted).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
 
   return reactive({
     // State
     prayers,
-    dailyTokenLimit,
-    dailyTokensSpent,
+    dailyManaLimit,
+    dailyManaSpent,
     karma,
     maxPrayerSlots,
     loading,
@@ -373,17 +377,19 @@ export function usePrayers() {
     karmaEmoji,
     activePrayerCount,
     canAddPrayer,
+    activePrayers,
+    archivedPrayers,
     // Methods
     fetchPrayers,
     fetchDailyCount,
     fetchProfile,
     submitPrayer,
-    calculateTokenCost,
+    calculateManaCost,
     processPrayerWithVenice,
     markPrayerRejected,
     markPrayerApproved,
     deletePrayer,
-    // New: Token refill for ad rewards
+    // New: Mana refill for ad rewards
     refillTokens,
   })
 }

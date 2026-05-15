@@ -12,8 +12,8 @@
 --
 -- ENVIRONMENT VARIABLES (configure in .env.example and GitHub Pages):
 -- - VITE_MAX_PRAYER_CHARS: Max characters per prayer (default: 1500)
--- - VITE_DAILY_TOKEN_LIMIT: Daily token budget (default: 1000)
--- - VITE_PRAYER_TOKEN_RATIO: Chars per token (default: 5)
+-- - VITE_DAILY_TOKEN_LIMIT: Daily Mana budget (default: 1000)
+-- - VITE_PRAYER_TOKEN_RATIO: Chars per Mana (default: 5)
 -- - VITE_DEV_EMAIL: Developer contact email
 
 -- ============================================
@@ -21,8 +21,8 @@
 -- ============================================
 
 -- Profiles: Extended user metadata
--- tokens_spent_today: Tracks tokens spent today (renamed from daily_prayers_count)
--- daily_token_limit: User's daily token budget (default 1000)
+-- tokens_spent_today: Tracks Mana spent today (renamed from daily_prayers_count)
+-- daily_token_limit: User's daily Mana budget (default 1000)
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   email TEXT,
@@ -90,7 +90,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ============================================
 
 -- submit_prayer: Secure, atomic prayer submission
--- Validates character limit (1500) and token budget server-side
+-- Validates character limit (1500) and Mana budget server-side
 -- Returns: JSONB with { id: uuid, cost: int }
 -- 
 -- Usage from frontend:
@@ -121,7 +121,7 @@ BEGIN
 
     -- 4. Check Budget
     IF (v_spent + v_cost) > v_limit THEN
-        RAISE EXCEPTION 'Insufficient tokens. This prayer costs % tokens, but you only have % remaining.', v_cost, (v_limit - v_spent);
+        RAISE EXCEPTION 'Insufficient Mana. This prayer costs % Mana, but you only have % remaining.', v_cost, (v_limit - v_spent);
     END IF;
 
     -- 5. Atomic Transaction: Insert prayer and Update profile
