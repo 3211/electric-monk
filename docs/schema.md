@@ -145,14 +145,15 @@ DECLARE
     v_result RECORD;
 BEGIN
     -- Find currently active prayer (if different from target)
-    SELECT id, content, activated_at, last_counted_at, prayer_count
+    SELECT id, COALESCE(response_content, content) AS cycle_text, activated_at, last_counted_at, prayer_count
     INTO v_current
     FROM prayers
     WHERE user_id = v_user_id AND is_praying = true AND id != p_prayer_id;
 
     -- If there's an active prayer, calculate and save its final count
+    -- Cycle time based on monk's response length: ~200ms per char, clamped 15s–3min
     IF FOUND THEN
-        v_cycle_ms := GREATEST(150, ceil(length(v_current.content) / 5.0) * 150);
+        v_cycle_ms := GREATEST(15000, LEAST(length(v_current.cycle_text) * 200, 180000));
         v_elapsed := GREATEST(0, floor(
             EXTRACT(EPOCH FROM (now() - COALESCE(v_current.last_counted_at, v_current.activated_at)))
             * 1000.0 / v_cycle_ms

@@ -93,11 +93,14 @@ interface PrayerJudgment {
 }
 
 /**
- * Cleans the string output from LLMs just in case they wrap the JSON in markdown blocks.
- * For example, strips ```json and ``` from the start and end.
+ * Cleans the string output from LLMs.
+ * Strips markdown code blocks, thinking tags, and leading/trailing whitespace.
  */
 function cleanJsonResponse(content: string): string {
-  return content.replace(/```(?:json)?\n?/g, '').trim();
+  return content
+    .replace(/```(?:json)?\n?/g, '')          // Strip markdown code blocks
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')  // Strip thinking tags
+    .trim();
 }
 
 serve(async (req: Request) => {
@@ -285,7 +288,9 @@ serve(async (req: Request) => {
       .eq('id', prayer_id)
 
     if (updateError) {
-      console.error('Failed to update prayer status:', updateError)
+      console.error('[process-prayer] CRITICAL: Failed to update prayer status:', updateError)
+      // Throw so the client knows the DB update failed
+      throw new Error(`Failed to update prayer in database: ${updateError.message}`)
     }
 
     // ==========================================

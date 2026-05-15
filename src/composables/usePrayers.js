@@ -280,9 +280,11 @@ export function usePrayers() {
         id: result.id,
         content: content,
         user_id: user.id,
+        response_content: null,
         is_praying: false,
         is_rejected: false,
         is_archived: false,
+        status: 'pending',
         prayer_count: 0,
         created_at: new Date().toISOString(),
         processing_error: true,
@@ -304,6 +306,29 @@ export function usePrayers() {
         finalPrayer.rejection_reason = aiResult.rejection_reason
         finalPrayer.is_rejected = aiResult.judgment === 'rejected'
         finalPrayer.is_praying = aiResult.judgment === 'approved'
+        finalPrayer.status = 'completed'
+
+        // Defensive: If the fetched prayer is missing response_content (DB update may have failed),
+        // persist the AI results directly via client-side update
+        if (fetchedPrayer && !fetchedPrayer.response_content && aiResult.response) {
+          console.warn('[usePrayers] response_content missing from DB, patching via client update')
+          const isApproved = aiResult.judgment === 'approved'
+          const isRejected = aiResult.judgment === 'rejected'
+          supabase
+            .from('prayers')
+            .update({
+              response_content: aiResult.response,
+              is_rejected: isRejected,
+              rejection_reason: isRejected ? (aiResult.rejection_reason || 'Rejected by Electric Monk') : null,
+              is_praying: isApproved,
+              status: 'completed',
+              ...(isApproved ? { activated_at: new Date().toISOString(), last_counted_at: new Date().toISOString() } : {}),
+            })
+            .eq('id', result.id)
+            .then(({ error: patchError }) => {
+              if (patchError) console.error('[usePrayers] Client-side patch failed:', patchError)
+            })
+        }
 
         // Update karma locally based on judgment (server already updated via update_karma RPC)
         const karmaChange = aiResult.judgment === 'approved' ? 1 : -1

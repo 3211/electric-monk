@@ -156,20 +156,30 @@
             <div class="prayer-counter-display" :class="{ 'counter-animate': counterAnimating }">
               <span class="text-4xl font-bold text-theme-accent font-mono">{{ activeCounterDisplay }}</span>
             </div>
-            <div>
+            <div class="flex-1">
               <p class="text-xs text-theme-text-muted uppercase tracking-wider">Times Prayed</p>
-              <p class="text-xs text-theme-accent/70">~{{ cycleTimeDisplay }} cycle</p>
+              <!-- Golden Progress Bar -->
+              <div class="w-full h-1.5 bg-theme-border/30 rounded-full mt-1.5 overflow-hidden">
+                <div
+                  class="h-full rounded-full transition-none"
+                  :style="{
+                    width: (cycleProgressDisplay * 100) + '%',
+                    background: 'linear-gradient(90deg, #c9a84c, #f5e6a3, #c9a84c)',
+                    boxShadow: '0 0 8px rgba(201, 168, 76, 0.5)'
+                  }"
+                ></div>
+              </div>
             </div>
           </div>
 
-          <!-- Prayer Content -->
+          <!-- Prayer Content (monk's response only) -->
           <div class="flex items-start justify-between gap-4 pr-8">
             <div class="flex-1">
               <p v-if="prayers.currentActivePrayer.response_content" class="text-theme-text font-medium mb-1">
                 {{ prayers.currentActivePrayer.response_content }}
               </p>
-              <p class="text-theme-text-dim italic text-sm">
-                "{{ prayers.currentActivePrayer.content }}"
+              <p v-else class="text-theme-text-dim italic text-sm">
+                The monk's words echo in silence...
               </p>
             </div>
             
@@ -218,13 +228,13 @@
             </button>
 
             <div class="flex items-start justify-between gap-4 pr-8">
-              <!-- Prayer Content -->
+              <!-- Prayer Content (monk's response only) -->
               <div class="flex-1">
                 <p v-if="prayer.response_content" class="text-theme-text font-medium mb-1">
                   {{ prayer.response_content }}
                 </p>
-                <p class="text-theme-text-dim italic text-sm">
-                  "{{ prayer.content }}"
+                <p v-else class="text-theme-text-dim italic text-sm">
+                  The monk's words echo in silence...
                 </p>
               </div>
 
@@ -267,11 +277,11 @@
           >
             <div class="flex items-start justify-between gap-4">
               <div class="flex-1 min-w-0">
-                <p class="text-sm text-theme-text-dim truncate">
-                  {{ prayer.content }}
+                <p v-if="prayer.response_content" class="text-sm text-theme-text-dim truncate">
+                  {{ prayer.response_content }}
                 </p>
-                <p v-if="prayer.response_content" class="text-xs text-theme-text-muted mt-1">
-                  → {{ prayer.response_content }}
+                <p v-else class="text-sm text-theme-text-dim italic truncate">
+                  The monk's words echo in silence...
                 </p>
               </div>
               
@@ -358,10 +368,10 @@
                 <span class="text-sm text-theme-text-muted ml-1">Karma</span>
               </div>
 
-              <!-- Response Content (Success) -->
+              <!-- Response Content (Success) — typewriter reveal -->
               <div v-if="prayers.aetherResult.success" class="aether-response-content glass-panel glass-gloss p-4 my-4">
                 <p class="text-theme-text font-semibold leading-relaxed">
-                  {{ prayers.aetherResult.response }}
+                  {{ displayedResponse }}<span v-if="!typewriterFinished" class="typewriter-cursor">▊</span>
                 </p>
               </div>
 
@@ -420,6 +430,11 @@ const profileSaving = ref(false)
 const profileError = ref(null)
 const counterAnimating = ref(false)
 
+// Typewriter effect for Aether modal response
+const displayedResponse = ref('')
+const typewriterFinished = ref(false)
+let typewriterInterval = null
+
 // Create a computed ref for the current active prayer to pass to usePrayerCounter
 const currentActivePrayerRef = computed(() => prayers.currentActivePrayer)
 
@@ -431,17 +446,36 @@ watch(counter.isAnimating, (val) => {
   counterAnimating.value = val
 })
 
+// Watch for Aether result to trigger typewriter effect
+watch(() => prayers.aetherResult, (result) => {
+  // Clear any existing typewriter
+  if (typewriterInterval) {
+    clearInterval(typewriterInterval)
+    typewriterInterval = null
+  }
+  displayedResponse.value = ''
+  typewriterFinished.value = false
+
+  if (result?.response) {
+    let i = 0
+    typewriterInterval = setInterval(() => {
+      if (i < result.response.length) {
+        displayedResponse.value += result.response[i]
+        i++
+      } else {
+        clearInterval(typewriterInterval)
+        typewriterInterval = null
+        typewriterFinished.value = true
+      }
+    }, 25) // ~25ms per character for a smooth reveal
+  }
+})
+
 // Displayed count for the active prayer
 const activeCounterDisplay = computed(() => counter.displayedCount.value)
 
-// Calculate cycle time display string
-const cycleTimeDisplay = computed(() => {
-  if (!prayers.currentActivePrayer) return '0ms'
-  const content = prayers.currentActivePrayer.content || ''
-  const cycleMs = Math.max(150, Math.ceil(content.length / 5) * 150)
-  if (cycleMs < 1000) return `${cycleMs}ms`
-  return `${(cycleMs / 1000).toFixed(1)}s`
-})
+// Cycle progress for the golden progress bar (0 to 1)
+const cycleProgressDisplay = computed(() => counter.cycleProgress.value)
 
 // Computed for character count and mana cost
 const estimatedManaCost = computed(() => {
@@ -458,6 +492,13 @@ onMounted(async () => {
   // Show modal if profile is incomplete
   if (!prayers.isProfileComplete) {
     showProfileModal.value = true
+  }
+})
+
+onUnmounted(() => {
+  if (typewriterInterval) {
+    clearInterval(typewriterInterval)
+    typewriterInterval = null
   }
 })
 
@@ -850,5 +891,17 @@ async function handleAetherContinue() {
   100% {
     opacity: 1;
   }
+}
+
+/* Typewriter cursor blink */
+.typewriter-cursor {
+  animation: blink 0.7s infinite;
+  color: var(--theme-accent);
+  font-weight: 100;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 </style>

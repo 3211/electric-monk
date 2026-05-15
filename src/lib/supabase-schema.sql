@@ -43,15 +43,21 @@ CREATE TABLE IF NOT EXISTS prayers (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   content TEXT NOT NULL,
+  response_content TEXT,              -- Monk's generated prayer/admonishment
   is_rejected BOOLEAN DEFAULT false,
   rejection_reason TEXT,
   is_praying BOOLEAN DEFAULT false, -- True while being "prayed" in background
   is_archived BOOLEAN DEFAULT false, -- True when user archives (hides) the prayer
+  status TEXT DEFAULT 'pending',      -- Processing status: pending, completed, failed
   prayer_count INT DEFAULT 0,       -- Total times prayed (persisted at last sync)
   last_counted_at TIMESTAMPTZ,       -- Timestamp of last count sync
   activated_at TIMESTAMPTZ,          -- When prayer was last activated
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Migration: Add columns to existing tables (safe to run multiple times)
+ALTER TABLE prayers ADD COLUMN IF NOT EXISTS response_content TEXT;
+ALTER TABLE prayers ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
 
 -- Indulgences: Ad views that reduce ban time
 CREATE TABLE IF NOT EXISTS indulgences (
@@ -314,7 +320,7 @@ BEGIN
   v_user_id := auth.uid();
 
   -- Deactivate any currently active prayer
-  SELECT id, content, activated_at, last_counted_at, prayer_count
+  SELECT id, COALESCE(response_content, content) AS cycle_text, activated_at, last_counted_at, prayer_count
   INTO v_current_active
   FROM prayers
   WHERE user_id = v_user_id
@@ -322,7 +328,8 @@ BEGIN
     AND id != p_prayer_id;
 
   IF FOUND THEN
-    v_cycle_time_ms := GREATEST(150, ceil(length(v_current_active.content) / 5.0) * 150);
+    -- Cycle time based on monk's response length: ~200ms per char, clamped 15s–3min
+    v_cycle_time_ms := GREATEST(15000, LEAST(length(v_current_active.cycle_text) * 200, 180000));
     v_elapsed_counts := GREATEST(0, floor(
       EXTRACT(EPOCH FROM (now() - COALESCE(v_current_active.last_counted_at, v_current_active.activated_at)))
       * 1000.0 / v_cycle_time_ms
