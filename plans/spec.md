@@ -18,6 +18,24 @@ To minimize context usage and API costs for AI agents:
 - **Composables:** Extract business logic into Vue Composables (`src/composables`) for easy testing and reuse without UI overhead.
 - **Strict Typing/Prop Definitions:** Clear interfaces for agent-to-agent handover.
 
+## Database Schema (Supabase)
+
+### Table: `profiles`
+- `id`: uuid (references auth.users)
+- `device_id`: text (unique)
+- `ban_until`: timestamp with time zone (null if not banned)
+- `prayer_count_daily`: int (reset daily)
+- `last_prayer_at`: timestamp with time zone
+- `created_at`: timestamp with time zone
+
+### Table: `prayers`
+- `id`: uuid
+- `user_id`: uuid (references profiles.id)
+- `content`: text
+- `is_rejected`: boolean
+- `rejection_reason`: text
+- `created_at`: timestamp with time zone
+
 ## Project Structure
 ```text
 /
@@ -28,7 +46,7 @@ To minimize context usage and API costs for AI agents:
 │   │   ├── atoms/       # Smallest units (buttons, inputs)
 │   │   ├── molecules/   # Groups of atoms
 │   │   └── organisms/   # Complex UI sections
-│   ├── composables/     # Isolated business logic (Supabase hooks, etc.)
+│   ├── composables/     # Isolated business logic (useAuth, usePrayers, useVenice)
 │   ├── views/           # Page-level containers
 │   ├── lib/             # Third-party initializations (supabase.js)
 │   ├── App.vue          # Root component
@@ -41,8 +59,8 @@ To minimize context usage and API costs for AI agents:
 ```
 
 ## Implementation Plan
-1. **Initialize Project:** Scaffold Vue + Vite + Tailwind CSS.
-2. **Modular Setup:** Create the directory hierarchy for assets, components (atoms/molecules/organisms), and composables.
-3. **Supabase Integration:** Install `@supabase/supabase-js` and create a modular client in `src/lib/supabase.js`.
-4. **GitHub Pages Config:** Configure `vite.config.js` and GitHub Actions.
-5. **Connection Test:** Build a modular 'SupabaseTest' component to verify credentials.
+1. **Database Setup:** Create SQL migrations for `profiles` and `prayers` tables.
+2. **Anonymous Auth:** Implement `useAuth.js` using Supabase's anonymous sign-in or custom device-ID tracking.
+3. **Ban Logic:** Implement `useBanTimer.js` composable to handle the 2-hour lockouts and "Indulgence" (ad) logic.
+4. **Prayer Interface:** Build the frontend for submitting prayers and viewing rejections.
+5. **Venice AI Processing:** Connect prayer submissions to Venice AI for validation/rejection logic.

@@ -31,7 +31,8 @@ async function testConnection() {
     // Check for specific "table not found" errors which mean connection IS working
     const isTableNotFound = error?.code === 'PGRST116' ||
                             error?.message?.includes('relation') ||
-                            error?.message?.includes('does not exist');
+                            error?.message?.includes('does not exist') ||
+                            error?.message?.includes('schema cache');
     
     if (error && !isTableNotFound) {
       throw error
