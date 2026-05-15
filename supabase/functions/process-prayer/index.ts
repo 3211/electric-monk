@@ -146,13 +146,30 @@ serve(async (req: Request) => {
     // Update the prayer record in Supabase based on judgment
     const isApproved = judgment.judgment === 'approved'
     const isRejected = judgment.judgment === 'rejected'
+    const now = new Date().toISOString()
     
+    // If approved, deactivate any currently active prayer for this user first
+    if (isApproved) {
+      const { error: deactivateError } = await supabase
+        .from('prayers')
+        .update({ is_praying: false, activated_at: null })
+        .eq('user_id', user_id)
+        .eq('is_praying', true)
+
+      if (deactivateError) {
+        console.error('Failed to deactivate current active prayer:', deactivateError)
+      }
+    }
+
     const updateData: Record<string, unknown> = {
       response_content: judgment.response, // Save the AI's generated response
       status: 'completed',
       is_praying: isApproved,
       is_rejected: isRejected,
       rejection_reason: isRejected ? (judgment.rejection_reason || 'Rejected by Electric Monk') : null,
+      // Set prayer counter timestamps on approval
+      activated_at: isApproved ? now : null,
+      last_counted_at: isApproved ? now : null,
     }
 
     const { error: updateError } = await supabase

@@ -27,6 +27,8 @@ export function usePrayers() {
   const dailyManaSpent = ref(0)
   const karma = ref(0)
   const maxPrayerSlots = ref(1)
+  const username = ref(null)
+  const faith = ref(null)
   const loading = ref(false)
   const error = ref(null)
 
@@ -77,7 +79,7 @@ export function usePrayers() {
   }
 
   /**
-   * Fetch user's profile including karma and max prayer slots
+   * Fetch user's profile including karma, max prayer slots, username, and faith
    */
   async function fetchProfile() {
     try {
@@ -86,16 +88,55 @@ export function usePrayers() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('karma, max_prayer_slots')
+        .select('karma, max_prayer_slots, username, faith')
         .eq('id', user.id)
         .single()
 
       if (profile) {
         karma.value = profile.karma || 0
         maxPrayerSlots.value = profile.max_prayer_slots || 1
+        username.value = profile.username || null
+        faith.value = profile.faith || null
       }
     } catch (err) {
       console.error('[usePrayers] Profile fetch error:', err)
+    }
+  }
+
+  /**
+   * Update user's username and faith
+   * @param {string} newUsername - The user's chosen name
+   * @param {string} newFaith - The user's faith/religion
+   */
+  async function updateProfile(usernameUpdate, faithUpdate) {
+    try {
+      loading.value = true
+      error.value = null
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('No user logged in')
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          username: usernameUpdate,
+          faith: faithUpdate,
+        })
+        .eq('id', user.id)
+
+      if (updateError) throw updateError
+
+      // Update local state
+      username.value = usernameUpdate
+      faith.value = faithUpdate
+
+      return { success: true }
+    } catch (err) {
+      error.value = err.message
+      console.error('[usePrayers] Profile update error:', err)
+      throw err
+    } finally {
+      loading.value = false
     }
   }
 
@@ -358,9 +399,140 @@ export function usePrayers() {
   const activePrayerCount = computed(() => prayers.value.filter(p => !p.is_deleted).length)
   const canAddPrayer = computed(() => activePrayerCount.value < maxPrayerSlots.value)
   
-  // Computed properties for active and archived prayers
+  // Computed properties for profile completion
+  const isProfileComplete = computed(() => {
+    return !!username.value && !!faith.value
+  })
+  
+  // The single currently-active prayer (is_praying = true, not rejected/deleted)
+  const currentActivePrayer = computed(() =>
+    prayers.value.find(p => p.is_praying && !p.is_rejected && !p.is_deleted) || null
+  )
+
+  // Prayers that are inactive (not praying, not rejected, not deleted)
+  const inactivePrayers = computed(() =>
+    prayers.value.filter(p => !p.is_praying && !p.is_rejected && !p.is_deleted)
+  )
+
+  // Active prayers = currently praying + inactive (all non-rejected, non-deleted)
   const activePrayers = computed(() => prayers.value.filter(p => !p.is_rejected && !p.is_deleted))
+  
+  // Archived prayers (rejected or deleted), showing prayer_count
   const archivedPrayers = computed(() => prayers.value.filter(p => p.is_rejected || p.is_deleted).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
+
+  /**
+   * Activate a prayer (swap with current active prayer).
+   * Calls activate_prayer RPC which handles deactivation of current active.
+   * @param {string} prayerId - The prayer to activate
+   */
+  async function activatePrayer(prayerId) {
+    try {
+      loading.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('activate_prayer', {
+        p_prayer_id: prayerId,
+      })
+
+      if (rpcError) throw rpcError
+
+      // Update local state based on RPC response
+      if (data) {
+        // Deactivate the previously active prayer in local state
+        if (data.deactivated_id) {
+          const oldActive = prayers.value.find(p => p.id === data.deactivated_id)
+          if (oldActive) {
+            oldActive.is_praying = false
+            oldActive.activated_at = null
+          }
+        }
+
+        // Activate the new prayer in local state
+        const newActive = prayers.value.find(p => p.id === data.activated.id)
+        if (newActive) {
+          newActive.is_praying = true
+          newActive.activated_at = data.activated.activated_at
+          newActive.last_counted_at = data.activated.last_counted_at
+          newActive.prayer_count = data.activated.prayer_count
+        }
+      }
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[usePrayers] Activate prayer error:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * Deactivate the current active prayer.
+   * Performs a final count sync before deactivating.
+   * @param {string} prayerId - The prayer to deactivate
+   * @param {number} elapsedCounts - Counts accumulated since last sync
+   */
+  async function deactivatePrayer(prayerId, elapsedCounts = 0) {
+    try {
+      loading.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('deactivate_prayer', {
+        p_prayer_id: prayerId,
+        p_elapsed_counts: elapsedCounts,
+      })
+
+      if (rpcError) throw rpcError
+
+      // Update local state
+      const prayer = prayers.value.find(p => p.id === prayerId)
+      if (prayer && data) {
+        prayer.is_praying = false
+        prayer.activated_at = null
+        prayer.prayer_count = data.prayer_count
+      }
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[usePrayers] Deactivate prayer error:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  /**
+   * Sync prayer count to backend (called periodically while prayer is active).
+   * @param {string} prayerId - The prayer to sync
+   * @param {number} elapsedCounts - Counts accumulated since last sync
+   */
+  async function syncPrayerCount(prayerId, elapsedCounts) {
+    try {
+      const { data, error: rpcError } = await supabase.rpc('sync_prayer_count', {
+        p_prayer_id: prayerId,
+        p_elapsed_counts: elapsedCounts,
+      })
+
+      if (rpcError) throw rpcError
+
+      // Update local state with recalibrated data
+      if (data) {
+        const prayer = prayers.value.find(p => p.id === prayerId)
+        if (prayer) {
+          prayer.prayer_count = data.prayer_count
+          prayer.last_counted_at = data.last_counted_at
+          prayer.activated_at = data.activated_at
+        }
+      }
+
+      return data
+    } catch (err) {
+      console.error('[usePrayers] Sync prayer count error:', err)
+      throw err
+    }
+  }
 
   return reactive({
     // State
@@ -369,6 +541,8 @@ export function usePrayers() {
     dailyManaSpent,
     karma,
     maxPrayerSlots,
+    username,
+    faith,
     loading,
     error,
     // Computed
@@ -377,19 +551,26 @@ export function usePrayers() {
     karmaEmoji,
     activePrayerCount,
     canAddPrayer,
+    isProfileComplete,
+    currentActivePrayer,
+    inactivePrayers,
     activePrayers,
     archivedPrayers,
     // Methods
     fetchPrayers,
     fetchDailyCount,
     fetchProfile,
+    updateProfile,
     submitPrayer,
     calculateManaCost,
     processPrayerWithVenice,
     markPrayerRejected,
     markPrayerApproved,
     deletePrayer,
-    // New: Mana refill for ad rewards
     refillTokens,
+    // Prayer activation/counting
+    activatePrayer,
+    deactivatePrayer,
+    syncPrayerCount,
   })
 }
