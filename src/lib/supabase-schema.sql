@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS prayers (
   is_rejected BOOLEAN DEFAULT false,
   rejection_reason TEXT,
   is_praying BOOLEAN DEFAULT false, -- True while being "prayed" in background
+  is_archived BOOLEAN DEFAULT false, -- True when user archives (hides) the prayer
   prayer_count INT DEFAULT 0,       -- Total times prayed (persisted at last sync)
   last_counted_at TIMESTAMPTZ,       -- Timestamp of last count sync
   activated_at TIMESTAMPTZ,          -- When prayer was last activated

@@ -62,7 +62,7 @@ export function usePrayers() {
         .from('prayers')
         .select('*')
         .eq('user_id', user.id)
-        .eq('is_deleted', false)
+        .eq('is_archived', false)
         .order('created_at', { ascending: false })
 
       if (fetchError) throw fetchError
@@ -338,30 +338,28 @@ export function usePrayers() {
   }
 
   /**
-   * Soft-delete a prayer (marks as is_deleted = true to free up slot)
-   * @param {string} prayerId - The prayer ID to delete
+   * Archive a prayer (marks as is_archived = true to hide from user).
+   * Archived prayers are hidden from the UI but retained in the database.
+   * This frees up the active prayer slot if the archived prayer was active.
+   * @param {string} prayerId - The prayer ID to archive
    */
-  async function deletePrayer(prayerId) {
+  async function archivePrayer(prayerId) {
     try {
       loading.value = true
       error.value = null
 
-      // Soft delete: set is_deleted = true instead of actually deleting
       const { error: updateError } = await supabase
         .from('prayers')
-        .update({ is_deleted: true })
+        .update({ is_archived: true, is_praying: false, activated_at: null })
         .eq('id', prayerId)
 
       if (updateError) throw updateError
 
-      // Remove from local list (frees up the slot in UI)
+      // Remove from local list (hides from UI)
       prayers.value = prayers.value.filter(p => p.id !== prayerId)
-      
-      // Refresh profile to get updated slot count
-      await fetchProfile()
     } catch (err) {
       error.value = err.message
-      console.error('[usePrayers] Delete error:', err)
+      console.error('[usePrayers] Archive error:', err)
       throw err
     } finally {
       loading.value = false
@@ -396,7 +394,8 @@ export function usePrayers() {
     return '😐'
   })
   
-  const activePrayerCount = computed(() => prayers.value.filter(p => !p.is_deleted).length)
+  // Only currently-praying prayers occupy a slot (inactive ones don't)
+  const activePrayerCount = computed(() => prayers.value.filter(p => p.is_praying && !p.is_archived).length)
   const canAddPrayer = computed(() => activePrayerCount.value < maxPrayerSlots.value)
   
   // Computed properties for profile completion
@@ -404,21 +403,21 @@ export function usePrayers() {
     return !!username.value && !!faith.value
   })
   
-  // The single currently-active prayer (is_praying = true, not rejected/deleted)
+  // The single currently-active prayer (is_praying = true, not rejected/archived)
   const currentActivePrayer = computed(() =>
-    prayers.value.find(p => p.is_praying && !p.is_rejected && !p.is_deleted) || null
+    prayers.value.find(p => p.is_praying && !p.is_rejected && !p.is_archived) || null
   )
 
-  // Prayers that are inactive (not praying, not rejected, not deleted)
+  // Inactive prayers: not praying, not rejected, not archived (pooled in infinite list)
   const inactivePrayers = computed(() =>
-    prayers.value.filter(p => !p.is_praying && !p.is_rejected && !p.is_deleted)
+    prayers.value.filter(p => !p.is_praying && !p.is_rejected && !p.is_archived)
   )
 
-  // Active prayers = currently praying + inactive (all non-rejected, non-deleted)
-  const activePrayers = computed(() => prayers.value.filter(p => !p.is_rejected && !p.is_deleted))
+  // All non-archived, non-rejected prayers (active + inactive)
+  const activePrayers = computed(() => prayers.value.filter(p => !p.is_rejected && !p.is_archived))
   
-  // Archived prayers (rejected or deleted), showing prayer_count
-  const archivedPrayers = computed(() => prayers.value.filter(p => p.is_rejected || p.is_deleted).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
+  // Archived prayers (rejected or user-archived), hidden from main view
+  const archivedPrayers = computed(() => prayers.value.filter(p => p.is_rejected || p.is_archived).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
 
   /**
    * Activate a prayer (swap with current active prayer).
@@ -566,7 +565,7 @@ export function usePrayers() {
     processPrayerWithVenice,
     markPrayerRejected,
     markPrayerApproved,
-    deletePrayer,
+    archivePrayer,
     refillTokens,
     // Prayer activation/counting
     activatePrayer,

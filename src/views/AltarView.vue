@@ -129,7 +129,7 @@
         <div v-if="prayers.currentActivePrayer" class="glass-panel glass-gloss p-5 relative border border-theme-accent/60 shadow-glow-accent">
           <!-- Delete/Archive Button -->
           <button
-            @click="handleDelete(prayers.currentActivePrayer.id)"
+            @click="handleArchive(prayers.currentActivePrayer.id)"
             :disabled="prayers.loading"
             class="absolute top-2 right-2 p-1 text-theme-text-muted hover:text-theme-purgatory transition-colors"
             title="Archive this prayer (frees up a slot)"
@@ -195,7 +195,7 @@
           >
             <!-- Delete/Archive Button -->
             <button
-              @click="handleDelete(prayer.id)"
+              @click="handleArchive(prayer.id)"
               :disabled="prayers.loading"
               class="absolute top-2 right-2 p-1 text-theme-text-muted hover:text-theme-purgatory transition-colors"
               title="Archive this prayer (frees up a slot)"
@@ -250,7 +250,7 @@
             class="p-3 border border-theme-border/30 rounded opacity-60 hover:opacity-80 transition-opacity"
             :class="{
               'bg-theme-purgatory/10': prayer.is_rejected,
-              'bg-theme-panel': prayer.is_deleted
+              'bg-theme-panel': prayer.is_archived
             }"
           >
             <div class="flex items-start justify-between gap-4">
@@ -269,10 +269,10 @@
                   class="px-2 py-1 text-xs font-medium rounded whitespace-nowrap"
                   :class="{
                     'bg-theme-purgatory/20 text-theme-purgatory-dark': prayer.is_rejected,
-                    'bg-theme-panel text-theme-text-muted': prayer.is_deleted
+                    'bg-theme-panel text-theme-text-muted': prayer.is_archived
                   }"
                 >
-                  {{ prayer.is_deleted ? 'Archived' : 'Rejected' }}
+                  {{ prayer.is_archived ? 'Archived' : 'Rejected' }}
                 </span>
                 <span class="text-xs text-theme-accent font-semibold">
                   ✦ {{ prayer.prayer_count || 0 }}
@@ -404,10 +404,9 @@ async function handleLogout() {
   await auth.signOut()
 }
 
-async function handleDelete(prayerId) {
-  if (confirm('Archive this prayer? This will free up a slot.')) {
-    await prayers.deletePrayer(prayerId)
-    await prayers.fetchProfile() // Refresh slot count
+async function handleArchive(prayerId) {
+  if (confirm('Archive this prayer? It will be hidden but retained.')) {
+    await prayers.archivePrayer(prayerId)
   }
 }
 
