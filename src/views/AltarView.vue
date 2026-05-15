@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-theme-wash">
+  <div class="bg-theme-wash">
     <!-- Header -->
     <header class="border-b border-theme-border bg-theme-panel/50 backdrop-blur-sm">
       <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">

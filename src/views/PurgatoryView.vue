@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-theme-wash px-4">
+  <div class="flex items-center justify-center bg-theme-wash px-4 py-8">
     <div class="max-w-md w-full text-center">
       <!-- Header -->
       <h1 class="text-5xl font-bold text-theme-purgatory mb-2">Purgatory</h1>

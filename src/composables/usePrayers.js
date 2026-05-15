@@ -96,8 +96,15 @@ export function usePrayers() {
 
       if (lastPrayerDate !== today) {
         // Reset count via database function
-        await supabase.rpc('reset_daily_prayer_count', { user_id: user.id })
-        dailyTokensSpent.value = 0
+        // Note: This RPC must exist in Supabase. If getting 404, run the schema SQL.
+        const { error: resetError } = await supabase.rpc('reset_daily_prayer_count', { user_id: user.id })
+        if (resetError) {
+          console.warn('[usePrayers] Reset RPC failed (may need to run schema SQL):', resetError)
+          // Fallback: just set to 0 locally if RPC fails
+          dailyTokensSpent.value = 0
+        } else {
+          dailyTokensSpent.value = 0
+        }
         // Update local limit if DB has different value
         if (profile?.daily_token_limit) {
           // Note: dailyTokenLimit is a const, would need refactoring to update

@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-theme-wash px-4">
+  <div class="flex items-center justify-center bg-theme-wash px-4 py-8">
     <div class="max-w-md w-full glass-panel glass-gloss p-8">
       <!-- Header -->
       <div class="text-center mb-8">
