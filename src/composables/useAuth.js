@@ -78,10 +78,13 @@ function createAuthState() {
       loading.value = true
       error.value = null
 
+      // Build clean redirect URL - strip any hash or query params to avoid double-hash issues
+      const cleanRedirectUrl = `${window.location.origin}${window.location.pathname}`
+
       const { data, error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.href,
+          redirectTo: cleanRedirectUrl,
         },
       })
 
