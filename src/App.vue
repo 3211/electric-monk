@@ -19,7 +19,7 @@ const currentView = computed(() => {
 </script>
 
 <template>
-  <div class="min-h-screen">
+  <div class="min-h-screen bg-theme-wash">
     <LoginView v-if="currentView === 'login'" />
     <PurgatoryView v-else-if="currentView === 'purgatory'" />
     <AltarView v-else-if="currentView === 'altar'" />

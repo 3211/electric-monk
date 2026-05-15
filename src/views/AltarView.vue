@@ -1,19 +1,19 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800">
+  <div class="min-h-screen bg-theme-wash">
     <!-- Header -->
-    <header class="border-b border-gray-700 bg-gray-900/50 backdrop-blur-sm">
+    <header class="border-b border-theme-border bg-theme-panel/50 backdrop-blur-sm">
       <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-amber-500">The Altar</h1>
+        <h1 class="text-2xl font-bold text-theme-accent">The Altar</h1>
         <div class="flex items-center gap-4">
           <!-- Daily Prayer Counter -->
-          <div class="text-sm text-gray-400">
-            <span class="text-amber-500 font-semibold">{{ prayers.prayersRemaining }}</span>
+          <div class="text-sm text-theme-text-dim">
+            <span class="text-theme-accent font-semibold">{{ prayers.prayersRemaining }}</span>
             prayers remaining today
           </div>
           <!-- Logout Button -->
           <button
             @click="handleLogout"
-            class="px-3 py-1 text-sm text-gray-400 hover:text-white transition-colors"
+            class="px-3 py-1 text-sm text-theme-text-dim hover:text-theme-text transition-colors"
           >
             Logout
           </button>
@@ -23,11 +23,11 @@
 
     <main class="max-w-4xl mx-auto px-4 py-8">
       <!-- Prayer Submission Form -->
-      <div class="bg-gray-800/50 rounded-lg p-6 mb-8 border border-gray-700">
-        <h2 class="text-xl font-semibold text-gray-200 mb-4">Submit Your Prayer</h2>
+      <div class="glass-panel glass-gloss p-6 mb-8">
+        <h2 class="text-xl font-semibold text-theme-text mb-4">Submit Your Prayer</h2>
         
         <!-- Error Message -->
-        <div v-if="prayers.error" class="mb-4 p-3 bg-red-900/50 border border-red-700 rounded text-red-200 text-sm">
+        <div v-if="prayers.error" class="mb-4 p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm glass-gloss">
           {{ prayers.error }}
         </div>
 
@@ -36,20 +36,22 @@
             v-model="prayerContent"
             :disabled="!prayers.canPray || prayers.loading"
             rows="4"
-            class="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full px-4 py-3 bg-theme-panel border border-theme-border rounded text-theme-text placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             placeholder="Speak your prayer into the void..."
           ></textarea>
           
           <div class="mt-4 flex items-center justify-between">
-            <p v-if="!prayers.canPray" class="text-sm text-gray-400">
+            <p v-if="!prayers.canPray" class="text-sm text-theme-text-dim">
               Daily limit reached. Return tomorrow.
             </p>
             <button
               type="submit"
               :disabled="!prayerContent.trim() || !prayers.canPray || prayers.loading"
-              class="px-6 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-800 disabled:cursor-not-allowed text-white font-semibold rounded transition-colors"
+              class="btn-primary disabled:cursor-not-allowed transition-all duration-150 ease-out"
             >
-              {{ prayers.loading ? 'Submitting...' : 'Send Prayer' }}
+              <span class="relative z-10 font-medium">
+                {{ prayers.loading ? 'Submitting...' : 'Send Prayer' }}
+              </span>
             </button>
           </div>
         </form>
@@ -57,13 +59,13 @@
 
       <!-- Prayer History -->
       <div class="space-y-4">
-        <h2 class="text-xl font-semibold text-gray-200">Prayer History</h2>
+        <h2 class="text-xl font-semibold text-theme-text">Prayer History</h2>
         
-        <div v-if="prayers.loading && prayers.prayers.length === 0" class="text-center py-8 text-gray-400">
+        <div v-if="prayers.loading && prayers.prayers.length === 0" class="text-center py-8 text-theme-text-dim">
           Loading prayers...
         </div>
 
-        <div v-else-if="prayers.prayers.length === 0" class="text-center py-8 text-gray-500">
+        <div v-else-if="prayers.prayers.length === 0" class="text-center py-8 text-theme-text-muted">
           No prayers yet. Submit your first prayer above.
         </div>
 
@@ -71,23 +73,23 @@
           <div
             v-for="prayer in prayers.prayers"
             :key="prayer.id"
-            class="bg-gray-800/30 rounded-lg p-4 border"
+            class="glass-panel glass-gloss p-4"
             :class="{
-              'border-red-700': prayer.is_rejected,
-              'border-amber-700': prayer.is_praying && !prayer.is_rejected,
-              'border-gray-700': !prayer.is_rejected && !prayer.is_praying
+              'border-theme-purgatory': prayer.is_rejected,
+              'border-theme-accent': prayer.is_praying && !prayer.is_rejected,
+              'border-theme-border': !prayer.is_rejected && !prayer.is_praying
             }"
           >
             <div class="flex items-start justify-between gap-4">
-              <p class="text-gray-300 flex-1">{{ prayer.content }}</p>
+              <p class="text-theme-text flex-1">{{ prayer.content }}</p>
               
               <!-- Status Badge -->
               <span
                 class="px-2 py-1 text-xs font-medium rounded whitespace-nowrap"
                 :class="{
-                  'bg-red-900 text-red-200': prayer.is_rejected,
-                  'bg-amber-900 text-amber-200': prayer.is_praying && !prayer.is_rejected,
-                  'bg-gray-700 text-gray-300': !prayer.is_rejected && !prayer.is_praying
+                  'bg-theme-purgatory/30 text-theme-purgatory-dark': prayer.is_rejected,
+                  'bg-theme-accent/30 text-theme-accent-dark': prayer.is_praying && !prayer.is_rejected,
+                  'bg-theme-panel text-theme-text-dim': !prayer.is_rejected && !prayer.is_praying
                 }"
               >
                 {{ getStatusText(prayer) }}
@@ -95,12 +97,12 @@
             </div>
             
             <!-- Rejection Reason -->
-            <p v-if="prayer.rejection_reason" class="mt-2 text-sm text-red-400 italic">
+            <p v-if="prayer.rejection_reason" class="mt-2 text-sm text-theme-purgatory-dark italic">
               Rejected: {{ prayer.rejection_reason }}
             </p>
             
             <!-- Timestamp -->
-            <p class="mt-2 text-xs text-gray-500">
+            <p class="mt-2 text-xs text-theme-text-muted">
               {{ formatDate(prayer.created_at) }}
             </p>
           </div>
@@ -149,7 +151,7 @@ async function handleSubmit() {
     await prayers.submitPrayer(prayerContent.value)
     prayerContent.value = ''
   } catch (err) {
-    // Error is captured in prayers.error
+    // Error is already captured in prayers.error
   }
 }
 
@@ -157,3 +159,30 @@ async function handleLogout() {
   await auth.signOut()
 }
 </script>
+
+<style scoped>
+/* Primary button with gold gradient */
+.btn-primary {
+  @apply relative overflow-hidden font-sans rounded-btn px-6 py-2 border shadow-inner-top glass-gloss active:translate-y-0 transition-all duration-150 ease-out cursor-pointer;
+  color: white;
+  border-color: color-mix(in srgb, var(--theme-accent) 55%, white 10%);
+  box-shadow: 0 18px 30px color-mix(in srgb, var(--theme-accent) 28%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-accent) 34%, white 12%),
+    color-mix(in srgb, var(--theme-accent-2) 72%, black 15%)
+  );
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-accent) 20%, gray 30%),
+    color-mix(in srgb, var(--theme-accent-dark) 40%, gray 40%)
+  );
+}
+</style>
