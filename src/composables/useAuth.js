@@ -21,6 +21,7 @@ function createAuthState() {
   const isInitializing = ref(false)
   const error = ref(null)
   const initialized = ref(false)
+  const needsConfirmation = ref(false)
 
   // Computed properties
   const isAuthenticated = computed(() => !!user.value)
@@ -109,6 +110,7 @@ function createAuthState() {
     try {
       loading.value = true
       error.value = null
+      needsConfirmation.value = false
 
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
@@ -116,6 +118,12 @@ function createAuthState() {
       })
 
       if (signUpError) throw signUpError
+
+      // Check if user needs to confirm email
+      // Supabase returns a user object but no session if confirmation is required
+      if (data.user && !data.session) {
+        needsConfirmation.value = true
+      }
 
       return data
     } catch (err) {
@@ -209,6 +217,7 @@ function createAuthState() {
     loading,
     isInitializing,
     error,
+    needsConfirmation,
     // Computed
     isAuthenticated,
     userEmail,

@@ -13,7 +13,7 @@
       </div>
 
       <!-- Success Message (Email Confirmation) -->
-      <div v-if="signupSuccess" class="mb-4 p-3 bg-green-900/50 border border-green-700 rounded text-green-200 text-sm">
+      <div v-if="auth.needsConfirmation" class="mb-4 p-3 bg-green-900/50 border border-green-700 rounded text-green-200 text-sm">
         <p class="font-semibold mb-1">Account created successfully!</p>
         <p>Please check your email at <strong>{{ email }}</strong> and click the confirmation link to activate your account.</p>
         <p class="mt-2 text-xs text-green-300">After confirming, you can sign in below.</p>
@@ -113,7 +113,6 @@ import { useAuth } from '@/composables/useAuth'
 
 const auth = useAuth()
 const isSignUp = ref(false)
-const signupSuccess = ref(false)
 const email = ref('')
 const password = ref('')
 
@@ -121,17 +120,14 @@ async function handleLogin() {
   try {
     if (isSignUp.value) {
       await auth.signUp(email.value, password.value)
-      // Success: switch to sign-in mode and show confirmation message
-      signupSuccess.value = true
+      // Success: switch to sign-in mode - needsConfirmation state is handled by useAuth
       isSignUp.value = false
       password.value = '' // Clear password for security
     } else {
-      signupSuccess.value = false
       await auth.signIn(email.value, password.value)
     }
   } catch (err) {
     // Error is already captured in auth.error
-    signupSuccess.value = false
   }
 }
 
