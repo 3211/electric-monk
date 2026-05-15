@@ -25,6 +25,8 @@ export function usePrayers() {
   const prayers = ref([])
   const dailyTokenLimit = DAILY_TOKEN_LIMIT
   const dailyTokensSpent = ref(0)
+  const karma = ref(0)
+  const maxPrayerSlots = ref(1)
   const loading = ref(false)
   const error = ref(null)
 
@@ -44,7 +46,7 @@ export function usePrayers() {
   const tokensRemaining = computed(() => Math.max(0, dailyTokenLimit - dailyTokensSpent.value))
 
   /**
-   * Fetch user's prayers from database
+   * Fetch user's prayers from database (excludes soft-deleted prayers)
    */
   async function fetchPrayers() {
     try {
@@ -58,6 +60,7 @@ export function usePrayers() {
         .from('prayers')
         .select('*')
         .eq('user_id', user.id)
+        .eq('is_deleted', false)
         .order('created_at', { ascending: false })
 
       if (fetchError) throw fetchError
@@ -70,6 +73,29 @@ export function usePrayers() {
       throw err
     } finally {
       loading.value = false
+    }
+  }
+
+  /**
+   * Fetch user's profile including karma and max prayer slots
+   */
+  async function fetchProfile() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('karma, max_prayer_slots')
+        .eq('id', user.id)
+        .single()
+
+      if (profile) {
+        karma.value = profile.karma || 0
+        maxPrayerSlots.value = profile.max_prayer_slots || 1
+      }
+    } catch (err) {
+      console.error('[usePrayers] Profile fetch error:', err)
     }
   }
 
@@ -271,7 +297,7 @@ export function usePrayers() {
   }
 
   /**
-   * Delete a prayer
+   * Soft-delete a prayer (marks as is_deleted = true to free up slot)
    * @param {string} prayerId - The prayer ID to delete
    */
   async function deletePrayer(prayerId) {
@@ -279,15 +305,19 @@ export function usePrayers() {
       loading.value = true
       error.value = null
 
-      const { error: deleteError } = await supabase
+      // Soft delete: set is_deleted = true instead of actually deleting
+      const { error: updateError } = await supabase
         .from('prayers')
-        .delete()
+        .update({ is_deleted: true })
         .eq('id', prayerId)
 
-      if (deleteError) throw deleteError
+      if (updateError) throw updateError
 
-      // Remove from local list
+      // Remove from local list (frees up the slot in UI)
       prayers.value = prayers.value.filter(p => p.id !== prayerId)
+      
+      // Refresh profile to get updated slot count
+      await fetchProfile()
     } catch (err) {
       error.value = err.message
       console.error('[usePrayers] Delete error:', err)
@@ -318,19 +348,35 @@ export function usePrayers() {
     }
   }
 
+  // Computed properties for karma display
+  const karmaEmoji = computed(() => {
+    if (karma.value > 0) return '😇'
+    if (karma.value < 0) return '😈'
+    return '😐'
+  })
+  
+  const activePrayerCount = computed(() => prayers.value.filter(p => !p.is_deleted).length)
+  const canAddPrayer = computed(() => activePrayerCount.value < maxPrayerSlots.value)
+
   return reactive({
     // State
     prayers,
     dailyTokenLimit,
     dailyTokensSpent,
+    karma,
+    maxPrayerSlots,
     loading,
     error,
     // Computed
     canPray,
     tokensRemaining,
+    karmaEmoji,
+    activePrayerCount,
+    canAddPrayer,
     // Methods
     fetchPrayers,
     fetchDailyCount,
+    fetchProfile,
     submitPrayer,
     calculateTokenCost,
     processPrayerWithVenice,

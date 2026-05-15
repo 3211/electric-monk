@@ -144,13 +144,15 @@ serve(async (req: Request) => {
     }
 
     // Update the prayer record in Supabase based on judgment
+    const isApproved = judgment.judgment === 'approved'
+    const isRejected = judgment.judgment === 'rejected'
+    
     const updateData: Record<string, unknown> = {
-      is_praying: judgment.judgment === 'approved',
-    }
-
-    if (judgment.judgment === 'rejected') {
-      updateData.is_rejected = true
-      updateData.rejection_reason = judgment.rejection_reason || 'Rejected by Electric Monk'
+      response_content: judgment.response, // Save the AI's generated response
+      status: 'completed',
+      is_praying: isApproved,
+      is_rejected: isRejected,
+      rejection_reason: isRejected ? (judgment.rejection_reason || 'Rejected by Electric Monk') : null,
     }
 
     const { error: updateError } = await supabase
@@ -160,7 +162,17 @@ serve(async (req: Request) => {
 
     if (updateError) {
       console.error('Failed to update prayer status:', updateError)
-      // Don't throw here - we still have a valid AI response to return
+    }
+
+    // Update user's karma based on judgment
+    const karmaChange = isApproved ? 1 : -1
+    const { error: karmaError } = await supabase.rpc('update_karma', {
+      p_user_id: user_id,
+      p_karma_change: karmaChange
+    })
+
+    if (karmaError) {
+      console.error('Failed to update karma:', karmaError)
     }
 
     // Return the judgment to the client

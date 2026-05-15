@@ -5,10 +5,20 @@
       <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
         <h1 class="text-2xl font-bold text-theme-accent">The Altar</h1>
         <div class="flex items-center gap-4">
+          <!-- Karma Display -->
+          <div class="text-sm text-theme-text-dim flex items-center gap-2">
+            <span class="text-lg">{{ prayers.karmaEmoji }}</span>
+            <span>Karma: <span :class="karmaClass">{{ prayers.karma }}</span></span>
+          </div>
+          <!-- Prayer Slots Display -->
+          <div class="text-sm text-theme-text-dim">
+            <span class="text-theme-accent font-semibold">{{ prayers.activePrayerCount }}</span>
+            / {{ prayers.maxPrayerSlots }} slots
+          </div>
           <!-- Daily Token Budget Counter -->
           <div class="text-sm text-theme-text-dim">
             <span class="text-theme-accent font-semibold">{{ prayers.tokensRemaining }}</span>
-            tokens remaining today
+            tokens remaining
           </div>
           <!-- Logout Button -->
           <button
@@ -31,10 +41,15 @@
           {{ prayers.error }}
         </div>
 
+        <!-- Slot Warning -->
+        <div v-if="!prayers.canAddPrayer" class="mb-4 p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm">
+          All prayer slots occupied. Archive a prayer below to free a slot.
+        </div>
+        
         <form @submit.prevent="handleSubmit">
           <textarea
             v-model="prayerContent"
-            :disabled="!prayers.canPray || prayers.loading"
+            :disabled="!prayers.canPray || !prayers.canAddPrayer || prayers.loading"
             rows="4"
             class="w-full px-4 py-3 bg-theme-panel border border-theme-border rounded text-theme-text placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             placeholder="Speak your prayer into the void..."
@@ -69,29 +84,49 @@
 
       <!-- Prayer History -->
       <div class="space-y-4">
-        <h2 class="text-xl font-semibold text-theme-text">Prayer History</h2>
+        <h2 class="text-xl font-semibold text-theme-text">Active Prayers</h2>
         
         <div v-if="prayers.loading && prayers.prayers.length === 0" class="text-center py-8 text-theme-text-dim">
           Loading prayers...
         </div>
 
         <div v-else-if="prayers.prayers.length === 0" class="text-center py-8 text-theme-text-muted">
-          No prayers yet. Submit your first prayer above.
+          No active prayers. Submit your first prayer above.
         </div>
 
         <div v-else class="space-y-3">
           <div
             v-for="prayer in prayers.prayers"
             :key="prayer.id"
-            class="glass-panel glass-gloss p-4"
+            class="glass-panel glass-gloss p-4 relative"
             :class="{
               'border-theme-purgatory': prayer.is_rejected,
               'border-theme-accent': prayer.is_praying && !prayer.is_rejected,
               'border-theme-border': !prayer.is_rejected && !prayer.is_praying
             }"
           >
-            <div class="flex items-start justify-between gap-4">
-              <p class="text-theme-text flex-1">{{ prayer.content }}</p>
+            <!-- Delete/Archive Button -->
+            <button
+              @click="handleDelete(prayer.id)"
+              :disabled="prayers.loading"
+              class="absolute top-2 right-2 p-1 text-theme-text-muted hover:text-theme-purgatory transition-colors"
+              title="Archive this prayer (frees up a slot)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            
+            <div class="flex items-start justify-between gap-4 pr-8">
+              <!-- AI Response (what the Monk said back) -->
+              <div class="flex-1">
+                <p v-if="prayer.response_content" class="text-theme-text font-medium mb-2">
+                  {{ prayer.response_content }}
+                </p>
+                <p v-else class="text-theme-text-dim italic">
+                  {{ prayer.content }}
+                </p>
+              </div>
               
               <!-- Status Badge -->
               <span
@@ -108,7 +143,7 @@
             
             <!-- Rejection Reason -->
             <p v-if="prayer.rejection_reason" class="mt-2 text-sm text-theme-purgatory-dark italic">
-              Rejected: {{ prayer.rejection_reason }}
+              Reason: {{ prayer.rejection_reason }}
             </p>
             
             <!-- Timestamp -->
@@ -145,8 +180,9 @@ const estimatedTokenCost = computed(() => {
 })
 
 onMounted(async () => {
-  // Fetch prayers
+  // Fetch prayers, profile (karma/slots), and daily count
   await prayers.fetchPrayers()
+  await prayers.fetchProfile()
   await prayers.fetchDailyCount()
 })
 
@@ -177,6 +213,19 @@ async function handleSubmit() {
 
 async function handleLogout() {
   await auth.signOut()
+}
+
+async function handleDelete(prayerId) {
+  if (confirm('Archive this prayer? This will free up a slot.')) {
+    await prayers.deletePrayer(prayerId)
+    await prayers.fetchProfile() // Refresh slot count
+  }
+}
+
+function karmaClass() {
+  if (prayers.karma > 0) return 'text-theme-accent'
+  if (prayers.karma < 0) return 'text-theme-purgatory'
+  return 'text-theme-text-dim'
 }
 </script>
 

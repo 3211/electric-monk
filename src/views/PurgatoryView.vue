@@ -1,9 +1,16 @@
 <template>
   <div class="flex items-center justify-center bg-theme-wash px-4 py-8">
     <div class="max-w-md w-full text-center">
-      <!-- Header -->
-      <h1 class="text-5xl font-bold text-theme-purgatory mb-2">Purgatory</h1>
-      <p class="text-theme-text-dim mb-8">Your soul has been tainted by malicious intent</p>
+      <!-- Header with Karma -->
+      <div class="mb-4">
+        <h1 class="text-5xl font-bold text-theme-purgatory mb-2">Purgatory</h1>
+        <p class="text-theme-text-dim mb-2">Your soul has been tainted by malicious intent</p>
+        <!-- Karma Display -->
+        <div class="inline-flex items-center gap-2 px-3 py-1 bg-theme-panel rounded border border-theme-border">
+          <span class="text-lg">{{ prayers.karmaEmoji }}</span>
+          <span class="text-sm text-theme-text-dim">Karma: <span :class="karmaClass">{{ prayers.karma }}</span></span>
+        </div>
+      </div>
 
       <!-- Ban Timer -->
       <div class="glass-panel glass-gloss p-8 mb-6 border-theme-purgatory shadow-glow-purgatory">
@@ -82,7 +89,8 @@ const showingAd = ref(false)
 const rejectionReason = ref(null)
 
 onMounted(async () => {
-  // Fetch the most recent rejected prayer to show the reason
+  // Fetch profile for karma and prayers for rejection reason
+  await prayers.fetchProfile()
   await prayers.fetchPrayers()
   const rejectedPrayer = prayers.prayers.find(p => p.is_rejected)
   if (rejectedPrayer) {
@@ -103,6 +111,12 @@ async function completeIndulgence() {
   } catch (err) {
     // Error is already captured in banTimer.error
   }
+}
+
+function karmaClass() {
+  if (prayers.karma > 0) return 'text-theme-accent'
+  if (prayers.karma < 0) return 'text-theme-purgatory'
+  return 'text-theme-text-dim'
 }
 </script>
 
