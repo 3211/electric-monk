@@ -2,6 +2,7 @@ import { ref, computed, reactive } from 'vue'
 import { supabase } from '@/lib/supabase'
 
 // Environment variables for token-based limits
+// Note: These are used for UI display only. Actual limits are enforced server-side via RPC.
 const MAX_PRAYER_CHARS = parseInt(import.meta.env.VITE_MAX_PRAYER_CHARS || '1500', 10)
 const DAILY_TOKEN_LIMIT = parseInt(import.meta.env.VITE_DAILY_TOKEN_LIMIT || '1000', 10)
 const PRAYER_TOKEN_RATIO = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5', 10)
@@ -10,7 +11,13 @@ const PRAYER_TOKEN_RATIO = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '
  * usePrayers Composable
  *
  * Manages prayer submission, retrieval, and status tracking.
- * Handles daily token limits and interfaces with Venice AI for validation.
+ * Uses Supabase RPC functions for secure, server-side token validation.
+ *
+ * Database Schema Notes:
+ * - profiles.tokens_spent_today (INT): Tracks tokens spent today (was daily_prayers_count)
+ * - profiles.daily_token_limit (INT): User's daily token budget (default 1000)
+ * - RPC submit_prayer(content): Atomically inserts prayer and updates tokens_spent_today
+ * - RPC refill_tokens(amount): Reduces tokens_spent_today (for ad rewards)
  *
  * @returns {Object} Prayer state and methods
  */
@@ -23,6 +30,7 @@ export function usePrayers() {
 
   /**
    * Calculate token cost for a prayer based on character count
+   * Used for UI estimation only. Actual cost calculated server-side.
    * @param {string} content - The prayer text
    * @returns {number} Estimated token cost
    */
@@ -67,6 +75,7 @@ export function usePrayers() {
 
   /**
    * Get current daily token spending from profile
+   * Reads from profiles.tokens_spent_today column
    */
   async function fetchDailyCount() {
     try {
@@ -75,7 +84,7 @@ export function usePrayers() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('daily_prayers_count, last_prayer_date')
+        .select('tokens_spent_today, daily_token_limit, last_prayer_date')
         .eq('id', user.id)
         .single()
 
@@ -89,8 +98,12 @@ export function usePrayers() {
         // Reset count via database function
         await supabase.rpc('reset_daily_prayer_count', { user_id: user.id })
         dailyTokensSpent.value = 0
+        // Update local limit if DB has different value
+        if (profile?.daily_token_limit) {
+          // Note: dailyTokenLimit is a const, would need refactoring to update
+        }
       } else {
-        dailyTokensSpent.value = profile?.daily_prayers_count || 0
+        dailyTokensSpent.value = profile?.tokens_spent_today || 0
       }
 
       return dailyTokensSpent.value
@@ -101,88 +114,54 @@ export function usePrayers() {
   }
 
   /**
-   * Submit a new prayer for processing
+   * Submit a new prayer for processing using the secure RPC function.
+   * The database function submit_prayer() handles:
+   * - Character limit validation (1500 chars)
+   * - Token budget validation (daily_token_limit)
+   * - Atomic insert of prayer and update of tokens_spent_today
+   *
    * @param {string} content - The prayer text
-   * @returns {Object} The created prayer
+   * @returns {Object} Result containing prayer ID and token cost
    */
   async function submitPrayer(content) {
     try {
       loading.value = true
       error.value = null
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('No user logged in')
-
-      // Validate character limit
+      // Client-side validation for UX (server also validates)
       if (content.length > MAX_PRAYER_CHARS) {
         throw new Error(`Prayer exceeds maximum length of ${MAX_PRAYER_CHARS} characters.`)
       }
 
-      // Check daily token budget
-      await fetchDailyCount()
-      const tokenCost = calculateTokenCost(content)
-      if (dailyTokensSpent.value + tokenCost > dailyTokenLimit) {
-        throw new Error(`Insufficient tokens. This prayer costs ${tokenCost} tokens, but you only have ${tokensRemaining.value} remaining.`)
-      }
+      // Call the secure RPC function
+      const { data: result, error: rpcError } = await supabase
+        .rpc('submit_prayer', { prayer_content: content })
 
-      // TODO: Integrate Venice AI validation here before inserting
-      // For now, we'll insert directly and mark as not rejected
-      const prayerData = {
-        user_id: user.id,
-        content,
-        is_rejected: false,
-        is_praying: true, // Mark as being processed/prayed
-      }
+      if (rpcError) throw rpcError
 
-      const { data: newPrayer, error: insertError } = await supabase
+      // Fetch the newly created prayer
+      const { data: newPrayer, error: fetchError } = await supabase
         .from('prayers')
-        .insert(prayerData)
-        .select()
+        .select('*')
+        .eq('id', result.id)
         .single()
 
-      if (insertError) throw insertError
+      if (fetchError) throw fetchError
 
-      // Increment daily token spending
-      await incrementDailyCount(tokenCost)
-
-      // Add to local list
+      // Update local state
       prayers.value.unshift(newPrayer)
+      
+      // Update tokens spent (RPC already updated in DB)
+      const tokenCost = result.cost
+      dailyTokensSpent.value += tokenCost
 
-      // TODO: Trigger Venice AI processing in background
-      // await processPrayerWithVenice(newPrayer.id)
-
-      return newPrayer
+      return { prayer: newPrayer, cost: tokenCost }
     } catch (err) {
       error.value = err.message
       console.error('[usePrayers] Submit error:', err)
       throw err
     } finally {
       loading.value = false
-    }
-  }
-
-  /**
-   * Increment the daily token spending in the database
-   * @param {number} tokenCost - The token cost to add
-   */
-  async function incrementDailyCount(tokenCost) {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          daily_prayers_count: dailyTokensSpent.value + tokenCost,
-          last_prayer_date: new Date().toISOString(),
-        })
-        .eq('id', user.id)
-
-      if (updateError) throw updateError
-
-      dailyTokensSpent.value += tokenCost
-    } catch (err) {
-      console.error('[usePrayers] Increment count error:', err)
     }
   }
 
@@ -281,6 +260,27 @@ export function usePrayers() {
     }
   }
 
+  /**
+   * Refill tokens by reducing tokens_spent_today
+   * Used for ad-watching rewards. Calls the refill_tokens RPC function.
+   * @param {number} amount - Number of tokens to refill (e.g., 100 for watching an ad)
+   * @returns {number} New tokens_spent_today value
+   */
+  async function refillTokens(amount) {
+    try {
+      const { data: newSpent, error: rpcError } = await supabase
+        .rpc('refill_tokens', { p_amount: amount })
+
+      if (rpcError) throw rpcError
+
+      dailyTokensSpent.value = newSpent
+      return newSpent
+    } catch (err) {
+      console.error('[usePrayers] Refill tokens error:', err)
+      throw err
+    }
+  }
+
   return reactive({
     // State
     prayers,
@@ -300,5 +300,7 @@ export function usePrayers() {
     markPrayerRejected,
     markPrayerApproved,
     deletePrayer,
+    // New: Token refill for ad rewards
+    refillTokens,
   })
 }
