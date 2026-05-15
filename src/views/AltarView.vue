@@ -111,39 +111,22 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
 import { usePrayers } from '@/composables/usePrayers'
 import { useAuth } from '@/composables/useAuth'
 import { useBanTimer } from '@/composables/useBanTimer'
 
-const router = useRouter()
 const prayers = usePrayers()
 const auth = useAuth()
 const banTimer = useBanTimer()
 
 const prayerContent = ref('')
 
-// Check if user is banned on mount
-const isBanned = computed(() => banTimer.isBanned)
-
 onMounted(async () => {
-  // Check ban status first
-  await banTimer.checkBanStatus()
-  
-  // If banned, redirect to Purgatory
-  if (isBanned.value) {
-    router.push('/purgatory')
-    return
-  }
-  
   // Fetch prayers
   await prayers.fetchPrayers()
   await prayers.fetchDailyCount()
 })
-
-// Watch for ban status changes
-banTimer.checkBanStatus()
 
 function getStatusText(prayer) {
   if (prayer.is_rejected) return 'Rejected'
@@ -172,6 +155,5 @@ async function handleSubmit() {
 
 async function handleLogout() {
   await auth.signOut()
-  router.push('/login')
 }
 </script>

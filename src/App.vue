@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useAuth } from './composables/useAuth'
 import { useBanTimer } from './composables/useBanTimer'
 import LoginView from './views/LoginView.vue'
@@ -9,14 +9,11 @@ import PurgatoryView from './views/PurgatoryView.vue'
 const auth = useAuth()
 const banTimer = useBanTimer()
 
-// Computed state
-const isAuthenticated = computed(() => auth.isAuthenticated)
-const isBanned = computed(() => banTimer.isBanned)
-
 // Determine which view to show
+// With reactive() wrapping, refs are auto-unwrapped — no .value needed
 const currentView = computed(() => {
-  if (!isAuthenticated.value) return 'login'
-  if (isBanned.value) return 'purgatory'
+  if (!auth.isAuthenticated) return 'login'
+  if (banTimer.isBanned) return 'purgatory'
   return 'altar'
 })
 </script>

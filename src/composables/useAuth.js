@@ -1,41 +1,49 @@
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, reactive } from 'vue'
 import { supabase } from '@/lib/supabase'
 
 /**
- * useAuth Composable
- * 
+ * useAuth Composable (Singleton Pattern)
+ *
  * Handles user authentication via Google OAuth or Email/Password.
  * Manages session state, loading states, and auth errors.
- * 
+ * Uses a shared state pattern so all components see the same auth state.
+ *
  * @returns {Object} Authentication state and methods
  */
-export function useAuth() {
+
+// Shared state - created once, reused by all useAuth() calls
+let sharedState = null
+
+function createAuthState() {
   const user = ref(null)
   const session = ref(null)
-  const loading = ref(true)
+  const loading = ref(false)
+  const isInitializing = ref(false)
   const error = ref(null)
+  const initialized = ref(false)
 
   // Computed properties
   const isAuthenticated = computed(() => !!user.value)
   const userEmail = computed(() => user.value?.email || '')
 
   /**
-   * Initialize auth state on mount
-   */
-  onMounted(async () => {
-    await initAuth()
-  })
-
-  /**
    * Get current session and set up auth state change listener
    */
   async function initAuth() {
+    // Prevent multiple initializations
+    if (initialized.value) return
+
     try {
-      loading.value = true
+      isInitializing.value = true
       error.value = null
 
       // Get initial session
-      const { data: { session: currentSession } } = await supabase.auth.getSession()
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.warn('[useAuth] getSession returned error:', sessionError)
+      }
+      
       session.value = currentSession
       user.value = currentSession?.user || null
 
@@ -52,13 +60,13 @@ export function useAuth() {
         }
       )
 
-      // Cleanup subscription on component unmount would be ideal,
-      // but for a global auth composable, we let it persist
+      initialized.value = true
     } catch (err) {
       error.value = err.message
       console.error('[useAuth] Init error:', err)
+      initialized.value = true // Still mark as initialized to prevent infinite retries
     } finally {
-      loading.value = false
+      isInitializing.value = false
     }
   }
 
@@ -91,8 +99,8 @@ export function useAuth() {
 
   /**
    * Sign up with email and password
-   * @param {string} email 
-   * @param {string} password 
+   * @param {string} email
+   * @param {string} password
    */
   async function signUp(email, password) {
     try {
@@ -118,8 +126,8 @@ export function useAuth() {
 
   /**
    * Sign in with email and password
-   * @param {string} email 
-   * @param {string} password 
+   * @param {string} email
+   * @param {string} password
    */
   async function signIn(email, password) {
     try {
@@ -168,7 +176,7 @@ export function useAuth() {
 
   /**
    * Send password reset email
-   * @param {string} email 
+   * @param {string} email
    */
   async function resetPassword(email) {
     try {
@@ -191,11 +199,12 @@ export function useAuth() {
     }
   }
 
-  return {
+  return reactive({
     // State
     user,
     session,
     loading,
+    isInitializing,
     error,
     // Computed
     isAuthenticated,
@@ -207,5 +216,14 @@ export function useAuth() {
     signIn,
     signOut,
     resetPassword,
+  })
+}
+
+export function useAuth() {
+  if (!sharedState) {
+    sharedState = createAuthState()
+    // Auto-initialize on first use
+    sharedState.initAuth()
   }
+  return sharedState
 }

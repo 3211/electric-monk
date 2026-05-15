@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, reactive } from 'vue'
 import { supabase } from '@/lib/supabase'
 
 /**
@@ -259,7 +259,7 @@ export function usePrayers() {
     }
   }
 
-  return {
+  return reactive({
     // State
     prayers,
     dailyLimit,
@@ -277,5 +277,5 @@ export function usePrayers() {
     markPrayerRejected,
     markPrayerApproved,
     deletePrayer,
-  }
+  })
 }

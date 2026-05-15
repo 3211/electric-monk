@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'
 import { supabase } from '@/lib/supabase'
 
 /**
@@ -213,7 +213,7 @@ export function useBanTimer() {
     }
   }
 
-  return {
+  return reactive({
     // State
     banUntil,
     isBanned,
@@ -227,5 +227,5 @@ export function useBanTimer() {
     checkBanStatus,
     watchIndulgence,
     setBan,
-  }
+  })
 }

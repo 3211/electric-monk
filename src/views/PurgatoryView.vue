@@ -59,9 +59,9 @@
       </div>
 
       <!-- Reason for Ban (if available) -->
-      <div v-if="rejectionReason" class="mt-6 p-4 bg-gray-800/50 rounded border border-gray-700">
+      <div v-if="rejectionReason" class="mt-6 p-4 bg-red-900/30 rounded border border-red-800">
         <p class="text-gray-400 text-xs uppercase tracking-wide mb-1">Last Transgression</p>
-        <p class="text-gray-300 italic">"{{ rejectionReason }}"</p>
+        <p class="text-red-200 italic">"{{ rejectionReason }}"</p>
       </div>
     </div>
   </div>
