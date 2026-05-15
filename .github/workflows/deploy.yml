@@ -36,6 +36,10 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_VENICE_API_KEY: ${{ secrets.VITE_VENICE_API_KEY }}
+          VITE_DEV_EMAIL: ${{ secrets.VITE_DEV_EMAIL }}
+          VITE_MAX_PRAYER_CHARS: ${{ secrets.VITE_MAX_PRAYER_CHARS }}
+          VITE_DAILY_TOKEN_LIMIT: ${{ secrets.VITE_DAILY_TOKEN_LIMIT }}
+          VITE_PRAYER_TOKEN_RATIO: ${{ secrets.VITE_PRAYER_TOKEN_RATIO }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
