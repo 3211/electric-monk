@@ -301,7 +301,7 @@
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="prayers.isAetherProcessing || prayers.aetherResult" class="aether-modal-overlay">
-          <div class="aether-modal-container">
+          <div class="aether-modal-container glass-panel glass-gloss">
             <!-- Processing State -->
             <div v-if="prayers.isAetherProcessing" class="aether-processing-state">
               <div class="aether-icon animate-pulse">
@@ -309,8 +309,8 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                 </svg>
               </div>
-              <h3 class="aether-title">Sent to the Aether...</h3>
-              <p class="aether-description">The Electric Monk is weighing your prayer in the Sacred Circuit.</p>
+              <h3 class="aether-title text-theme-accent">Sent to the Aether...</h3>
+              <p class="aether-description text-theme-text-dim">The Electric Monk is weighing your prayer in the Sacred Circuit.</p>
               <div class="aether-loader">
                 <div class="aether-loader-bar"></div>
               </div>
@@ -332,7 +332,7 @@
               </div>
 
               <!-- Title -->
-              <h3 class="aether-title" :class="prayers.aetherResult.success ? (prayers.aetherResult.judgment === 'approved' ? 'text-theme-accent' : 'text-theme-purgatory') : 'text-theme-text'">
+              <h3 class="aether-title font-bold" :class="prayers.aetherResult.success ? (prayers.aetherResult.judgment === 'approved' ? 'text-theme-accent' : 'text-theme-purgatory') : 'text-theme-accent-dark'">
                 {{ prayers.aetherResult.success ? (prayers.aetherResult.judgment === 'approved' ? 'Blessing Granted' : 'Penance Assigned') : 'Processing Error' }}
               </h3>
 
@@ -344,10 +344,21 @@
                 <span class="text-sm text-theme-text-muted ml-1">Karma</span>
               </div>
 
-              <!-- Response Content -->
-              <div class="aether-response-content glass-panel glass-gloss p-4 my-4">
-                <p class="text-theme-text leading-relaxed">
+              <!-- Response Content (Success) -->
+              <div v-if="prayers.aetherResult.success" class="aether-response-content glass-panel glass-gloss p-4 my-4">
+                <p class="text-theme-text font-semibold leading-relaxed">
                   {{ prayers.aetherResult.response }}
+                </p>
+              </div>
+
+              <!-- Error Content (Failure) -->
+              <div v-else class="aether-error-content glass-panel glass-gloss p-4 my-4 border-2 border-theme-purgatory">
+                <p class="text-theme-purgatory-dark font-bold mb-2">⚠️ AI Processing Failed</p>
+                <p class="text-theme-text text-sm leading-relaxed">
+                  {{ prayers.aetherResult.error || 'An unknown error occurred during prayer processing.' }}
+                </p>
+                <p class="text-theme-text-muted text-xs mt-2 italic">
+                  Your prayer was submitted successfully, but the Electric Monk could not process it. You may try again or continue.
                 </p>
               </div>
 
@@ -622,8 +633,8 @@ async function handleAetherContinue() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
+  background: rgba(48, 38, 21, 0.85);
+  backdrop-filter: blur(12px);
   animation: fadeIn 0.3s ease-out;
 }
 
@@ -636,14 +647,14 @@ async function handleAetherContinue() {
   padding: 2rem;
   background: linear-gradient(
     135deg,
-    rgba(20, 20, 30, 0.95),
-    rgba(30, 30, 45, 0.95)
+    rgba(255, 249, 238, 0.95),
+    rgba(255, 246, 225, 0.95)
   );
-  border: 1px solid color-mix(in srgb, var(--theme-accent) 40%, transparent);
-  border-radius: 16px;
+  border: 2px solid color-mix(in srgb, var(--theme-accent) 50%, transparent);
+  border-radius: 26px;
   box-shadow:
-    0 0 60px color-mix(in srgb, var(--theme-accent) 20%, transparent),
-    0 0 120px color-mix(in srgb, var(--theme-accent) 10%, transparent);
+    0 0 60px color-mix(in srgb, var(--theme-accent) 30%, transparent),
+    0 0 120px color-mix(in srgb, var(--theme-accent) 15%, transparent);
   animation: modalSlideIn 0.4s ease-out;
 }
 
@@ -659,6 +670,7 @@ async function handleAetherContinue() {
   align-items: center;
   margin-bottom: 1.5rem;
   color: var(--theme-accent);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--theme-accent) 50%, transparent));
 }
 
 .aether-title {
@@ -667,22 +679,24 @@ async function handleAetherContinue() {
   margin-bottom: 0.75rem;
   text-align: center;
   letter-spacing: 0.05em;
+  color: var(--theme-accent);
 }
 
 .aether-description {
-  color: var(--theme-text-dim);
+  color: var(--theme-text);
   font-size: 0.95rem;
   text-align: center;
   margin-bottom: 1.5rem;
   line-height: 1.6;
+  font-weight: 500;
 }
 
 /* Animated Loader */
 .aether-loader {
   width: 100%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
+  height: 6px;
+  background: rgba(139, 125, 91, 0.2);
+  border-radius: 3px;
   overflow: hidden;
   margin-top: 1.5rem;
 }
@@ -696,8 +710,9 @@ async function handleAetherContinue() {
     var(--theme-accent-2),
     var(--theme-accent)
   );
-  border-radius: 2px;
+  border-radius: 3px;
   animation: loaderShimmer 1.5s ease-in-out infinite;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--theme-accent) 60%, transparent);
 }
 
 @keyframes loaderShimmer {
@@ -723,22 +738,29 @@ async function handleAetherContinue() {
   height: 64px;
   border-radius: 50%;
   margin: 0 auto 1.25rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--theme-panel) 80%, var(--theme-accent) 5%);
+  border: 2px solid color-mix(in srgb, var(--theme-accent) 30%, transparent);
 }
 
 .aether-judgment-icon.approved {
-  background: rgba(74, 222, 128, 0.15);
-  color: #4ade80;
+  background: rgba(74, 222, 128, 0.2);
+  color: #22c55e;
+  border-color: #22c55e;
+  box-shadow: 0 0 20px rgba(34, 197, 104, 0.3);
 }
 
 .aether-judgment-icon.rejected {
-  background: rgba(248, 113, 113, 0.15);
-  color: #f87171;
+  background: rgba(248, 113, 113, 0.2);
+  color: #ef4444;
+  border-color: #ef4444;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
 }
 
 .aether-judgment-icon.error {
-  background: rgba(251, 191, 36, 0.15);
-  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.2);
+  color: #d97706;
+  border-color: #d97706;
+  box-shadow: 0 0 20px rgba(217, 119, 6, 0.3);
 }
 
 .aether-karma-display {
@@ -748,20 +770,30 @@ async function handleAetherContinue() {
   gap: 0.5rem;
   margin: 1rem 0;
   padding: 0.75rem 1.5rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--theme-accent) 10%, var(--theme-panel));
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 40%, transparent);
 }
 
 .aether-response-content {
   text-align: left;
-  border: 1px solid color-mix(in srgb, var(--theme-accent) 25%, transparent);
-  background: rgba(255, 255, 255, 0.02);
+  border: 2px solid color-mix(in srgb, var(--theme-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--theme-accent) 5%, var(--theme-panel));
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.aether-error-content {
+  text-align: left;
+  border: 2px solid var(--theme-purgatory);
+  background: color-mix(in srgb, var(--theme-purgatory) 10%, var(--theme-panel));
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .aether-rejection-reason {
   text-align: center;
   font-style: italic;
+  color: var(--theme-purgatory);
+  font-weight: 500;
 }
 
 /* Fade Transition */

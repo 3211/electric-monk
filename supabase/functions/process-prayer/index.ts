@@ -144,11 +144,10 @@ serve(async (req: Request) => {
           { role: 'user', content: `Prayer to classify: ${content}` }
         ],
         temperature: 0.3,
-        max_tokens: 100,
-        response_format: { type: 'json_object' },
+        max_tokens: 150,
         venice_parameters: {
           include_venice_system_prompt: false,
-          disable_thinking: false
+          disable_thinking: true
         }
       }),
     })
@@ -196,11 +195,10 @@ serve(async (req: Request) => {
           { role: 'user', content: responsePrompt }
         ],
         temperature: 0.7,
-        max_tokens: 300,
-        response_format: { type: 'json_object' },
+        max_tokens: 350,
         venice_parameters: {
           include_venice_system_prompt: false,
-          disable_thinking: false
+          disable_thinking: true
         }
       }),
     })
@@ -245,6 +243,22 @@ serve(async (req: Request) => {
     const isRejected = judgment.judgment === 'rejected'
     const now = new Date().toISOString()
     
+    // Verify the prayer exists and belongs to this user before updating
+    const { data: existingPrayer, error: fetchError } = await supabase
+      .from('prayers')
+      .select('user_id')
+      .eq('id', prayer_id)
+      .single()
+
+    if (fetchError || !existingPrayer) {
+      console.error('Prayer not found or fetch failed:', fetchError)
+      throw new Error('Prayer not found')
+    }
+
+    if (existingPrayer.user_id !== user_id) {
+      throw new Error('User does not own this prayer')
+    }
+
     // If approved, deactivate any currently active prayer for this user first
     if (isApproved) {
       const { error: deactivateError } = await supabase
@@ -276,6 +290,7 @@ serve(async (req: Request) => {
 
     if (updateError) {
       console.error('Failed to update prayer status:', updateError)
+      throw new Error(`Database update failed: ${updateError.message}`)
     }
 
     // ==========================================

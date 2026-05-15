@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   last_prayer_date DATE,
   username TEXT,           -- User's chosen name (max 50 chars)
   faith TEXT,              -- User's faith/religion (max 100 chars)
+  karma INT DEFAULT 0,     -- User's karma score
+  max_prayer_slots INT DEFAULT 1,  -- Number of simultaneous prayer slots
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );

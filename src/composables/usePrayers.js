@@ -120,15 +120,19 @@ export function usePrayers() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user logged in')
 
-      const { error: updateError } = await supabase
+      // Use upsert instead of update to handle missing profile rows
+      // This fixes the "forgotten identity" issue where profiles don't exist
+      const { error: upsertError } = await supabase
         .from('profiles')
-        .update({
+        .upsert({
+          id: user.id,
           username: usernameUpdate,
           faith: faithUpdate,
+        }, {
+          onConflict: 'id'
         })
-        .eq('id', user.id)
 
-      if (updateError) throw updateError
+      if (upsertError) throw upsertError
 
       // Update local state
       username.value = usernameUpdate
@@ -137,7 +141,7 @@ export function usePrayers() {
       return { success: true }
     } catch (err) {
       error.value = err.message
-      console.error('[usePrayers] Profile update error:', err)
+      console.error('[usePrayers] Profile upsert error:', err)
       throw err
     } finally {
       loading.value = false
