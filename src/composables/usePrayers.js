@@ -182,8 +182,10 @@ export function usePrayers() {
         newPrayer.judgment = aiResult.judgment
         newPrayer.ai_response = aiResult.response
         newPrayer.rejection_reason = aiResult.rejection_reason
-        newPrayer.is_rejected = aiResult.judgment === 'rejected'
-        newPrayer.is_praying = aiResult.judgment === 'approved'
+        // Update flags to support Virtuous, Malicious, and Tainted labels
+        // Maps AI judgment to existing database schema (is_praying, is_rejected)
+        newPrayer.is_rejected = aiResult.judgment === 'malicious' || aiResult.judgment === 'rejected'
+        newPrayer.is_praying = aiResult.judgment === 'virtuous' || aiResult.judgment === 'approved' || aiResult.judgment === 'tainted'
         
         // Update local prayers list with the new status
         const index = prayers.value.findIndex(p => p.id === newPrayer.id)
