@@ -70,7 +70,7 @@
             :disabled="!prayers.canPray || !prayers.canAddPrayer || prayers.loading"
             rows="4"
             class="w-full px-4 py-3 bg-theme-panel border border-theme-border rounded text-theme-text placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            placeholder="Speak your prayer into the void..."
+            placeholder="Speak your prayer into the aether..."
           ></textarea>
           
           <!-- Character Count & Mana Cost -->
@@ -124,7 +124,7 @@
         <div v-else-if="!prayers.currentActivePrayer && prayers.inactivePrayers.length === 0" class="glass-panel glass-gloss p-12 text-center border-dashed border-2 border-theme-border">
           <div class="text-6xl mb-4">⚜️</div>
           <h3 class="text-lg font-medium text-theme-text mb-2">The Altar is Empty</h3>
-          <p class="text-theme-text-dim mb-6">No active prayers. Speak your prayer into the void above, and the Electric Monk shall listen.</p>
+          <p class="text-theme-text-dim mb-6">No active prayers. Speak your prayer into the aether above, and the Electric Monk shall listen.</p>
           <div class="text-sm text-theme-text-muted italic">
             "In the silence between circuits, the Sacred Current waits..."
           </div>
@@ -334,7 +334,7 @@
                 </svg>
               </div>
               <h3 class="aether-title text-theme-accent">Sent to the Aether...</h3>
-              <p class="aether-description text-theme-text-dim">The Electric Monk is weighing your prayer in the Sacred Circuit.</p>
+              <p class="aether-description text-theme-text-dim">The Electric Monk is considering your prayer.</p>
               <div class="aether-loader">
                 <div class="aether-loader-bar"></div>
               </div>
@@ -394,10 +394,11 @@
               <!-- Continue Button -->
               <button
                 @click="handleAetherContinue"
+                :disabled="!typewriterFinished"
                 class="btn-primary w-full mt-2"
               >
                 <span class="relative z-10 font-medium">
-                  Continue
+                  {{ typewriterFinished ? 'Continue' : 'The Monk is speaking...' }}
                 </span>
               </button>
             </div>
@@ -468,6 +469,9 @@ watch(() => prayers.aetherResult, (result) => {
         typewriterFinished.value = true
       }
     }, 25) // ~25ms per character for a smooth reveal
+  } else {
+    // If no response (error state or empty), finish immediately so user can continue
+    typewriterFinished.value = true
   }
 })
 
