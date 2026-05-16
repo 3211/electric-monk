@@ -114,26 +114,25 @@
 
         <!-- Multiple Active Prayers — Stacked Cards View -->
         <div v-if="prayers.activePrayersList.length > 1" class="relative">
-          <!-- Stacked background cards (visual depth cue) -->
-          <div class="stacked-cards-container relative" style="min-height: 220px;">
-            <!-- Background cards (offset for stacking effect) -->
+          <!-- Stacked cards container — selected card establishes height -->
+          <div class="stacked-cards-container relative">
+            <!-- Background cards (offset for stacking effect, skip the selected one) -->
             <div
-              v-for="(prayer, index) in prayers.activePrayersList"
+              v-for="(prayer, index) in prayers.activePrayersList.filter((_, i) => i !== selectedIndex)"
               :key="'stack-' + prayer.id"
               class="absolute inset-x-0 top-0 transition-all duration-300 ease-out cursor-pointer"
               :style="{
-                transform: index !== selectedIndex ? `translateY(${(index - selectedIndex) * 6 + (index < selectedIndex ? -6 : 6)}px) scale(${1 - Math.abs(index - selectedIndex) * 0.02})` : 'translateY(0) scale(1)',
-                zIndex: 10 - Math.abs(index - selectedIndex),
-                opacity: index === selectedIndex ? 1 : Math.max(0.3, 1 - Math.abs(index - selectedIndex) * 0.3),
-                pointerEvents: index === selectedIndex ? 'auto' : 'none',
+                transform: `translateY(${index * 8 + 8}px) scale(${1 - (index + 1) * 0.02})`,
+                zIndex: 9 - index,
+                opacity: Math.max(0.3, 1 - (index + 1) * 0.25),
+                pointerEvents: 'none',
               }"
-              @click="selectedPrayerId = prayer.id"
             >
-              <div v-if="index !== selectedIndex" class="glass-panel p-5 border border-theme-border/40 h-32 rounded-xl"></div>
+              <div class="glass-panel p-5 border border-theme-border/40 h-28 rounded-xl"></div>
             </div>
 
             <!-- Selected (front) card with full detail -->
-            <div v-if="selectedPrayer" class="relative glass-panel glass-gloss p-5 border border-theme-accent/60 shadow-glow-accent rounded-xl">
+            <div v-if="selectedPrayer" class="relative z-10 glass-panel glass-gloss p-5 border border-theme-accent/60 shadow-glow-accent rounded-xl">
               <!-- Delete/Archive Button -->
               <button
                 @click="handleArchive(selectedPrayer.id)"
