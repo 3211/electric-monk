@@ -33,7 +33,7 @@ const currentView = computed(() => {
     <!-- Global Footer -->
     <footer class="border-t border-theme-border bg-theme-panel/30 backdrop-blur-sm">
       <div class="max-w-4xl mx-auto px-4 py-3 text-center text-xs text-theme-text-muted">
-        <p>Copyright {{ currentYear }} Lake Boiler Labs, all rights reserved. Contact: <a :href="'mailto:' + devEmail" class="text-theme-accent hover:underline">{{ devEmail }}</a></p>
+        <p>Copyright {{ currentYear }} Lake Boiler Labs. All rights reserved. Contact: <a :href="'mailto:' + devEmail" class="text-theme-accent hover:underline">{{ devEmail }}</a></p>
       </div>
     </footer>
   </div>
