@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-theme-wash">
+  <div>
     <!-- Header -->
     <header class="border-b surface-divider bg-theme-panel/50 backdrop-blur-sm">
       <div class="app-frame py-5">

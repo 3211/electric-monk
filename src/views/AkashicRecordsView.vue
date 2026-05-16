@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-theme-wash">
+  <div>
     <header class="akashic-header border-b surface-divider bg-theme-panel/55 backdrop-blur-[16px]">
       <div class="app-frame py-6">
         <div class="flex flex-col gap-5">

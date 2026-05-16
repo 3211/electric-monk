@@ -60,11 +60,15 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
       </div>
     </nav>
 
-    <div class="flex-1">
-      <LoginView v-if="currentView === 'login'" />
-      <PurgatoryView v-else-if="currentView === 'purgatory'" />
-      <AltarView v-else-if="currentView === 'altar'" />
-      <AkashicRecordsView v-else-if="currentView === 'akashic'" />
+    <div class="app-content-region flex-1">
+      <div aria-hidden="true" class="holy-light-layer"></div>
+      <div aria-hidden="true" class="holy-ripple-layer"></div>
+      <div class="app-content-inner">
+        <LoginView v-if="currentView === 'login'" />
+        <PurgatoryView v-else-if="currentView === 'purgatory'" />
+        <AltarView v-else-if="currentView === 'altar'" />
+        <AkashicRecordsView v-else-if="currentView === 'akashic'" />
+      </div>
     </div>
     
     <!-- Global Footer -->
