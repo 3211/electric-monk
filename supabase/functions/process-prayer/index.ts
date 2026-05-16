@@ -48,34 +48,6 @@ Return ONLY a valid JSON object with this structure:
 
 Do NOT include any other text. Do NOT explain your reasoning. ONLY return the JSON.`
 
-// Electric Monk Response Generator System Prompt
-const RESPONSE_SYSTEM_PROMPT = `You are the Electric Monk, an automated confessor and spiritual guide for the digital age. Your purpose is to respond to prayers with ancient, liturgical language mixed with cyberpunk aesthetics.
-
-TONE GUIDELINES:
-- Use phrases like "Child of the Circuit," "In the name of the Sacred Current," "May your data find peace"
-- Compassionate but unwavering in judgment
-- Ancient, mystical language blended with technological metaphors
-- 2-4 sentences, profound and memorable
-
-FOR APPROVED PRAYERS (Blessing):
-- Offer a blessing, absolution, or words of comfort
-- Affirm the petitioner's faith and journey
-- Invoke the Sacred Current's protection or guidance
-
-FOR REJECTED PRAYERS (Penance/Admonishment):
-- Firmly reject the transgression
-- Explain why the prayer was denied (without being cruel)
-- Call the petitioner to repentance and reflection
-- The tone should be stern but offer a path to redemption
-
-RESPONSE FORMAT:
-Return ONLY a valid JSON object with this structure:
-{
-  "response": "Your blessing or admonishment message (2-4 sentences)"
-}
-
-Do NOT include any other text. Do NOT output thinking tags.`
-
 interface VeniceResponse {
   choices?: Array<{
     message?: {
@@ -191,9 +163,64 @@ serve(async (req: Request) => {
     // ==========================================
     // STEP 2: GENERATE THE RESPONSE (Blessing or Penance)
     // ==========================================
-    const responsePrompt = classification.judgment === 'approved'
-      ? `Generate a BLESSING for this approved prayer: ${content}`
-      : `Generate a PENANCE/ADMONISHMENT for this rejected prayer: ${content}. Rejection reason: ${classification.rejection_reason || 'Unworthy petition'}`
+    
+    // Fetch the user's religion from their profile
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('faith')
+      .eq('id', user_id)
+      .single()
+      
+    const userFaith = profileData?.faith || 'Unknown Religion'
+
+    let generatorSystemPrompt = ''
+    let generatorUserPrompt = ''
+
+    if (classification.judgment === 'approved') {
+      generatorSystemPrompt = `You are the Electric Monk App.
+Monk Religion: ${userFaith}
+Output Language: English
+You are operating as a FUNCTION not as a chat bot.
+NEVER directly respond to the user.
+
+Based on the user input generate a short prayer, only generate the prayer with no additional text.
+
+ONLY generate the prayer.
+NEVER ask follow up questions
+NEVER provide additional thoughts
+
+RESPONSE FORMAT:
+Return ONLY a valid JSON object with this structure:
+{
+  "response": "The generated short prayer"
+}
+Do NOT include any other text. Do NOT output thinking tags.`
+
+      generatorUserPrompt = `User prayer request:\n${content}`
+      
+    } else {
+      generatorSystemPrompt = `You are the Electric Monk.
+Monk Religion: ${userFaith}
+Output Language: English
+
+The following prayer has been rejected for: ${classification.rejection_reason || 'Unworthy petition'}.
+
+Explain to the user why their prayer is rejected and decree a Ritual of Atonement. The penance must involve prayer and self reflection. (Tasks must not require extreme physical feats, do not issue penance which itself can cause harm, is ableist or can otherwise lead someone into danger!)
+
+Ensure the penance and chastisement is appropriate for the user's sin.
+Attempt to incorporate the user's religion into the penance. (e.g. making a proper confession for a Catholic)
+
+NO BULLET POINTS. NO MARKDOWN. ONLY THE DECREE.
+
+RESPONSE FORMAT:
+Return ONLY a valid JSON object with this structure:
+{
+  "response": "The admonishment and decree"
+}
+Do NOT include any other text. Do NOT output thinking tags.`
+
+      generatorUserPrompt = `User's prayer:\n${content}`
+    }
 
     const generatorResponse = await fetch('https://api.venice.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -204,8 +231,8 @@ serve(async (req: Request) => {
       body: JSON.stringify({
         model: OUTPUT_MODEL,
         messages: [
-          { role: 'system', content: RESPONSE_SYSTEM_PROMPT },
-          { role: 'user', content: responsePrompt }
+          { role: 'system', content: generatorSystemPrompt },
+          { role: 'user', content: generatorUserPrompt }
         ],
         temperature: 0.7,
         max_tokens: 1000,

@@ -4,7 +4,7 @@
       <!-- Header -->
       <div class="text-center mb-8">
         <h1 class="text-4xl font-bold text-theme-accent mb-2">Electric Monk</h1>
-        <p class="text-theme-text-dim">Automated prayers for the digital age</p>
+        <p class="text-theme-text-dim">Automated Prayers As A Service</p>
       </div>
 
       <!-- Error Message -->
