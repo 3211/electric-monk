@@ -696,6 +696,8 @@ watch(() => counter.karmaMilestoneEarned.value, (val) => {
     karmaToastType.value = 'positive'
     karmaToastLabel.value = 'Prayer milestone!'
     counter.resetKarmaMilestone()
+    // Refresh profile to update karma balance, slots, etc.
+    prayers.fetchProfile()
   }
 })
 
@@ -741,7 +743,7 @@ const estimatedManaCost = computed(() => {
 
 // Computed for slot purchase cost (25 karma * current slots)
 const slotCost = computed(() => {
-  return 25 * (prayers.maxPrayerSlots.value || 1)
+  return 25 * (prayers.maxPrayerSlots || 1)
 })
 
 onMounted(async () => {
@@ -889,7 +891,8 @@ async function handlePurchaseSlot() {
       karmaToastType.value = 'negative'
       karmaToastLabel.value = 'Prayer slot purchased'
       
-      // Refresh daily count to get updated mana limit
+      // Refresh profile (karma, slots) and daily count (mana limit)
+      await prayers.fetchProfile()
       await prayers.fetchDailyCount()
     } else if (result?.error) {
       // Show error toast
@@ -899,7 +902,7 @@ async function handlePurchaseSlot() {
     }
   } catch (err) {
     console.error('[AltarView] Purchase slot error:', err)
-    prayers.error.value = err.message
+    prayers.error = err.message
   }
 }
 </script>

@@ -28,7 +28,7 @@ let sharedState = null
 
 function createPrayersState() {
   const prayers = ref([])
-  const dailyManaLimit = DAILY_MANA_LIMIT
+  const dailyManaLimit = ref(DAILY_MANA_LIMIT)
   const dailyManaSpent = ref(0)
   const karma = ref(0)
   const maxPrayerSlots = ref(1)
@@ -53,8 +53,8 @@ function createPrayersState() {
   }
 
   // Computed properties
-  const canPray = computed(() => dailyManaSpent.value < dailyManaLimit)
-  const tokensRemaining = computed(() => Math.max(0, dailyManaLimit - dailyManaSpent.value))
+  const canPray = computed(() => dailyManaSpent.value < dailyManaLimit.value)
+  const tokensRemaining = computed(() => Math.max(0, dailyManaLimit.value - dailyManaSpent.value))
 
   /**
    * Fetch user's prayers from database (includes both active and archived prayers)
@@ -187,7 +187,7 @@ function createPrayersState() {
         }
         // Update local limit if DB has different value
         if (profile?.daily_token_limit) {
-          // Note: dailyManaLimit is a const, would need refactoring to update
+          dailyManaLimit.value = profile.daily_token_limit
         }
       } else {
         dailyManaSpent.value = profile?.tokens_spent_today || 0
