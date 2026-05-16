@@ -109,7 +109,7 @@ export function usePrayerCounter(prayer) {
     // Calculate how many cycles have elapsed since last_counted_at
     const elapsedCycles = calculateElapsedCycles(lastCountedAt, new Date().toISOString(), cycleTimeMs)
     displayedCount.value = baseCount + elapsedCycles
-    lastLocalCount = 0 // Reset local delta since we just recalibrated
+    lastLocalCount = elapsedCycles // Queue offline cycles for sync so karma milestones are awarded
 
     // Start progress bar from where we are in the current cycle
     const elapsedInCurrentCycle = lastCountedAt

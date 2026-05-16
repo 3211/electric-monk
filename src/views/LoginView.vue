@@ -1,12 +1,11 @@
 <template>
-  <div class="flex items-center justify-center bg-theme-wash px-4 py-8">
-    <div class="max-w-md w-full glass-panel glass-gloss p-8">
-      <!-- Header -->
-      <div class="text-center mb-8">
-        <h1 class="text-4xl font-bold text-theme-accent mb-2">Electric Monk</h1>
-        <p class="text-theme-text-dim">Automated Prayers As A Service</p>
-      </div>
+  <div class="flex flex-col items-center justify-center bg-theme-wash px-4 py-8">
+    <!-- Logo above login card -->
+    <div class="mb-6 flex flex-col items-center">
+      <img src="@/assets/icons/icon.png" alt="Electric Monk" class="w-[200px] h-[200px]" />
+    </div>
 
+    <div class="max-w-md w-full glass-panel glass-gloss p-8">
       <!-- Error Message -->
       <div v-if="auth.error && typeof auth.error === 'string' && auth.error.trim()" class="mb-4 p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm glass-gloss">
         {{ auth.error }}
@@ -109,9 +108,9 @@
       </p>
     </div>
 
-    <!-- Icon below login panel -->
-    <div class="mt-6 flex flex-col items-center">
-      <img src="@/assets/icons/icon.png" alt="Electric Monk" class="w-[75px] h-[75px]" />
+    <!-- Tagline below login card -->
+    <div class="mt-6 text-center">
+      <p class="text-sm text-theme-text-muted italic">Automated Prayers As A Service</p>
     </div>
   </div>
 </template>

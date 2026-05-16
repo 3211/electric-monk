@@ -56,76 +56,6 @@
     </header>
 
     <main class="max-w-4xl mx-auto px-4 py-8">
-      <!-- Prayer Submission Form -->
-      <div class="glass-panel glass-gloss p-6 mb-8">
-        <div class="flex flex-col items-center mb-4">
-          <img src="@/assets/icons/icon.png" alt="Electric Monk" class="w-[50px] h-[50px] mb-2" />
-        </div>
-        <h2 class="text-xl font-semibold text-theme-text mb-4">Submit Your Prayer</h2>
-        
-        <!-- Error Message -->
-        <div v-if="prayers.error" class="mb-4 p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm glass-gloss">
-          {{ prayers.error }}
-        </div>
-
-        <!-- Profile Incomplete Warning -->
-        <div v-if="!prayers.isProfileComplete" class="mb-4 p-3 bg-theme-accent/20 border border-theme-accent rounded text-theme-accent-dark text-sm glass-gloss">
-          <p class="font-semibold mb-1">Identity Required</p>
-          <p>You must identify yourself before submitting prayers. Click the button below to provide your name and faith.</p>
-        </div>
-
-        <!-- Slot Warning -->
-        <div v-if="!prayers.canAddPrayer && prayers.isProfileComplete" class="mb-4 p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm">
-          All prayer slots occupied. Archive a prayer below to free up a slot.
-        </div>
-        
-        <form @submit.prevent="handleSubmit">
-          <textarea
-            v-model="prayerContent"
-            :disabled="!prayers.canPray || !prayers.canAddPrayer || prayers.loading"
-            rows="4"
-            class="w-full px-4 py-3 bg-theme-panel border border-theme-border rounded text-theme-text placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            placeholder="Speak your prayer into the aether..."
-          ></textarea>
-          
-          <!-- Character Count & Mana Cost -->
-          <div class="mt-2 flex items-center justify-between text-xs">
-            <span class="text-theme-text-muted">
-              {{ prayerContent.length }} / {{ maxPrayerChars }} chars
-            </span>
-            <span class="text-theme-accent font-medium">
-              ~{{ estimatedManaCost }} Mana
-            </span>
-          </div>
-          
-          <div class="mt-4 flex items-center justify-between">
-            <p v-if="!prayers.canPray && prayers.isProfileComplete" class="text-sm text-theme-text-dim">
-              Daily Mana budget exhausted. Return tomorrow.
-            </p>
-            <button
-              v-if="!prayers.isProfileComplete"
-              type="button"
-              @click="showProfileModal = true"
-              class="btn-primary"
-            >
-              <span class="relative z-10 font-medium">
-                Complete Your Identity
-              </span>
-            </button>
-            <button
-              v-else
-              type="submit"
-              :disabled="!prayerContent.trim() || !prayers.canPray || prayers.loading || prayerContent.length > maxPrayerChars"
-              class="btn-primary disabled:cursor-not-allowed transition-all duration-150 ease-out"
-            >
-              <span class="relative z-10 font-medium">
-                {{ prayers.loading ? 'Submitting...' : 'Send Prayer' }}
-              </span>
-            </button>
-          </div>
-        </form>
-      </div>
-
       <!-- Currently Active Prayer (the one being prayed right now) -->
       <div class="space-y-4 mb-8">
         <h2 class="text-xl font-semibold text-theme-text">Active Prayer</h2>
@@ -139,7 +69,7 @@
         <div v-else-if="!prayers.currentActivePrayer && prayers.inactivePrayers.length === 0" class="glass-panel glass-gloss p-12 text-center border-dashed border-2 border-theme-border">
           <div class="text-6xl mb-4">⚜️</div>
           <h3 class="text-lg font-medium text-theme-text mb-2">The Altar is Empty</h3>
-          <p class="text-theme-text-dim mb-6">No active prayers. Speak your prayer into the aether above, and the Electric Monk shall listen.</p>
+          <p class="text-theme-text-dim mb-6">No active prayers. Submit a prayer below, and the Electric Monk shall listen.</p>
           <div class="text-sm text-theme-text-muted italic">
             "In the silence between circuits, the Sacred Current waits..."
           </div>
@@ -218,6 +148,76 @@
             </button>
           </div>
         </div>
+      </div>
+
+      <!-- Prayer Submission Form -->
+      <div class="glass-panel glass-gloss p-6 mb-8">
+        <div class="flex flex-col items-center mb-4">
+          <img src="@/assets/icons/icon.png" alt="Electric Monk" class="w-[200px] h-[200px] mb-2" />
+        </div>
+        <h2 class="text-xl font-semibold text-theme-text mb-4">Submit Your Prayer</h2>
+        
+        <!-- Error Message -->
+        <div v-if="prayers.error" class="mb-4 p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm glass-gloss">
+          {{ prayers.error }}
+        </div>
+
+        <!-- Profile Incomplete Warning -->
+        <div v-if="!prayers.isProfileComplete" class="mb-4 p-3 bg-theme-accent/20 border border-theme-accent rounded text-theme-accent-dark text-sm glass-gloss">
+          <p class="font-semibold mb-1">Identity Required</p>
+          <p>You must identify yourself before submitting prayers. Click the button below to provide your name and faith.</p>
+        </div>
+
+        <!-- Slot Warning -->
+        <div v-if="!prayers.canAddPrayer && prayers.isProfileComplete" class="mb-4 p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm">
+          All prayer slots occupied. Archive a prayer below to free up a slot.
+        </div>
+        
+        <form @submit.prevent="handleSubmit">
+          <textarea
+            v-model="prayerContent"
+            :disabled="!prayers.canPray || !prayers.canAddPrayer || prayers.loading"
+            rows="4"
+            class="w-full px-4 py-3 bg-theme-panel border border-theme-border rounded text-theme-text placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            placeholder="Speak your prayer into the aether..."
+          ></textarea>
+          
+          <!-- Character Count & Mana Cost -->
+          <div class="mt-2 flex items-center justify-between text-xs">
+            <span class="text-theme-text-muted">
+              {{ prayerContent.length }} / {{ maxPrayerChars }} chars
+            </span>
+            <span class="text-theme-accent font-medium">
+              ~{{ estimatedManaCost }} Mana
+            </span>
+          </div>
+          
+          <div class="mt-4 flex items-center justify-between">
+            <p v-if="!prayers.canPray && prayers.isProfileComplete" class="text-sm text-theme-text-dim">
+              Daily Mana budget exhausted. Return tomorrow.
+            </p>
+            <button
+              v-if="!prayers.isProfileComplete"
+              type="button"
+              @click="showProfileModal = true"
+              class="btn-primary"
+            >
+              <span class="relative z-10 font-medium">
+                Complete Your Identity
+              </span>
+            </button>
+            <button
+              v-else
+              type="submit"
+              :disabled="!prayerContent.trim() || !prayers.canPray || prayers.loading || prayerContent.length > maxPrayerChars"
+              class="btn-primary disabled:cursor-not-allowed transition-all duration-150 ease-out"
+            >
+              <span class="relative z-10 font-medium">
+                {{ prayers.loading ? 'Submitting...' : 'Send Prayer' }}
+              </span>
+            </button>
+          </div>
+        </form>
       </div>
 
       <!-- Inactive Prayers (can be reactivated, max 5 inline) -->

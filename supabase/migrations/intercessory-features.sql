@@ -17,6 +17,10 @@
 -- ⚠️  Run it as a single transaction
 -- ============================================
 
+-- Drop existing functions first to avoid "cannot change return type" errors
+DROP FUNCTION IF EXISTS sync_prayer_count(UUID, INT) CASCADE;
+DROP FUNCTION IF EXISTS get_intercessory_prayer_count(UUID) CASCADE;
+
 -- ============================================
 -- 1. NEW RPC: get_intercessory_prayer_count
 -- ============================================
