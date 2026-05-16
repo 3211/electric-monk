@@ -388,7 +388,9 @@ function karmaClass() {
 
 /* Sort button styles */
 .sort-active {
-  @apply px-3 py-1 text-xs font-medium rounded-lg bg-theme-accent/15 text-theme-accent border border-theme-accent/30 transition-colors;
+  @apply px-3 py-1 text-xs font-medium rounded-lg text-theme-accent border transition-colors;
+  background-color: color-mix(in srgb, var(--theme-accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--theme-accent) 30%, transparent);
 }
 
 .sort-inactive {
