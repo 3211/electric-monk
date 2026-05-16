@@ -116,53 +116,84 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 --
 -- Usage from frontend:
 --   const { data, error } = await supabase.rpc('submit_prayer', { prayer_content: '...' })
+-- submit_prayer: Secure, atomic prayer submission
+-- Validates character limit (1500) and Mana budget server-side
+-- Slot-aware: only deactivates the OLDEST active prayer if all slots are occupied (FIFO rotation)
+-- Returns: JSONB with { id: uuid, cost: int, deactivated_id: uuid|null }
+--
+-- Usage from frontend:
+--   const { data, error } = await supabase.rpc('submit_prayer', { prayer_content: '...' })
 CREATE OR REPLACE FUNCTION submit_prayer(prayer_content TEXT)
 RETURNS JSONB AS $$
 DECLARE
     v_user_id UUID := auth.uid();
-    v_char_limit INT := 1500; -- Hard-coded safety cap (match VITE_MAX_PRAYER_CHARS)
-    v_token_ratio INT := 5;    -- 5 chars per token (match VITE_PRAYER_TOKEN_RATIO)
+    v_char_limit INT := 1500;
+    v_token_ratio INT := 5;
     v_cost INT;
     v_spent INT;
     v_limit INT;
     v_new_prayer_id UUID;
+    v_max_slots INT;
+    v_active_count INT;
+    v_deactivated_id UUID;
 BEGIN
-    -- 1. Get current stats
-    SELECT tokens_spent_today, daily_token_limit
-    INTO v_spent, v_limit
+    -- Get current stats + slot limit
+    SELECT tokens_spent_today, daily_token_limit, max_prayer_slots
+    INTO v_spent, v_limit, v_max_slots
     FROM profiles WHERE id = v_user_id;
 
-    -- 2. Validate Character Count
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Profile not found';
+    END IF;
+
+    -- Validate character count
     IF length(prayer_content) > v_char_limit THEN
         RAISE EXCEPTION 'Prayer exceeds maximum length of % characters.', v_char_limit;
     END IF;
 
-    -- 3. Calculate Cost
+    -- Calculate cost
     v_cost := ceil(length(prayer_content)::float / v_token_ratio);
 
-    -- 4. Check Budget
+    -- Check budget
     IF (v_spent + v_cost) > v_limit THEN
         RAISE EXCEPTION 'Insufficient Mana. This prayer costs % Mana, but you only have % remaining.', v_cost, (v_limit - v_spent);
     END IF;
 
-    -- 5. Deactivate any currently active prayer
-    UPDATE prayers
-    SET is_praying = false,
-        activated_at = NULL
-    WHERE user_id = v_user_id
-      AND is_praying = true;
+    -- Count currently active prayers
+    SELECT COUNT(*)::INT INTO v_active_count
+    FROM prayers WHERE user_id = v_user_id AND is_praying = true;
 
-    -- 6. Insert new prayer with activated_at and last_counted_at set
+    -- FIFO rotation: if all slots occupied, deactivate the OLDEST active prayer
+    IF v_active_count >= v_max_slots THEN
+        SELECT id INTO v_deactivated_id
+        FROM prayers
+        WHERE user_id = v_user_id AND is_praying = true
+        ORDER BY activated_at ASC NULLS LAST
+        LIMIT 1;
+
+        IF v_deactivated_id IS NOT NULL THEN
+            UPDATE prayers
+            SET is_praying = false, activated_at = NULL
+            WHERE id = v_deactivated_id;
+        END IF;
+    END IF;
+
+    -- Insert new prayer as active
     INSERT INTO prayers (user_id, content, is_praying, activated_at, last_counted_at)
     VALUES (v_user_id, prayer_content, true, now(), now())
     RETURNING id INTO v_new_prayer_id;
 
+    -- Deduct mana
     UPDATE profiles
     SET tokens_spent_today = tokens_spent_today + v_cost,
         last_prayer_date = CURRENT_DATE
     WHERE id = v_user_id;
 
-    RETURN jsonb_build_object('id', v_new_prayer_id, 'cost', v_cost);
+    RETURN jsonb_build_object(
+        'id', v_new_prayer_id,
+        'cost', v_cost,
+        'deactivated_id', v_deactivated_id
+    );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -352,44 +383,63 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function: Activate a prayer (swap with current active)
--- Deactivates any currently active prayer for this user first,
+-- Function: Activate a prayer (slot-aware with FIFO rotation)
+-- Only deactivates the OLDEST active prayer if all slots are occupied,
 -- then activates the target prayer with fresh timestamps
 CREATE OR REPLACE FUNCTION activate_prayer(
   p_prayer_id UUID
 )
 RETURNS JSONB AS $$
 DECLARE
-  v_user_id UUID;
-  v_current_active RECORD;
+  v_user_id UUID := auth.uid();
+  v_max_slots INT;
+  v_active_count INT;
+  v_deactivated_id UUID;
+  v_deactivated RECORD;
+  v_new_activated RECORD;
   v_elapsed_counts INT;
   v_cycle_time_ms INT;
-  v_new_activated RECORD;
 BEGIN
-  v_user_id := auth.uid();
+  -- Get user's max slots
+  SELECT max_prayer_slots INTO v_max_slots
+  FROM profiles WHERE id = v_user_id;
 
-  -- Deactivate any currently active prayer
-  SELECT id, COALESCE(response_content, content) AS cycle_text, activated_at, last_counted_at, prayer_count
-  INTO v_current_active
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Profile not found';
+  END IF;
+
+  -- Count active prayers (excluding the one we're about to activate)
+  SELECT COUNT(*)::INT INTO v_active_count
   FROM prayers
-  WHERE user_id = v_user_id
-    AND is_praying = true
-    AND id != p_prayer_id;
+  WHERE user_id = v_user_id AND is_praying = true AND id != p_prayer_id;
 
-  IF FOUND THEN
-    -- Cycle time based on monk's response length: ~200ms per char, clamped 15s–3min
-    v_cycle_time_ms := GREATEST(15000, LEAST(length(v_current_active.cycle_text) * 200, 180000));
-    v_elapsed_counts := GREATEST(0, floor(
-      EXTRACT(EPOCH FROM (now() - COALESCE(v_current_active.last_counted_at, v_current_active.activated_at)))
-      * 1000.0 / v_cycle_time_ms
-    ));
+  -- FIFO: if all slots are occupied, deactivate the OLDEST active prayer
+  IF v_active_count >= v_max_slots THEN
+    SELECT id, COALESCE(response_content, content) AS cycle_text,
+           activated_at, last_counted_at, prayer_count
+    INTO v_deactivated
+    FROM prayers
+    WHERE user_id = v_user_id AND is_praying = true AND id != p_prayer_id
+    ORDER BY activated_at ASC NULLS LAST
+    LIMIT 1;
 
-    UPDATE prayers
-    SET prayer_count = prayer_count + v_elapsed_counts,
-        last_counted_at = now(),
-        is_praying = false,
-        activated_at = NULL
-    WHERE id = v_current_active.id;
+    IF FOUND THEN
+      v_deactivated_id := v_deactivated.id;
+
+      -- Calculate elapsed counts before deactivating
+      v_cycle_time_ms := GREATEST(15000, LEAST(length(v_deactivated.cycle_text) * 200, 180000));
+      v_elapsed_counts := GREATEST(0, floor(
+        EXTRACT(EPOCH FROM (now() - COALESCE(v_deactivated.last_counted_at, v_deactivated.activated_at)))
+        * 1000.0 / v_cycle_time_ms
+      ));
+
+      UPDATE prayers
+      SET prayer_count = prayer_count + v_elapsed_counts,
+          last_counted_at = now(),
+          is_praying = false,
+          activated_at = NULL
+      WHERE id = v_deactivated.id;
+    END IF;
   END IF;
 
   -- Activate the target prayer
@@ -414,7 +464,7 @@ BEGIN
       'activated_at', v_new_activated.activated_at,
       'last_counted_at', v_new_activated.last_counted_at
     ),
-    'deactivated_id', CASE WHEN v_current_active.id IS NOT NULL THEN v_current_active.id ELSE NULL END
+    'deactivated_id', v_deactivated_id
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -698,6 +748,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Start an altruistic prayer session (praying for someone else's prayer)
+-- Slot-aware: only deactivates the OLDEST active prayer when all slots are occupied (FIFO rotation)
 CREATE OR REPLACE FUNCTION start_altruistic_prayer(
   p_target_prayer_id UUID,
   p_response_content TEXT DEFAULT NULL
@@ -708,7 +759,16 @@ DECLARE
   v_existing RECORD;
   v_new_id UUID;
   v_target RECORD;
+  v_max_slots INT;
+  v_active_count INT;
+  v_deactivated_id UUID;
 BEGIN
+  -- Get user's max slots
+  SELECT max_prayer_slots INTO v_max_slots
+  FROM profiles WHERE id = v_user_id;
+
+  IF NOT FOUND THEN RAISE EXCEPTION 'Profile not found'; END IF;
+
   -- Get the target prayer's response_content if not provided
   IF p_response_content IS NULL THEN
     SELECT response_content, content INTO v_target
@@ -719,9 +779,23 @@ BEGIN
     p_response_content := COALESCE(v_target.response_content, v_target.content);
   END IF;
 
-  -- Deactivate any currently active prayer for this user
-  UPDATE prayers SET is_praying = false, activated_at = NULL
-  WHERE user_id = v_user_id AND is_praying = true;
+  -- Count currently active prayers
+  SELECT COUNT(*)::INT INTO v_active_count
+  FROM prayers WHERE user_id = v_user_id AND is_praying = true;
+
+  -- FIFO rotation: if all slots occupied, deactivate the OLDEST active prayer
+  IF v_active_count >= v_max_slots THEN
+    SELECT id INTO v_deactivated_id
+    FROM prayers
+    WHERE user_id = v_user_id AND is_praying = true
+    ORDER BY activated_at ASC NULLS LAST
+    LIMIT 1;
+
+    IF v_deactivated_id IS NOT NULL THEN
+      UPDATE prayers SET is_praying = false, activated_at = NULL
+      WHERE id = v_deactivated_id;
+    END IF;
+  END IF;
 
   -- Check if an existing altruistic prayer for this target exists
   SELECT id, prayer_count, karma_awarded INTO v_existing
@@ -753,12 +827,14 @@ BEGIN
   RETURN jsonb_build_object(
     'id', v_new_id,
     'type', 'altruistic',
-    'target_prayer_id', p_target_prayer_id
+    'target_prayer_id', p_target_prayer_id,
+    'deactivated_id', v_deactivated_id
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Start an intercessory prayer session (praying for a sinner)
+-- Slot-aware: only deactivates the OLDEST active prayer when all slots are occupied (FIFO rotation)
 CREATE OR REPLACE FUNCTION start_intercessory_prayer(
   p_target_sinner_id UUID,
   p_response_content TEXT
@@ -768,10 +844,33 @@ DECLARE
   v_user_id UUID := auth.uid();
   v_existing RECORD;
   v_new_id UUID;
+  v_max_slots INT;
+  v_active_count INT;
+  v_deactivated_id UUID;
 BEGIN
-  -- Deactivate any currently active prayer for this user
-  UPDATE prayers SET is_praying = false, activated_at = NULL
-  WHERE user_id = v_user_id AND is_praying = true;
+  -- Get user's max slots
+  SELECT max_prayer_slots INTO v_max_slots
+  FROM profiles WHERE id = v_user_id;
+
+  IF NOT FOUND THEN RAISE EXCEPTION 'Profile not found'; END IF;
+
+  -- Count currently active prayers
+  SELECT COUNT(*)::INT INTO v_active_count
+  FROM prayers WHERE user_id = v_user_id AND is_praying = true;
+
+  -- FIFO rotation: if all slots occupied, deactivate the OLDEST active prayer
+  IF v_active_count >= v_max_slots THEN
+    SELECT id INTO v_deactivated_id
+    FROM prayers
+    WHERE user_id = v_user_id AND is_praying = true
+    ORDER BY activated_at ASC NULLS LAST
+    LIMIT 1;
+
+    IF v_deactivated_id IS NOT NULL THEN
+      UPDATE prayers SET is_praying = false, activated_at = NULL
+      WHERE id = v_deactivated_id;
+    END IF;
+  END IF;
 
   -- Check if an existing intercessory prayer for this sinner exists
   SELECT id, prayer_count, karma_awarded INTO v_existing
@@ -804,7 +903,8 @@ BEGIN
   RETURN jsonb_build_object(
     'id', v_new_id,
     'type', 'intercessory',
-    'target_sinner_id', p_target_sinner_id
+    'target_sinner_id', p_target_sinner_id,
+    'deactivated_id', v_deactivated_id
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

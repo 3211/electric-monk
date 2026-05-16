@@ -56,9 +56,39 @@
     </header>
 
     <main class="max-w-4xl mx-auto px-4 py-8">
-      <!-- Currently Active Prayer (the one being prayed right now) -->
+      <!-- Active Prayers Section -->
       <div class="space-y-4 mb-8">
-        <h2 class="text-xl font-semibold text-theme-text">Active Prayer</h2>
+        <div class="flex items-center justify-between">
+          <h2 class="text-xl font-semibold text-theme-text">
+            {{ prayers.activePrayersList.length > 1 ? 'Active Prayers' : 'Active Prayer' }}
+          </h2>
+          <!-- Multi-prayer navigation (only shown when > 1 active) -->
+          <div v-if="prayers.activePrayersList.length > 1" class="flex items-center gap-2">
+            <button
+              @click="prevPrayer"
+              :disabled="prayers.loading"
+              class="p-1.5 text-theme-text-dim hover:text-theme-accent transition-colors rounded border border-theme-border hover:border-theme-accent/50 disabled:opacity-50"
+              title="Previous prayer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <span class="text-xs text-theme-text-muted font-mono">
+              {{ selectedIndex + 1 }} / {{ prayers.activePrayersList.length }}
+            </span>
+            <button
+              @click="nextPrayer"
+              :disabled="prayers.loading"
+              class="p-1.5 text-theme-text-dim hover:text-theme-accent transition-colors rounded border border-theme-border hover:border-theme-accent/50 disabled:opacity-50"
+              title="Next prayer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
         
         <!-- Loading State -->
         <div v-if="prayers.loading && prayers.activePrayers.length === 0" class="text-center py-8 text-theme-text-dim">
@@ -82,8 +112,97 @@
           <p class="text-theme-text-dim">Select a prayer below to reactivate it. The Electric Monk will resume praying.</p>
         </div>
 
-        <!-- Currently Active Prayer with Counter -->
-        <div v-if="prayers.currentActivePrayer" class="glass-panel glass-gloss p-5 relative border border-theme-accent/60 shadow-glow-accent">
+        <!-- Multiple Active Prayers — Stacked Cards View -->
+        <div v-if="prayers.activePrayersList.length > 1" class="relative">
+          <!-- Stacked background cards (visual depth cue) -->
+          <div class="stacked-cards-container relative" style="min-height: 220px;">
+            <!-- Background cards (offset for stacking effect) -->
+            <div
+              v-for="(prayer, index) in prayers.activePrayersList"
+              :key="'stack-' + prayer.id"
+              class="absolute inset-x-0 top-0 transition-all duration-300 ease-out cursor-pointer"
+              :style="{
+                transform: index !== selectedIndex ? `translateY(${(index - selectedIndex) * 6 + (index < selectedIndex ? -6 : 6)}px) scale(${1 - Math.abs(index - selectedIndex) * 0.02})` : 'translateY(0) scale(1)',
+                zIndex: 10 - Math.abs(index - selectedIndex),
+                opacity: index === selectedIndex ? 1 : Math.max(0.3, 1 - Math.abs(index - selectedIndex) * 0.3),
+                pointerEvents: index === selectedIndex ? 'auto' : 'none',
+              }"
+              @click="selectedPrayerId = prayer.id"
+            >
+              <div v-if="index !== selectedIndex" class="glass-panel p-5 border border-theme-border/40 h-32 rounded-xl"></div>
+            </div>
+
+            <!-- Selected (front) card with full detail -->
+            <div v-if="selectedPrayer" class="relative glass-panel glass-gloss p-5 border border-theme-accent/60 shadow-glow-accent rounded-xl">
+              <!-- Delete/Archive Button -->
+              <button
+                @click="handleArchive(selectedPrayer.id)"
+                :disabled="prayers.loading"
+                class="absolute top-2 right-2 p-1 text-theme-text-muted hover:text-theme-purgatory transition-colors"
+                title="Archive this prayer (frees up a slot)"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+
+              <!-- Prayer Counter Display -->
+              <div class="flex items-center gap-4 mb-3">
+                <div class="prayer-counter-display" :class="{ 'counter-animate': counterAnimating }">
+                  <span class="text-4xl font-bold text-theme-accent font-mono">{{ activeCounterDisplay }}</span>
+                </div>
+                <div class="flex-1">
+                  <p class="text-xs text-theme-text-muted uppercase tracking-wider">Times Prayed</p>
+                  <!-- Golden Progress Bar -->
+                  <div class="w-full h-1.5 bg-theme-border/30 rounded-full mt-1.5 overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-none"
+                      :style="{
+                        width: (cycleProgressDisplay * 100) + '%',
+                        background: 'linear-gradient(90deg, #c9a84c, #f5e6a3, #c9a84c)',
+                        boxShadow: '0 0 8px rgba(201, 168, 76, 0.5)'
+                      }"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Prayer Content (monk's response only) -->
+              <div class="flex items-start justify-between gap-4 pr-8">
+                <div class="flex-1">
+                  <p v-if="selectedPrayer.response_content" class="text-theme-text font-medium mb-1">
+                    {{ selectedPrayer.response_content }}
+                  </p>
+                  <p v-else class="text-theme-text-dim italic text-sm">
+                    The monk's words echo in silence...
+                  </p>
+                </div>
+                
+                <!-- Status Badge -->
+                <span class="px-2 py-1 text-xs font-medium rounded whitespace-nowrap bg-theme-accent/30 text-theme-accent-dark animate-pulse">
+                  ✦ Being Prayed
+                </span>
+              </div>
+              
+              <!-- Timestamp + Deactivate Button -->
+              <div class="mt-3 flex items-center justify-between">
+                <p class="text-xs text-theme-text-muted">
+                  {{ formatDate(selectedPrayer.created_at) }}
+                </p>
+                <button
+                  @click="handleDeactivate(selectedPrayer.id)"
+                  :disabled="prayers.loading"
+                  class="px-3 py-1 text-xs text-theme-text-dim hover:text-theme-purgatory border border-theme-border rounded hover:border-theme-purgatory/50 transition-colors disabled:opacity-50"
+                >
+                  Pause Prayer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Single Active Prayer Card (original layout, no stacking) -->
+        <div v-else-if="prayers.currentActivePrayer" class="glass-panel glass-gloss p-5 relative border border-theme-accent/60 shadow-glow-accent">
           <!-- Delete/Archive Button -->
           <button
             @click="handleArchive(prayers.currentActivePrayer.id)"
@@ -169,14 +288,14 @@
         </div>
 
         <!-- Slot Warning -->
-        <div v-if="!prayers.canAddPrayer && prayers.isProfileComplete" class="mb-4 p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm">
-          All prayer slots occupied. Archive a prayer below to free up a slot.
+        <div v-if="!prayers.canSubmitPrayer && prayers.isProfileComplete" class="mb-4 p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm">
+          All prayer slots occupied. Pause or archive an active prayer to free up a slot.
         </div>
         
         <form @submit.prevent="handleSubmit">
           <textarea
             v-model="prayerContent"
-            :disabled="!prayers.canPray || !prayers.canAddPrayer || prayers.loading"
+            :disabled="!prayers.canPray || !prayers.canSubmitPrayer || prayers.loading"
             rows="4"
             class="w-full px-4 py-3 bg-theme-panel border border-theme-border rounded text-theme-text placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             placeholder="Speak your prayer into the aether..."
@@ -209,7 +328,7 @@
             <button
               v-else
               type="submit"
-              :disabled="!prayerContent.trim() || !prayers.canPray || prayers.loading || prayerContent.length > maxPrayerChars"
+              :disabled="!prayerContent.trim() || !prayers.canPray || !prayers.canSubmitPrayer || prayers.loading || prayerContent.length > maxPrayerChars"
               class="btn-primary disabled:cursor-not-allowed transition-all duration-150 ease-out"
             >
               <span class="relative z-10 font-medium">
@@ -484,6 +603,7 @@ const profileSaving = ref(false)
 const profileError = ref(null)
 const counterAnimating = ref(false)
 const showHistoryModal = ref(null) // null | 'inactive' | 'archived'
+const selectedPrayerId = ref(null) // Which active prayer card is selected
 
 // Karma toast state
 const karmaToastAmount = ref(0)
@@ -528,11 +648,42 @@ const displayedResponse = ref('')
 const typewriterFinished = ref(false)
 let typewriterInterval = null
 
-// Create a computed ref for the current active prayer to pass to usePrayerCounter
-const currentActivePrayerRef = computed(() => prayers.currentActivePrayer)
+// Selected prayer for multi-slot display — follows whichever active prayer the user is viewing
+const selectedPrayer = computed(() => {
+  const list = prayers.activePrayersList
+  if (!list || list.length === 0) return null
+  // Auto-select first if no selection or selection became inactive
+  if (!selectedPrayerId.value || !list.find(p => p.id === selectedPrayerId.value)) {
+    selectedPrayerId.value = list[0].id
+  }
+  return list.find(p => p.id === selectedPrayerId.value) || list[0]
+})
 
-// Initialize the prayer counter composable
-const counter = usePrayerCounter(currentActivePrayerRef)
+const selectedIndex = computed(() => {
+  const list = prayers.activePrayersList
+  if (!list || list.length === 0) return -1
+  return list.findIndex(p => p.id === selectedPrayerId.value)
+})
+
+function prevPrayer() {
+  const list = prayers.activePrayersList
+  if (!list || list.length <= 1) return
+  const idx = selectedIndex.value
+  selectedPrayerId.value = list[(idx - 1 + list.length) % list.length].id
+}
+
+function nextPrayer() {
+  const list = prayers.activePrayersList
+  if (!list || list.length <= 1) return
+  const idx = selectedIndex.value
+  selectedPrayerId.value = list[(idx + 1) % list.length].id
+}
+
+// Create a computed ref for the selected prayer to pass to usePrayerCounter
+const selectedPrayerRef = computed(() => selectedPrayer.value)
+
+// Initialize the prayer counter composable — follows the selected active prayer
+const counter = usePrayerCounter(selectedPrayerRef)
 
 // Watch for counter animations
 watch(counter.isAnimating, (val) => {

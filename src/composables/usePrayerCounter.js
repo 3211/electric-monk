@@ -352,6 +352,27 @@ export function usePrayerCounter(prayer) {
     }
   )
 
+  // Watch for prayer ID changes (user switches between active prayers)
+  // When switching from one active prayer to another, sync the old one and start counting the new one
+  watch(
+    () => prayer.value?.id,
+    (newId, oldId) => {
+      if (newId !== oldId && newId) {
+        // Sync the old prayer's counts before switching
+        if (oldId && lastLocalCount > 0) {
+          syncToBackend()
+        }
+        // Re-initialize and start counting for the new prayer
+        stopCounting()
+        if (prayer.value?.is_praying) {
+          startCounting()
+        } else {
+          initializeCount()
+        }
+      }
+    }
+  )
+
   // Auto-start if prayer is already active on mount
   if (prayer.value?.is_praying) {
     startCounting()
@@ -405,6 +426,7 @@ export function usePrayerCounter(prayer) {
     resetSinnerRedeemed,
     startCounting,
     stopCounting,
+    syncToBackend,
     finalSync,
     activatePrayer,
     calculateCycleTimeMs,

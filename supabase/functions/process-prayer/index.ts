@@ -285,16 +285,44 @@ Do NOT include any other text. Do NOT output thinking tags.`
     const isRejected = judgment.judgment === 'rejected'
     const now = new Date().toISOString()
     
-    // If approved, deactivate any currently active prayer for this user first
+    // If approved, use slot-aware deactivation: only deactivate oldest if over slot limit
     if (isApproved) {
-      const { error: deactivateError } = await supabase
+      // Get user's max prayer slots
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('max_prayer_slots')
+        .eq('id', user_id)
+        .single()
+
+      const maxSlots = profile?.max_prayer_slots || 1
+
+      // Count currently active prayers (the one we're about to approve will add 1)
+      const { count: activeCount } = await supabase
         .from('prayers')
-        .update({ is_praying: false, activated_at: null })
+        .select('*', { count: 'exact', head: true })
         .eq('user_id', user_id)
         .eq('is_praying', true)
 
-      if (deactivateError) {
-        console.error('Failed to deactivate current active prayer:', deactivateError)
+      // FIFO rotation: deactivate oldest if exceeding slot limit
+      if ((activeCount || 0) >= maxSlots) {
+        const { data: oldestActive } = await supabase
+          .from('prayers')
+          .select('id')
+          .eq('user_id', user_id)
+          .eq('is_praying', true)
+          .order('activated_at', { ascending: true, nullsFirst: true })
+          .limit(1)
+
+        if (oldestActive && oldestActive.length > 0) {
+          const { error: deactivateError } = await supabase
+            .from('prayers')
+            .update({ is_praying: false, activated_at: null })
+            .eq('id', oldestActive[0].id)
+
+          if (deactivateError) {
+            console.error('Failed to deactivate oldest active prayer:', deactivateError)
+          }
+        }
       }
     }
 

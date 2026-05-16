@@ -246,12 +246,14 @@ function createPrayersState() {
       const manaCost = result.cost
       dailyManaSpent.value += manaCost
 
-      // Deactivate any previously active prayer in local state
-      // (the RPC already deactivated it server-side)
-      const prevActive = prayers.value.find(p => p.is_praying && !p.is_archived && !p.is_rejected)
-      if (prevActive) {
-        prevActive.is_praying = false
-        prevActive.activated_at = null
+      // Slot-aware: only deactivate the specific prayer that was FIFO-rotated
+      // (the RPC handles slot checking and only deactivates the oldest when over limit)
+      if (result.deactivated_id) {
+        const deactivated = prayers.value.find(p => p.id === result.deactivated_id)
+        if (deactivated) {
+          deactivated.is_praying = false
+          deactivated.activated_at = null
+        }
       }
 
       // Step 2: Invoke the Edge Function to process prayer with Venice AI
@@ -491,16 +493,22 @@ function createPrayersState() {
   // Only currently-praying prayers occupy a slot (inactive ones don't)
   const activePrayerCount = computed(() => prayers.value.filter(p => p.is_praying && !p.is_archived).length)
   const canAddPrayer = computed(() => activePrayerCount.value < maxPrayerSlots.value)
+  // Alias for clarity: can submit a new prayer (form enabled/disabled)
+  const canSubmitPrayer = canAddPrayer
   
   // Computed properties for profile completion
   const isProfileComplete = computed(() => {
     return !!username.value && !!faith.value
   })
   
-  // The single currently-active prayer (is_praying = true, not rejected/archived)
-  const currentActivePrayer = computed(() =>
-    prayers.value.find(p => p.is_praying && !p.is_rejected && !p.is_archived) || null
+  // All currently-active prayers (is_praying = true, not rejected/archived), sorted by activated_at (FIFO)
+  const activePrayersList = computed(() =>
+    prayers.value.filter(p => p.is_praying && !p.is_rejected && !p.is_archived)
+      .sort((a, b) => new Date(a.activated_at) - new Date(b.activated_at))
   )
+
+  // The first currently-active prayer (backward compat, used by single-prayer displays)
+  const currentActivePrayer = computed(() => activePrayersList.value[0] || null)
 
   // Inactive prayers: not praying, not rejected, not archived (pooled in infinite list)
   const inactivePrayers = computed(() =>
@@ -687,8 +695,10 @@ function createPrayersState() {
     karmaEmoji,
     activePrayerCount,
     canAddPrayer,
+    canSubmitPrayer,
     isProfileComplete,
     currentActivePrayer,
+    activePrayersList,
     inactivePrayers,
     activePrayers,
     archivedPrayers,
