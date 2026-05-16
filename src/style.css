@@ -161,28 +161,40 @@
     isolation: isolate;
     overflow: hidden;
     overflow: clip;
+    z-index: 0;
   }
 
   .app-content-inner {
     position: relative;
-    z-index: 0;
+    z-index: 1;
     min-height: 100%;
   }
 
   .holy-light-layer,
+  .holy-cloud-layer,
   .holy-ripple-layer {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    z-index: -10;
+    z-index: 0;
   }
 
   .holy-light-layer {
-    opacity: 0.88;
+    opacity: 0.98;
+  }
+
+  .holy-cloud-layer {
+    opacity: 0.94;
+  }
+
+  .holy-ripple-layer {
+    opacity: 0.84;
   }
 
   .holy-light-layer::before,
   .holy-light-layer::after,
+  .holy-cloud-layer::before,
+  .holy-cloud-layer::after,
   .holy-ripple-layer::before,
   .holy-ripple-layer::after {
     content: "";
@@ -192,44 +204,65 @@
   }
 
   .holy-light-layer::before {
-    inset: -10% -18% 0;
+    inset: -14% -20% 0;
     background:
-      linear-gradient(104deg, transparent 12%, rgba(255, 252, 245, 0.045) 32%, rgba(255, 223, 147, 0.028) 48%, transparent 68%),
-      linear-gradient(78deg, transparent 20%, rgba(255, 248, 229, 0.036) 35%, rgba(240, 182, 59, 0.018) 46%, transparent 62%);
+      linear-gradient(103deg, transparent 10%, rgba(255, 252, 245, 0.07) 29%, rgba(255, 223, 147, 0.05) 43%, transparent 66%),
+      linear-gradient(76deg, transparent 18%, rgba(255, 248, 229, 0.056) 34%, rgba(240, 182, 59, 0.03) 45%, transparent 60%),
+      linear-gradient(88deg, transparent 26%, rgba(255, 252, 245, 0.038) 40%, transparent 58%);
     transform-origin: 50% 0%;
-    animation: holy-rays-drift 36s ease-in-out infinite alternate;
+    animation: holy-rays-drift 30s ease-in-out infinite alternate;
   }
 
   .holy-light-layer::after {
-    inset: -18% -10% 12%;
-    background: radial-gradient(ellipse at 50% 0%, rgba(255, 252, 245, 0.048) 0%, rgba(255, 223, 147, 0.026) 34%, transparent 74%);
-    opacity: 0.78;
-    animation: holy-rays-breathe 32s ease-in-out infinite;
+    inset: -22% -8% 8%;
+    background:
+      radial-gradient(ellipse at 50% 0%, rgba(255, 252, 245, 0.075) 0%, rgba(255, 223, 147, 0.044) 30%, rgba(240, 182, 59, 0.018) 48%, transparent 76%);
+    opacity: 0.9;
+    animation: holy-rays-breathe 24s ease-in-out infinite;
   }
 
-  .holy-ripple-layer {
-    opacity: 0.7;
+  .holy-cloud-layer::before {
+    inset: -12% -14% 12%;
+    background:
+      radial-gradient(ellipse at 18% 22%, rgba(255, 252, 245, 0.06) 0%, rgba(255, 248, 229, 0.036) 18%, transparent 42%),
+      radial-gradient(ellipse at 54% 18%, rgba(255, 251, 240, 0.05) 0%, rgba(255, 223, 147, 0.028) 20%, transparent 48%),
+      radial-gradient(ellipse at 88% 26%, rgba(255, 248, 229, 0.044) 0%, transparent 38%),
+      radial-gradient(ellipse at 38% 68%, rgba(255, 252, 245, 0.034) 0%, transparent 34%);
+    filter: blur(36px);
+    transform: translate3d(0, 0, 0) scale(1.08);
+    animation: holy-clouds-float 42s ease-in-out infinite alternate;
+  }
+
+  .holy-cloud-layer::after {
+    inset: -8% -10% 8%;
+    background:
+      radial-gradient(ellipse at 26% 52%, rgba(255, 223, 147, 0.03) 0%, transparent 24%),
+      radial-gradient(ellipse at 72% 58%, rgba(255, 252, 245, 0.042) 0%, rgba(255, 248, 229, 0.022) 16%, transparent 36%),
+      radial-gradient(ellipse at 50% 88%, rgba(240, 182, 59, 0.018) 0%, transparent 28%);
+    filter: blur(28px);
+    transform: translate3d(0, 0, 0) scale(1.06);
+    animation: holy-clouds-float 54s ease-in-out infinite alternate-reverse;
   }
 
   .holy-ripple-layer::before {
-    inset: -10% -6%;
+    inset: -12% -6%;
     background:
-      radial-gradient(circle at 18% 24%, rgba(255, 252, 245, 0.032) 0%, transparent 24%),
-      radial-gradient(circle at 76% 18%, rgba(255, 223, 147, 0.026) 0%, transparent 22%),
-      radial-gradient(circle at 52% 70%, rgba(240, 182, 59, 0.018) 0%, transparent 28%);
+      radial-gradient(circle at 18% 24%, rgba(255, 252, 245, 0.04) 0%, transparent 22%),
+      radial-gradient(circle at 76% 18%, rgba(255, 223, 147, 0.032) 0%, transparent 20%),
+      radial-gradient(circle at 52% 70%, rgba(240, 182, 59, 0.022) 0%, transparent 26%);
     transform: translate3d(0, 0, 0) scale(1.08);
-    animation: holy-ripple-drift 34s linear infinite;
+    animation: holy-ripple-drift 28s linear infinite;
   }
 
   .holy-ripple-layer::after {
-    inset: -14% -12%;
+    inset: -16% -12%;
     background:
-      radial-gradient(circle at 50% 50%, rgba(255, 251, 240, 0.022) 0%, transparent 18%),
-      radial-gradient(circle at 50% 50%, transparent 0%, transparent 22%, rgba(255, 223, 147, 0.015) 34%, transparent 54%),
-      radial-gradient(circle at 50% 50%, transparent 0%, transparent 38%, rgba(255, 248, 229, 0.012) 50%, transparent 68%);
-    opacity: 0.72;
+      radial-gradient(circle at 50% 50%, rgba(255, 251, 240, 0.032) 0%, transparent 16%),
+      radial-gradient(circle at 50% 50%, transparent 0%, transparent 20%, rgba(255, 223, 147, 0.024) 32%, transparent 52%),
+      radial-gradient(circle at 50% 50%, transparent 0%, transparent 36%, rgba(255, 248, 229, 0.02) 48%, transparent 66%);
+    opacity: 0.84;
     transform: translate3d(0, 0, 0) scale(1.16);
-    animation: holy-ripple-drift 46s linear infinite reverse;
+    animation: holy-ripple-drift 38s linear infinite reverse;
   }
 
   .app-frame {
@@ -660,40 +693,55 @@
 
 @keyframes holy-rays-drift {
   0% {
-    opacity: 0.58;
-    transform: translate3d(-1.5%, 0, 0) scale(1.02) rotate(-3deg);
+    opacity: 0.66;
+    transform: translate3d(-2%, 0, 0) scale(1.03) rotate(-4deg);
   }
   50% {
-    opacity: 0.78;
-    transform: translate3d(0.5%, 1.25%, 0) scale(1.05) rotate(-1.5deg);
+    opacity: 0.92;
+    transform: translate3d(0.75%, 1.5%, 0) scale(1.08) rotate(-1.8deg);
   }
   100% {
-    opacity: 0.62;
-    transform: translate3d(1.25%, 2%, 0) scale(1.08) rotate(1deg);
+    opacity: 0.72;
+    transform: translate3d(1.8%, 2.2%, 0) scale(1.11) rotate(1.2deg);
   }
 }
 
 @keyframes holy-rays-breathe {
   0%,
   100% {
-    opacity: 0.52;
+    opacity: 0.58;
     transform: translate3d(0, 0, 0) scale(1);
   }
   50% {
-    opacity: 0.76;
-    transform: translate3d(0, 2%, 0) scale(1.04);
+    opacity: 0.92;
+    transform: translate3d(0, 2.4%, 0) scale(1.06);
+  }
+}
+
+@keyframes holy-clouds-float {
+  0% {
+    opacity: 0.56;
+    transform: translate3d(-1.5%, -1%, 0) scale(1.05);
+  }
+  50% {
+    opacity: 0.82;
+    transform: translate3d(1.5%, 1%, 0) scale(1.11);
+  }
+  100% {
+    opacity: 0.62;
+    transform: translate3d(2.5%, 2%, 0) scale(1.14);
   }
 }
 
 @keyframes holy-ripple-drift {
   0% {
-    transform: translate3d(-1%, -0.75%, 0) scale(1.08);
+    transform: translate3d(-1.2%, -0.8%, 0) scale(1.08);
   }
   50% {
-    transform: translate3d(1.25%, 0.75%, 0) scale(1.14);
+    transform: translate3d(1.5%, 0.9%, 0) scale(1.16);
   }
   100% {
-    transform: translate3d(-0.5%, 1.25%, 0) scale(1.1);
+    transform: translate3d(-0.6%, 1.4%, 0) scale(1.12);
   }
 }
 
@@ -713,6 +761,8 @@
 
   .holy-light-layer::before,
   .holy-light-layer::after,
+  .holy-cloud-layer::before,
+  .holy-cloud-layer::after,
   .holy-ripple-layer::before,
   .holy-ripple-layer::after {
     animation: none !important;
