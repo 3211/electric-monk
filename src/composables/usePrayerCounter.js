@@ -31,6 +31,7 @@ export function usePrayerCounter(prayer) {
   const displayedCount = ref(0)
   const isAnimating = ref(false)
   const cycleProgress = ref(0)
+  const karmaMilestoneEarned = ref(0) // Set to karma_change value when milestone is hit
 
   let cycleTimer = null
   let syncTimer = null
@@ -145,6 +146,11 @@ export function usePrayerCounter(prayer) {
 
         displayedCount.value = baseCount + elapsedCycles
         lastLocalCount = 0
+
+        // Check for karma milestone earned
+        if (data.karma_change && data.karma_change > 0) {
+          karmaMilestoneEarned.value = data.karma_change
+        }
       }
     } catch (err) {
       console.error('[usePrayerCounter] Background sync failed:', err)
@@ -205,6 +211,11 @@ export function usePrayerCounter(prayer) {
 
           displayedCount.value = baseCount + elapsedCycles
           lastLocalCount = 0
+
+          // Check for karma milestone earned
+          if (data.karma_change && data.karma_change > 0) {
+            karmaMilestoneEarned.value = data.karma_change
+          }
         }
       } catch (err) {
         console.error('[usePrayerCounter] Sync failed:', err)
@@ -345,16 +356,35 @@ export function usePrayerCounter(prayer) {
   document.addEventListener('visibilitychange', handleVisibilityChange)
 
   // Clean up timers and event listeners on unmount
+  // Fire-and-forget sync to prevent data loss when switching tabs
   onUnmounted(() => {
+    if (prayer.value?.is_praying && lastLocalCount > 0) {
+      supabase.rpc('sync_prayer_count', {
+        p_prayer_id: prayer.value.id,
+        p_elapsed_counts: lastLocalCount,
+      }).catch(() => {
+        // Best effort — periodic syncs ensure data isn't lost
+      })
+    }
     stopCounting()
     window.removeEventListener('beforeunload', handleBeforeUnload)
     document.removeEventListener('visibilitychange', handleVisibilityChange)
   })
 
+  /**
+   * Reset the karma milestone value after it has been consumed
+   * (e.g., after showing a toast notification).
+   */
+  function resetKarmaMilestone() {
+    karmaMilestoneEarned.value = 0
+  }
+
   return {
     displayedCount: computed(() => displayedCount.value),
     isAnimating: computed(() => isAnimating.value),
     cycleProgress: computed(() => cycleProgress.value),
+    karmaMilestoneEarned: computed(() => karmaMilestoneEarned.value),
+    resetKarmaMilestone,
     startCounting,
     stopCounting,
     finalSync,

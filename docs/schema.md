@@ -381,3 +381,142 @@ GRANT EXECUTE ON FUNCTION reset_daily_prayer_count(UUID) TO service_role;
 
 CREATE INDEX IF NOT EXISTS idx_prayers_user_status ON prayers(user_id, status);
 ```
+
+---
+
+## 9. AKASHIC RECORDS EXTENSIONS (v3.0)
+
+The Akashic Records feature adds a new tab showing all public prayers and users in purgatory, with the ability to pray altruistically for others.
+
+### New Columns on `prayers` Table
+
+```sql
+-- Track karma milestones already awarded (prevents double-awarding)
+karma_awarded INT DEFAULT 0
+
+-- Link altruistic prayer back to the original prayer being prayed for
+source_prayer_id UUID REFERENCES prayers(id) ON DELETE SET NULL
+
+-- Link intercessory prayer to the sinner being prayed for
+source_sinner_id UUID REFERENCES profiles(id) ON DELETE SET NULL
+
+-- Distinguish prayer types: own, altruistic, intercessory
+prayer_type TEXT DEFAULT 'own' CHECK (prayer_type IN ('own', 'altruistic', 'intercessory'))
+```
+
+### Prayer Types
+
+| Type | Description | Karma Rate |
+|------|-------------|------------|
+| `own` | User's own prayer (default) | +1 karma per 100 prays |
+| `altruistic` | Praying for someone else's prayer | +2 karma per 100 prays |
+| `intercessory` | Praying for a sinner in purgatory | +1 karma per 100 prays |
+
+### New Indexes
+
+```sql
+CREATE INDEX idx_prayers_public_feed
+  ON prayers(is_rejected, is_archived, created_at DESC)
+  WHERE is_rejected = false AND is_archived = false;
+
+CREATE INDEX idx_prayers_type_active
+  ON prayers(user_id, prayer_type, is_praying)
+  WHERE is_praying = true;
+
+CREATE INDEX idx_prayers_most_prayed
+  ON prayers(prayer_count DESC)
+  WHERE is_rejected = false AND is_archived = false AND prayer_type = 'own';
+```
+
+### Updated RLS Policies
+
+```sql
+-- Users can view approved prayers from others (Akashic Records feed)
+-- AND their own prayers (including rejected/archived)
+CREATE POLICY "Users can view approved prayers"
+  ON prayers FOR SELECT
+  USING (
+    auth.uid() = user_id
+    OR (is_rejected = false AND is_archived = false AND status = 'completed')
+  );
+
+-- Users can view purgatory users' basic info (Sinners list)
+-- AND their own profile
+CREATE POLICY "Users can view profiles"
+  ON profiles FOR SELECT
+  USING (
+    auth.uid() = id
+    OR (ban_until IS NOT NULL AND ban_until > now())
+  );
+```
+
+### New RPC Functions
+
+#### `get_public_prayers(p_offset INT, p_limit INT, p_sort_by TEXT)`
+
+Fetches the Akashic Records prayer feed with author usernames.
+
+- `p_sort_by = 'newest'`: Orders by `created_at DESC`
+- `p_sort_by = 'most_prayed'`: Orders by `prayer_count DESC, created_at DESC`
+- Only returns `prayer_type = 'own'` (not altruistic/intercessory prayers)
+- Only returns approved, completed, non-archived prayers
+- Returns JSONB array with: `id, response_content, prayer_count, created_at, prayer_type, username, faith`
+
+#### `get_sinners()`
+
+Fetches users currently in purgatory with their most recent rejection reason.
+
+- Returns JSONB array with: `id, username, faith, ban_until, rejection_reason, rejected_content`
+- Only includes users where `ban_until > now()`
+
+#### `start_altruistic_prayer(p_target_prayer_id UUID, p_response_content TEXT)`
+
+Creates or resumes an altruistic prayer session for someone else's prayer.
+
+- Deactivates any currently active prayer for the user
+- If an existing altruistic prayer for the same target exists, reactivates it
+- Otherwise creates a new prayer row with `prayer_type = 'altruistic'`
+- Returns: `{ id, type, target_prayer_id }`
+
+#### `start_intercessory_prayer(p_target_sinner_id UUID, p_response_content TEXT)`
+
+Creates or resumes an intercessory prayer session for a sinner.
+
+- Deactivates any currently active prayer for the user
+- If an existing intercessory prayer for the same sinner exists, reactivates it
+- Otherwise creates a new prayer row with `prayer_type = 'intercessory'`
+- Returns: `{ id, type, target_sinner_id }`
+
+### Modified RPC Function: `sync_prayer_count`
+
+Now includes karma milestone checking. Every 100 prays triggers a karma award:
+
+- `prayer_type = 'own'`: +1 karma per milestone
+- `prayer_type = 'altruistic'`: +2 karma per milestone
+- `prayer_type = 'intercessory'`: +1 karma per milestone
+
+The `karma_awarded` column tracks how many milestones have been awarded to prevent double-awarding. The response now includes a `karma_change` field.
+
+### Modified RPC Function: `deactivate_prayer`
+
+Now includes karma milestone checking on final sync. When a prayer is deactivated, any milestone crossed during the final count sync triggers a karma award (same rates as `sync_prayer_count`). The response now includes a `karma_change` field, allowing the frontend to show a karma toast notification when stopping a prayer.
+
+### New Edge Function: `pray-for-sinner`
+
+Located at `supabase/functions/pray-for-sinner/index.ts`.
+
+- Receives `{ sinner_id, user_id }`
+- Fetches sinner's profile and most recent rejected prayer
+- Generates an intercessory prayer via Venice AI
+- Returns `{ success, response, sinner_username, faith, rejection_reason }`
+
+### Frontend Components
+
+| File | Purpose |
+|------|---------|
+| `src/views/AkashicRecordsView.vue` | Main view with Prayers/Sinners sub-tabs |
+| `src/composables/useAkashicRecords.js` | Fetch public prayers, sinners, manage altruistic sessions |
+| `src/components/organisms/AkashicPrayerCard.vue` | Prayer card for the public feed |
+| `src/components/organisms/SinnerCard.vue` | Sinner card with live countdown |
+| `src/components/molecules/KarmaToast.vue` | Toast notification for karma milestones |
+| `supabase/functions/pray-for-sinner/index.ts` | Edge function for AI-generated intercessory prayers |

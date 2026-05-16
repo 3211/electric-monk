@@ -52,7 +52,12 @@ CREATE TABLE IF NOT EXISTS prayers (
   prayer_count INT DEFAULT 0,       -- Total times prayed (persisted at last sync)
   last_counted_at TIMESTAMPTZ,       -- Timestamp of last count sync
   activated_at TIMESTAMPTZ,          -- When prayer was last activated
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT now(),
+  -- Akashic Records columns (v3.0)
+  karma_awarded INT DEFAULT 0,        -- How many 100-pray milestones have been awarded as karma
+  source_prayer_id UUID REFERENCES prayers(id) ON DELETE SET NULL,  -- Links altruistic prayer to original
+  source_sinner_id UUID REFERENCES profiles(id) ON DELETE SET NULL,  -- Links intercessory prayer to sinner
+  prayer_type TEXT DEFAULT 'own' CHECK (prayer_type IN ('own', 'altruistic', 'intercessory'))
 );
 
 -- Migration: Add columns to existing tables (safe to run multiple times)
@@ -263,8 +268,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function: Deactivate a prayer (final sync + set inactive)
--- Performs final count sync, then sets is_praying = false, activated_at = null
+-- Function: Deactivate a prayer (final sync + set inactive + karma milestone)
+-- Performs final count sync, sets is_praying = false, activated_at = null,
+-- and awards karma if a milestone was crossed during the final sync
 CREATE OR REPLACE FUNCTION deactivate_prayer(
   p_prayer_id UUID,
   p_elapsed_counts INT
@@ -273,6 +279,8 @@ RETURNS JSONB AS $$
 DECLARE
   v_user_id UUID;
   v_prayer RECORD;
+  v_milestones INT;
+  v_karma_change INT := 0;
 BEGIN
   SELECT user_id INTO v_user_id
   FROM prayers WHERE id = p_prayer_id;
@@ -285,20 +293,40 @@ BEGIN
     RAISE EXCEPTION 'Not authorized';
   END IF;
 
+  -- Final count sync + deactivate
   UPDATE prayers
   SET prayer_count = prayer_count + p_elapsed_counts,
       last_counted_at = now(),
       is_praying = false,
       activated_at = NULL
   WHERE id = p_prayer_id
-  RETURNING id, prayer_count, is_praying, activated_at
+  RETURNING id, prayer_count, is_praying, activated_at, prayer_type, karma_awarded, user_id
   INTO v_prayer;
+
+  -- Check karma milestones (every 100 prays)
+  v_milestones := floor(v_prayer.prayer_count / 100);
+
+  IF v_milestones > v_prayer.karma_awarded THEN
+    -- Determine karma rate based on prayer type
+    IF v_prayer.prayer_type = 'altruistic' THEN
+      v_karma_change := (v_milestones - v_prayer.karma_awarded) * 2;
+    ELSE
+      v_karma_change := (v_milestones - v_prayer.karma_awarded) * 1;
+    END IF;
+
+    -- Award karma to the praying user
+    PERFORM update_karma(v_prayer.user_id, v_karma_change);
+
+    -- Update karma_awarded tracker
+    UPDATE prayers SET karma_awarded = v_milestones WHERE id = p_prayer_id;
+  END IF;
 
   RETURN jsonb_build_object(
     'id', v_prayer.id,
     'prayer_count', v_prayer.prayer_count,
     'is_praying', v_prayer.is_praying,
-    'activated_at', v_prayer.activated_at
+    'activated_at', v_prayer.activated_at,
+    'karma_change', v_karma_change
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -460,3 +488,256 @@ GRANT EXECUTE ON FUNCTION reduce_ban_time(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION refill_tokens(INT) TO service_role;
 GRANT EXECUTE ON FUNCTION update_karma(UUID, INT) TO service_role;
 GRANT EXECUTE ON FUNCTION reset_daily_prayer_count(UUID) TO service_role;
+
+-- ============================================
+-- 6. AKASHIC RECORDS (v3.0)
+-- ============================================
+
+-- Migration: Add Akashic Records columns to prayers table (safe to run multiple times)
+ALTER TABLE prayers ADD COLUMN IF NOT EXISTS karma_awarded INT DEFAULT 0;
+ALTER TABLE prayers ADD COLUMN IF NOT EXISTS source_prayer_id UUID REFERENCES prayers(id) ON DELETE SET NULL;
+ALTER TABLE prayers ADD COLUMN IF NOT EXISTS source_sinner_id UUID REFERENCES profiles(id) ON DELETE SET NULL;
+ALTER TABLE prayers ADD COLUMN IF NOT EXISTS prayer_type TEXT DEFAULT 'own'
+  CHECK (prayer_type IN ('own', 'altruistic', 'intercessory'));
+
+-- Indexes for efficient Akashic Records queries
+CREATE INDEX IF NOT EXISTS idx_prayers_public_feed
+  ON prayers(is_rejected, is_archived, created_at DESC)
+  WHERE is_rejected = false AND is_archived = false;
+
+CREATE INDEX IF NOT EXISTS idx_prayers_type_active
+  ON prayers(user_id, prayer_type, is_praying)
+  WHERE is_praying = true;
+
+CREATE INDEX IF NOT EXISTS idx_prayers_most_prayed
+  ON prayers(prayer_count DESC)
+  WHERE is_rejected = false AND is_archived = false AND prayer_type = 'own';
+
+-- ============================================
+-- 7. AKASHIC RECORDS RLS POLICIES
+-- ============================================
+
+-- Replace the restrictive "own prayers" policy with a broader one for the Akashic Records feed
+DROP POLICY IF EXISTS "Users can view own prayers" ON prayers;
+CREATE POLICY "Users can view approved prayers"
+  ON prayers FOR SELECT
+  USING (
+    auth.uid() = user_id  -- always see your own
+    OR (is_rejected = false AND is_archived = false AND status = 'completed')  -- see others' approved
+  );
+
+-- Replace the restrictive "own profile" policy with one that also shows purgatory users
+DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
+CREATE POLICY "Users can view profiles"
+  ON profiles FOR SELECT
+  USING (
+    auth.uid() = id  -- always see your own
+    OR (ban_until IS NOT NULL AND ban_until > now())  -- see purgatory users
+  );
+
+-- Additional INSERT/UPDATE policies for altruistic/intercessory prayers
+DROP POLICY IF EXISTS "Users can insert own prayers" ON prayers;
+CREATE POLICY "Users can insert own prayers"
+  ON prayers FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update own prayers" ON prayers;
+CREATE POLICY "Users can update own prayers"
+  ON prayers FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- ============================================
+-- 8. AKASHIC RECORDS RPC FUNCTIONS
+-- ============================================
+
+-- Get public prayers for the Akashic Records feed
+CREATE OR REPLACE FUNCTION get_public_prayers(
+  p_offset INT DEFAULT 0,
+  p_limit INT DEFAULT 20,
+  p_sort_by TEXT DEFAULT 'newest'
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_result JSONB;
+  v_order_clause TEXT;
+BEGIN
+  IF p_sort_by = 'most_prayed' THEN
+    v_order_clause := 'prayer_count DESC, created_at DESC';
+  ELSE
+    v_order_clause := 'created_at DESC';
+  END IF;
+
+  EXECUTE format(
+    'SELECT jsonb_agg(row_to_json(t)) FROM (
+      SELECT p.id, p.response_content, p.prayer_count,
+             p.created_at, p.prayer_type,
+             pr.username, pr.faith
+      FROM prayers p
+      LEFT JOIN profiles pr ON p.user_id = pr.id
+      WHERE p.is_rejected = false
+        AND p.is_archived = false
+        AND p.status = ''completed''
+        AND p.prayer_type = ''own''
+      ORDER BY %s
+      LIMIT %s OFFSET %s
+    ) t',
+    v_order_clause, p_limit, p_offset
+  ) INTO v_result;
+
+  RETURN COALESCE(v_result, '[]'::jsonb);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Get sinners (users currently in purgatory)
+CREATE OR REPLACE FUNCTION get_sinners()
+RETURNS JSONB AS $$
+DECLARE
+  v_result JSONB;
+BEGIN
+  SELECT jsonb_agg(jsonb_build_object(
+    'id', p.id,
+    'username', p.username,
+    'faith', p.faith,
+    'ban_until', p.ban_until,
+    'rejection_reason', pr.rejection_reason,
+    'rejected_content', pr.content
+  ))
+  INTO v_result
+  FROM profiles p
+  LEFT JOIN LATERAL (
+    SELECT content, rejection_reason
+    FROM prayers
+    WHERE prayers.user_id = p.id
+      AND prayers.is_rejected = true
+    ORDER BY created_at DESC
+    LIMIT 1
+  ) pr ON true
+  WHERE p.ban_until IS NOT NULL
+    AND p.ban_until > now()
+  ORDER BY p.ban_until ASC;
+
+  RETURN COALESCE(v_result, '[]'::jsonb);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Start an altruistic prayer session (praying for someone else's prayer)
+CREATE OR REPLACE FUNCTION start_altruistic_prayer(
+  p_target_prayer_id UUID,
+  p_response_content TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+  v_existing RECORD;
+  v_new_id UUID;
+  v_target RECORD;
+BEGIN
+  -- Get the target prayer's response_content if not provided
+  IF p_response_content IS NULL THEN
+    SELECT response_content, content INTO v_target
+    FROM prayers WHERE id = p_target_prayer_id;
+
+    IF NOT FOUND THEN RAISE EXCEPTION 'Target prayer not found'; END IF;
+
+    p_response_content := COALESCE(v_target.response_content, v_target.content);
+  END IF;
+
+  -- Deactivate any currently active prayer for this user
+  UPDATE prayers SET is_praying = false, activated_at = NULL
+  WHERE user_id = v_user_id AND is_praying = true;
+
+  -- Check if an existing altruistic prayer for this target exists
+  SELECT id, prayer_count, karma_awarded INTO v_existing
+  FROM prayers
+  WHERE user_id = v_user_id
+    AND source_prayer_id = p_target_prayer_id
+    AND prayer_type = 'altruistic'
+    AND is_archived = false
+  LIMIT 1;
+
+  IF FOUND THEN
+    UPDATE prayers
+    SET is_praying = true, activated_at = now(), last_counted_at = now()
+    WHERE id = v_existing.id
+    RETURNING id INTO v_new_id;
+  ELSE
+    INSERT INTO prayers (user_id, content, response_content, prayer_type, source_prayer_id, is_praying, activated_at, last_counted_at, status)
+    VALUES (
+      v_user_id,
+      'Altruistic prayer for another',
+      p_response_content,
+      'altruistic',
+      p_target_prayer_id,
+      true, now(), now(), 'completed'
+    )
+    RETURNING id INTO v_new_id;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'id', v_new_id,
+    'type', 'altruistic',
+    'target_prayer_id', p_target_prayer_id
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Start an intercessory prayer session (praying for a sinner)
+CREATE OR REPLACE FUNCTION start_intercessory_prayer(
+  p_target_sinner_id UUID,
+  p_response_content TEXT
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+  v_existing RECORD;
+  v_new_id UUID;
+BEGIN
+  -- Deactivate any currently active prayer for this user
+  UPDATE prayers SET is_praying = false, activated_at = NULL
+  WHERE user_id = v_user_id AND is_praying = true;
+
+  -- Check if an existing intercessory prayer for this sinner exists
+  SELECT id, prayer_count, karma_awarded INTO v_existing
+  FROM prayers
+  WHERE user_id = v_user_id
+    AND source_sinner_id = p_target_sinner_id
+    AND prayer_type = 'intercessory'
+    AND is_archived = false
+  LIMIT 1;
+
+  IF FOUND THEN
+    UPDATE prayers
+    SET is_praying = true, activated_at = now(), last_counted_at = now(),
+        response_content = p_response_content
+    WHERE id = v_existing.id
+    RETURNING id INTO v_new_id;
+  ELSE
+    INSERT INTO prayers (user_id, content, response_content, prayer_type, source_sinner_id, is_praying, activated_at, last_counted_at, status)
+    VALUES (
+      v_user_id,
+      'Intercessory prayer for a sinner',
+      p_response_content,
+      'intercessory',
+      p_target_sinner_id,
+      true, now(), now(), 'completed'
+    )
+    RETURNING id INTO v_new_id;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'id', v_new_id,
+    'type', 'intercessory',
+    'target_sinner_id', p_target_sinner_id
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================
+-- 9. AKASHIC RECORDS PERMISSIONS
+-- ============================================
+
+GRANT EXECUTE ON FUNCTION get_public_prayers(INT, INT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_sinners() TO authenticated;
+GRANT EXECUTE ON FUNCTION start_altruistic_prayer(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION start_intercessory_prayer(UUID, TEXT) TO authenticated;

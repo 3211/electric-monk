@@ -613,6 +613,11 @@ export function usePrayers() {
           prayer.last_counted_at = data.last_counted_at
           prayer.activated_at = data.activated_at
         }
+
+        // Check for karma milestone earned (every 100 prays)
+        if (data.karma_change && data.karma_change > 0) {
+          karma.value += data.karma_change
+        }
       }
 
       return data

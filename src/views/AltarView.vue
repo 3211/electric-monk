@@ -434,6 +434,14 @@
       @archive="handleArchive"
       @reactivate="handleReactivate"
     />
+
+    <!-- Karma Toast -->
+    <KarmaToast
+      :amount="karmaToastAmount"
+      :type="karmaToastType"
+      :label="karmaToastLabel"
+      @dismiss="karmaToastAmount = 0"
+    />
   </div>
 </template>
 
@@ -443,6 +451,7 @@ import { usePrayers } from '@/composables/usePrayers'
 import { usePrayerCounter } from '@/composables/usePrayerCounter'
 import { useAuth } from '@/composables/useAuth'
 import { useBanTimer } from '@/composables/useBanTimer'
+import KarmaToast from '@/components/molecules/KarmaToast.vue'
 import ProfileCompletionModal from '@/components/organisms/ProfileCompletionModal.vue'
 import PrayerHistoryModal from '@/components/organisms/PrayerHistoryModal.vue'
 
@@ -460,6 +469,11 @@ const profileSaving = ref(false)
 const profileError = ref(null)
 const counterAnimating = ref(false)
 const showHistoryModal = ref(null) // null | 'inactive' | 'archived'
+
+// Karma toast state
+const karmaToastAmount = ref(0)
+const karmaToastType = ref('positive')
+const karmaToastLabel = ref('')
 
 // Limit visible prayers to 5 inline, rest shown via modal
 const MAX_VISIBLE_PRAYERS = 5
@@ -508,6 +522,16 @@ const counter = usePrayerCounter(currentActivePrayerRef)
 // Watch for counter animations
 watch(counter.isAnimating, (val) => {
   counterAnimating.value = val
+})
+
+// Watch for karma milestones from periodic syncs
+watch(() => counter.karmaMilestoneEarned.value, (val) => {
+  if (val && val > 0) {
+    karmaToastAmount.value = val
+    karmaToastType.value = 'positive'
+    karmaToastLabel.value = 'Prayer milestone!'
+    counter.resetKarmaMilestone()
+  }
 })
 
 // Watch for Aether result to trigger typewriter effect
@@ -644,6 +668,12 @@ async function handleDeactivate(prayerId) {
         prayer.is_praying = false
         prayer.activated_at = null
         prayer.prayer_count = result.prayer_count
+      }
+      // Check for karma milestone earned during final sync
+      if (result.karma_change && result.karma_change > 0) {
+        karmaToastAmount.value = result.karma_change
+        karmaToastType.value = 'positive'
+        karmaToastLabel.value = 'Prayer milestone!'
       }
     } else {
       // Fallback: if finalSync had nothing to sync, deactivate via composable
