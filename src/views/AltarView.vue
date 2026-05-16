@@ -11,9 +11,21 @@
             <span>Karma: <span :class="karmaClass">{{ prayers.karma }}</span></span>
           </div>
           <!-- Prayer Slots Display -->
-          <div class="text-sm text-theme-text-dim">
-            <span class="text-theme-accent font-semibold">{{ prayers.activePrayerCount }}</span>
-            / {{ prayers.maxPrayerSlots }} slots
+          <div class="flex items-center gap-3">
+            <div class="text-sm text-theme-text-dim">
+              <span class="text-theme-accent font-semibold">{{ prayers.activePrayerCount }}</span>
+              / {{ prayers.maxPrayerSlots }} slots
+            </div>
+            <!-- Purchase Slot Button -->
+            <button
+              v-if="prayers.isProfileComplete"
+              @click="handlePurchaseSlot"
+              :disabled="prayers.loading"
+              class="px-2 py-1 text-xs bg-theme-accent/20 hover:bg-theme-accent/30 border border-theme-accent rounded text-theme-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :title="'Purchase additional prayer slot for ' + slotCost + ' karma (+100 Mana)'"
+            >
+              + Slot ({{ slotCost }} ✦)
+            </button>
           </div>
           <!-- Daily Mana Budget Counter -->
           <div class="text-sm text-theme-text-dim">
@@ -574,6 +586,11 @@ const estimatedManaCost = computed(() => {
   return Math.ceil(prayerContent.value.length / manaRatio)
 })
 
+// Computed for slot purchase cost (25 karma * current slots)
+const slotCost = computed(() => {
+  return 25 * (prayers.maxPrayerSlots.value || 1)
+})
+
 onMounted(async () => {
   // Fetch prayers, profile (karma/slots), and daily count
   await prayers.fetchPrayers()
@@ -706,6 +723,30 @@ async function handleAetherContinue() {
       // which causes App.vue's computed to switch to PurgatoryView
       await banTimer.checkBanStatus()
     }
+  }
+}
+
+// Handle purchasing additional prayer slots
+async function handlePurchaseSlot() {
+  try {
+    const result = await prayers.purchasePrayerSlot()
+    if (result?.success) {
+      // Show karma toast for the purchase (negative since karma was spent)
+      karmaToastAmount.value = -slotCost.value
+      karmaToastType.value = 'negative'
+      karmaToastLabel.value = 'Prayer slot purchased'
+      
+      // Refresh daily count to get updated mana limit
+      await prayers.fetchDailyCount()
+    } else if (result?.error) {
+      // Show error toast
+      karmaToastAmount.value = result.cost
+      karmaToastType.value = 'negative'
+      karmaToastLabel.value = `Insufficient karma (need ${result.cost})`
+    }
+  } catch (err) {
+    console.error('[AltarView] Purchase slot error:', err)
+    prayers.error.value = err.message
   }
 }
 </script>

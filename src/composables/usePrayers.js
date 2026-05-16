@@ -3,8 +3,9 @@ import { supabase } from '@/lib/supabase'
 
 // Environment variables for Mana-based limits
 // Note: These are used for UI display only. Actual limits are enforced server-side via RPC.
+// Default daily mana limit is now 100 per prayer slot (base 1 slot = 100 mana)
 const MAX_PRAYER_CHARS = parseInt(import.meta.env.VITE_MAX_PRAYER_CHARS || '1500', 10)
-const DAILY_MANA_LIMIT = parseInt(import.meta.env.VITE_DAILY_TOKEN_LIMIT || '1000', 10)
+const DAILY_MANA_LIMIT = parseInt(import.meta.env.VITE_DAILY_TOKEN_LIMIT || '100', 10)
 const PRAYER_MANA_RATIO = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5', 10)
 
 /**
@@ -15,7 +16,7 @@ const PRAYER_MANA_RATIO = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5
  *
  * Database Schema Notes:
  * - profiles.tokens_spent_today (INT): Tracks Mana spent today (was daily_prayers_count)
- * - profiles.daily_token_limit (INT): User's daily Mana budget (default 1000)
+ * - profiles.daily_token_limit (INT): User's daily Mana budget (default 100, +100 per purchased slot)
  * - RPC submit_prayer(content): Atomically inserts prayer and updates tokens_spent_today
  * - RPC refill_tokens(amount): Reduces tokens_spent_today (for ad rewards)
  *
@@ -614,7 +615,7 @@ export function usePrayers() {
           prayer.activated_at = data.activated_at
         }
 
-        // Check for karma milestone earned (every 100 prays)
+        // Check for karma milestone earned (every 10 prays)
         if (data.karma_change && data.karma_change > 0) {
           karma.value += data.karma_change
         }
@@ -624,6 +625,41 @@ export function usePrayers() {
     } catch (err) {
       console.error('[usePrayers] Sync prayer count error:', err)
       throw err
+    }
+  }
+
+  /**
+   * Purchase an additional prayer slot
+   * Cost: 25 karma * current number of slots
+   * Effect: +1 max_prayer_slots, +100 daily_token_limit
+   */
+  async function purchasePrayerSlot() {
+    try {
+      loading.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('purchase_prayer_slot')
+
+      if (rpcError) throw rpcError
+
+      if (data?.success) {
+        // Update local state
+        maxPrayerSlots.value = data.new_slots
+        karma.value = data.new_karma
+        // Note: dailyManaLimit is a const, would need refactoring to update dynamically
+        // For now, the user will see the updated slots immediately but mana limit
+        // will update on next page reload or fetchDailyCount call
+      } else if (data?.error) {
+        error.value = `${data.error}. Cost: ${data.cost} karma, You have: ${data.current_karma} karma`
+      }
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[usePrayers] Purchase slot error:', err)
+      throw err
+    } finally {
+      loading.value = false
     }
   }
 
@@ -668,5 +704,6 @@ export function usePrayers() {
     activatePrayer,
     deactivatePrayer,
     syncPrayerCount,
+    purchasePrayerSlot,
   })
 }

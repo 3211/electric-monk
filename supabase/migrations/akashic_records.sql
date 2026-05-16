@@ -101,6 +101,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 5. RPC: Get sinners (users currently in purgatory)
+-- Fixed: Moved WHERE/ORDER BY into subquery to avoid GROUP BY conflict with LATERAL join
 CREATE OR REPLACE FUNCTION get_sinners()
 RETURNS JSONB AS $$
 DECLARE
@@ -115,7 +116,13 @@ BEGIN
     'rejected_content', pr.content
   ))
   INTO v_result
-  FROM profiles p
+  FROM (
+    SELECT p.id, p.username, p.faith, p.ban_until
+    FROM profiles p
+    WHERE p.ban_until IS NOT NULL
+      AND p.ban_until > now()
+    ORDER BY p.ban_until ASC
+  ) p
   LEFT JOIN LATERAL (
     SELECT content, rejection_reason
     FROM prayers
@@ -123,10 +130,7 @@ BEGIN
       AND prayers.is_rejected = true
     ORDER BY created_at DESC
     LIMIT 1
-  ) pr ON true
-  WHERE p.ban_until IS NOT NULL
-    AND p.ban_until > now()
-  ORDER BY p.ban_until ASC;
+  ) pr ON true;
 
   RETURN COALESCE(v_result, '[]'::jsonb);
 END;

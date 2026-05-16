@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   email TEXT,
   ban_until TIMESTAMPTZ,
   tokens_spent_today INT DEFAULT 0,
-  daily_token_limit INT DEFAULT 1000,
+  daily_token_limit INT DEFAULT 100,
   last_prayer_date DATE,
   username TEXT,           -- User's chosen name (max 50 chars)
   faith TEXT,              -- User's faith/religion (max 100 chars)
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS prayers (
   activated_at TIMESTAMPTZ,          -- When prayer was last activated
   created_at TIMESTAMPTZ DEFAULT now(),
   -- Akashic Records columns (v3.0)
-  karma_awarded INT DEFAULT 0,        -- How many 100-pray milestones have been awarded as karma
+  karma_awarded INT DEFAULT 0,        -- How many 10-pray milestones have been awarded as karma
   source_prayer_id UUID REFERENCES prayers(id) ON DELETE SET NULL,  -- Links altruistic prayer to original
   source_sinner_id UUID REFERENCES profiles(id) ON DELETE SET NULL,  -- Links intercessory prayer to sinner
   prayer_type TEXT DEFAULT 'own' CHECK (prayer_type IN ('own', 'altruistic', 'intercessory'))
@@ -228,7 +228,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Function: Sync prayer count (called periodically while prayer is active)
--- Adds elapsed counts to prayer_count and updates last_counted_at
+-- Adds elapsed counts to prayer_count, updates last_counted_at, and awards karma for milestones
 CREATE OR REPLACE FUNCTION sync_prayer_count(
   p_prayer_id UUID,
   p_elapsed_counts INT
@@ -237,6 +237,8 @@ RETURNS JSONB AS $$
 DECLARE
   v_user_id UUID;
   v_prayer RECORD;
+  v_milestones INT;
+  v_karma_change INT := 0;
 BEGIN
   SELECT user_id, is_praying INTO v_prayer
   FROM prayers WHERE id = p_prayer_id;
@@ -257,13 +259,32 @@ BEGIN
   SET prayer_count = prayer_count + p_elapsed_counts,
       last_counted_at = now()
   WHERE id = p_prayer_id
-  RETURNING prayer_count, last_counted_at, activated_at
+  RETURNING id, prayer_count, last_counted_at, activated_at, prayer_type, karma_awarded, user_id
   INTO v_prayer;
+
+  -- Check karma milestones (every 10 prays)
+  v_milestones := floor(v_prayer.prayer_count / 10);
+
+  IF v_milestones > v_prayer.karma_awarded THEN
+    -- Determine karma rate based on prayer type
+    IF v_prayer.prayer_type = 'altruistic' THEN
+      v_karma_change := (v_milestones - v_prayer.karma_awarded) * 2;
+    ELSE
+      v_karma_change := (v_milestones - v_prayer.karma_awarded) * 1;
+    END IF;
+
+    -- Award karma to the praying user
+    PERFORM update_karma(v_prayer.user_id, v_karma_change);
+
+    -- Update karma_awarded tracker
+    UPDATE prayers SET karma_awarded = v_milestones WHERE id = p_prayer_id;
+  END IF;
 
   RETURN jsonb_build_object(
     'prayer_count', v_prayer.prayer_count,
     'last_counted_at', v_prayer.last_counted_at,
-    'activated_at', v_prayer.activated_at
+    'activated_at', v_prayer.activated_at,
+    'karma_change', v_karma_change
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -303,8 +324,8 @@ BEGIN
   RETURNING id, prayer_count, is_praying, activated_at, prayer_type, karma_awarded, user_id
   INTO v_prayer;
 
-  -- Check karma milestones (every 100 prays)
-  v_milestones := floor(v_prayer.prayer_count / 100);
+  -- Check karma milestones (every 10 prays)
+  v_milestones := floor(v_prayer.prayer_count / 10);
 
   IF v_milestones > v_prayer.karma_awarded THEN
     -- Determine karma rate based on prayer type
@@ -488,6 +509,61 @@ GRANT EXECUTE ON FUNCTION reduce_ban_time(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION refill_tokens(INT) TO service_role;
 GRANT EXECUTE ON FUNCTION update_karma(UUID, INT) TO service_role;
 GRANT EXECUTE ON FUNCTION reset_daily_prayer_count(UUID) TO service_role;
+
+-- Function: Purchase additional prayer slot
+-- Cost: 25 karma * current number of slots
+-- Effect: +1 max_prayer_slots, +100 daily_token_limit
+CREATE OR REPLACE FUNCTION purchase_prayer_slot()
+RETURNS JSONB AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+  v_current_slots INT;
+  v_current_karma INT;
+  v_slot_cost INT;
+BEGIN
+  -- Get current slot count and karma
+  SELECT max_prayer_slots, COALESCE(karma, 0)
+  INTO v_current_slots, v_current_karma
+  FROM profiles WHERE id = v_user_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Profile not found';
+  END IF;
+
+  -- Calculate cost: 25 karma * current slots
+  v_slot_cost := 25 * v_current_slots;
+
+  -- Check if user has enough karma
+  IF v_current_karma < v_slot_cost THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'Insufficient karma',
+      'cost', v_slot_cost,
+      'current_karma', v_current_karma
+    );
+  END IF;
+
+  -- Deduct karma and add slot + mana
+  UPDATE profiles
+  SET karma = karma - v_slot_cost,
+      max_prayer_slots = max_prayer_slots + 1,
+      daily_token_limit = daily_token_limit + 100,
+      updated_at = now()
+  WHERE id = v_user_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'new_slots', v_current_slots + 1,
+    'new_daily_limit', (SELECT daily_token_limit FROM profiles WHERE id = v_user_id),
+    'new_karma', (SELECT karma FROM profiles WHERE id = v_user_id),
+    'cost', v_slot_cost
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute on purchase_prayer_slot to authenticated users
+GRANT EXECUTE ON FUNCTION purchase_prayer_slot() TO authenticated;
+GRANT EXECUTE ON FUNCTION purchase_prayer_slot() TO service_role;
 
 -- ============================================
 -- 6. AKASHIC RECORDS (v3.0)
