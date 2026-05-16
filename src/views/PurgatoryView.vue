@@ -12,6 +12,14 @@
         </div>
       </div>
 
+      <!-- Intercessory Prayer Count -->
+      <div v-if="intercessoryCount > 0" class="mb-4 p-3 bg-theme-accent/10 border border-theme-accent/30 rounded-lg">
+        <p class="text-theme-accent text-sm font-medium">
+          🕯️ {{ intercessoryCount }} {{ intercessoryCount === 1 ? 'person is' : 'people are' }} praying for your redemption
+        </p>
+        <p class="text-theme-text-muted text-xs mt-1">Each completed prayer cycle reduces your time by 1 minute</p>
+      </div>
+
       <!-- Ban Timer -->
       <div class="glass-panel glass-gloss p-8 mb-6 border-theme-purgatory shadow-glow-purgatory">
         <div class="text-6xl font-mono font-bold text-theme-purgatory mb-4">
@@ -74,19 +82,48 @@
         <p class="text-theme-text-dim text-xs uppercase tracking-wide mb-1">Last Transgression</p>
         <p class="text-theme-purgatory-dark italic">"{{ rejectionReason }}"</p>
       </div>
+
+      <!-- Logout -->
+      <div class="mt-6">
+        <button
+          @click="handleLogout"
+          class="px-4 py-2 text-sm text-theme-text-dim hover:text-theme-text transition-colors"
+        >
+          Logout
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useBanTimer } from '@/composables/useBanTimer'
 import { usePrayers } from '@/composables/usePrayers'
+import { useAuth } from '@/composables/useAuth'
+import { supabase } from '@/lib/supabase'
 
 const banTimer = useBanTimer()
 const prayers = usePrayers()
+const auth = useAuth()
 const showingAd = ref(false)
 const rejectionReason = ref(null)
+const intercessoryCount = ref(0)
+
+let countPollInterval = null
+
+async function fetchIntercessoryCount() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data, error } = await supabase.rpc('get_intercessory_prayer_count', { p_sinner_id: user.id })
+    if (!error) {
+      intercessoryCount.value = data || 0
+    }
+  } catch (err) {
+    console.error('[PurgatoryView] Fetch intercessory count error:', err)
+  }
+}
 
 onMounted(async () => {
   // Fetch profile for karma and prayers for rejection reason
@@ -95,6 +132,19 @@ onMounted(async () => {
   const rejectedPrayer = prayers.prayers.find(p => p.is_rejected)
   if (rejectedPrayer) {
     rejectionReason.value = rejectedPrayer.rejection_reason || 'Unknown transgression'
+  }
+
+  // Fetch intercessory prayer count
+  await fetchIntercessoryCount()
+
+  // Poll intercessory count every 30 seconds
+  countPollInterval = setInterval(fetchIntercessoryCount, 30000)
+})
+
+onUnmounted(() => {
+  if (countPollInterval) {
+    clearInterval(countPollInterval)
+    countPollInterval = null
   }
 })
 
@@ -111,6 +161,10 @@ async function completeIndulgence() {
   } catch (err) {
     // Error is already captured in banTimer.error
   }
+}
+
+async function handleLogout() {
+  await auth.signOut()
 }
 
 function karmaClass() {
@@ -148,7 +202,7 @@ function karmaClass() {
 
 /* Complete button - green/positive action */
 .btn-complete {
-  @apply relative overflow-hidden font-sans rounded-btn px-4 py-2 border shadow-inner-top glass-gloss transition-all duration-150 ease-out cursor-pointer text-white;
+  @apply relative overflow-hidden font-sans rounded-btn px-4 py-2 border shadow-inner-top glass-gloss active:translate-y-0 transition-all duration-150 ease-out cursor-pointer text-white;
   border-color: color-mix(in srgb, #16a34a 55%, white 10%);
   background: linear-gradient(
     180deg,

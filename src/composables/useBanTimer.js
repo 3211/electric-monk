@@ -22,6 +22,7 @@ function createBanTimerState() {
   const loading = ref(false)
   const error = ref(null)
   const countdownInterval = ref(null)
+  const banPollInterval = ref(null)
 
   // Computed properties
   const formattedTimeRemaining = computed(() => {
@@ -73,6 +74,9 @@ function createBanTimerState() {
     if (countdownInterval.value) {
       clearInterval(countdownInterval.value)
     }
+    if (banPollInterval.value) {
+      clearInterval(banPollInterval.value)
+    }
 
     countdownInterval.value = setInterval(() => {
       updateBanState()
@@ -80,6 +84,14 @@ function createBanTimerState() {
         timeRemaining.value--
       }
     }, 1000)
+
+    // Poll ban status from database every 30 seconds
+    // This ensures purgatory users see ban reductions from intercessory prayers in real-time
+    banPollInterval.value = setInterval(() => {
+      if (isBanned.value) {
+        checkBanStatus()
+      }
+    }, 30000)
   }
 
   /**

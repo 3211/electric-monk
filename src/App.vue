@@ -6,6 +6,7 @@ import LoginView from './views/LoginView.vue'
 import AltarView from './views/AltarView.vue'
 import PurgatoryView from './views/PurgatoryView.vue'
 import AkashicRecordsView from './views/AkashicRecordsView.vue'
+import iconUrl from './assets/icons/icon.png'
 
 const auth = useAuth()
 const banTimer = useBanTimer()
@@ -30,19 +31,25 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
   <div class="min-h-screen bg-theme-wash flex flex-col">
     <!-- Tab Navigation (only when authenticated and not banned) -->
     <nav v-if="auth.isAuthenticated && !banTimer.isBanned" class="border-b border-theme-border bg-theme-panel/50 backdrop-blur-sm">
-      <div class="max-w-4xl mx-auto px-4 flex items-center gap-1">
-        <button
-          @click="currentTab = 'altar'"
-          :class="currentTab === 'altar' ? 'nav-tab-active' : 'nav-tab-inactive'"
-        >
-          ⚜️ Altar
-        </button>
-        <button
-          @click="currentTab = 'akashic'"
-          :class="currentTab === 'akashic' ? 'nav-tab-active' : 'nav-tab-inactive'"
-        >
-          📜 Akashic Records
-        </button>
+      <div class="max-w-4xl mx-auto px-4 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <img :src="iconUrl" alt="Electric Monk" class="w-6 h-6" />
+          <span class="text-sm font-semibold text-theme-text">The Electric Monk - Prayers As A Service</span>
+        </div>
+        <div class="flex items-center gap-1">
+          <button
+            @click="currentTab = 'altar'"
+            :class="currentTab === 'altar' ? 'nav-tab-active' : 'nav-tab-inactive'"
+          >
+            ⚜️ Altar
+          </button>
+          <button
+            @click="currentTab = 'akashic'"
+            :class="currentTab === 'akashic' ? 'nav-tab-active' : 'nav-tab-inactive'"
+          >
+            📜 Akashic Records
+          </button>
+        </div>
       </div>
     </nav>
 

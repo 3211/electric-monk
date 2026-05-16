@@ -108,6 +108,11 @@
         </button>
       </p>
     </div>
+
+    <!-- Icon below login panel -->
+    <div class="mt-6 flex flex-col items-center">
+      <img src="@/assets/icons/icon.png" alt="Electric Monk" class="w-[75px] h-[75px]" />
+    </div>
   </div>
 </template>
 

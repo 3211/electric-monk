@@ -58,6 +58,9 @@
     <main class="max-w-4xl mx-auto px-4 py-8">
       <!-- Prayer Submission Form -->
       <div class="glass-panel glass-gloss p-6 mb-8">
+        <div class="flex flex-col items-center mb-4">
+          <img src="@/assets/icons/icon.png" alt="Electric Monk" class="w-[50px] h-[50px] mb-2" />
+        </div>
         <h2 class="text-xl font-semibold text-theme-text mb-4">Submit Your Prayer</h2>
         
         <!-- Error Message -->

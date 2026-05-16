@@ -32,6 +32,7 @@ export function usePrayerCounter(prayer) {
   const isAnimating = ref(false)
   const cycleProgress = ref(0)
   const karmaMilestoneEarned = ref(0) // Set to karma_change value when milestone is hit
+  const sinnerRedeemed = ref(false) // Set to true when sinner is redeemed via intercessory prayer
 
   let cycleTimer = null
   let syncTimer = null
@@ -216,6 +217,13 @@ export function usePrayerCounter(prayer) {
           if (data.karma_change && data.karma_change > 0) {
             karmaMilestoneEarned.value = data.karma_change
           }
+
+          // Check if sinner was redeemed (intercessory prayer)
+          if (data.sinner_redeemed) {
+            sinnerRedeemed.value = true
+            stopCounting()
+            prayer.value.is_praying = false
+          }
         }
       } catch (err) {
         console.error('[usePrayerCounter] Sync failed:', err)
@@ -379,12 +387,22 @@ export function usePrayerCounter(prayer) {
     karmaMilestoneEarned.value = 0
   }
 
+  /**
+   * Reset the sinner redeemed flag after it has been consumed
+   * (e.g., after showing a toast notification).
+   */
+  function resetSinnerRedeemed() {
+    sinnerRedeemed.value = false
+  }
+
   return {
     displayedCount: computed(() => displayedCount.value),
     isAnimating: computed(() => isAnimating.value),
     cycleProgress: computed(() => cycleProgress.value),
     karmaMilestoneEarned: computed(() => karmaMilestoneEarned.value),
+    sinnerRedeemed: computed(() => sinnerRedeemed.value),
     resetKarmaMilestone,
+    resetSinnerRedeemed,
     startCounting,
     stopCounting,
     finalSync,

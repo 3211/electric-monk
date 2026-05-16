@@ -22,7 +22,11 @@ const PRAYER_MANA_RATIO = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5
  *
  * @returns {Object} Prayer state and methods
  */
-export function usePrayers() {
+
+// Module-level shared state — created once, reused by all usePrayers() calls
+let sharedState = null
+
+function createPrayersState() {
   const prayers = ref([])
   const dailyManaLimit = DAILY_MANA_LIMIT
   const dailyManaSpent = ref(0)
@@ -706,4 +710,11 @@ export function usePrayers() {
     syncPrayerCount,
     purchasePrayerSlot,
   })
+}
+
+export function usePrayers() {
+  if (!sharedState) {
+    sharedState = createPrayersState()
+  }
+  return sharedState
 }

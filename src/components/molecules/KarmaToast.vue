@@ -60,7 +60,7 @@ watch(() => props.amount, (newVal) => {
 .karma-toast.positive {
   background: linear-gradient(135deg, rgba(201, 168, 76, 0.2), rgba(245, 230, 163, 0.15));
   border: 1px solid rgba(201, 168, 76, 0.5);
-  color: #f5e6a3;
+  color: #2d2d2d;
 }
 
 .karma-toast.negative {

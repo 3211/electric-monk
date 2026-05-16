@@ -329,8 +329,15 @@ async function handleStopPraying() {
     // Clear local active prayer state (no second deactivate call)
     akashic.clearActiveAltruisticPrayer()
 
-    // Check for karma milestone in the final sync
-    if (finalResult?.karma_change && finalResult.karma_change > 0) {
+    // Check for sinner redemption (intercessory prayer bonus)
+    if (finalResult?.sinner_redeemed) {
+      karmaToastAmount.value = 5
+      karmaToastType.value = 'positive'
+      karmaToastLabel.value = 'Sinner redeemed! +5 bonus karma!'
+      // Refresh sinners list to remove the redeemed sinner
+      await akashic.fetchSinners()
+    } else if (finalResult?.karma_change && finalResult.karma_change > 0) {
+      // Check for karma milestone in the final sync
       karmaToastAmount.value = finalResult.karma_change
       karmaToastType.value = 'positive'
       karmaToastLabel.value = 'Prayer milestone!'
@@ -352,6 +359,23 @@ watch(() => counter.karmaMilestoneEarned?.value, (val) => {
       ? 'Intercessory milestone!'
       : 'Altruistic milestone!'
     counter.resetKarmaMilestone()
+  }
+})
+
+// Watch for sinner redemption during intercessory prayer
+watch(() => counter.sinnerRedeemed?.value, (val) => {
+  if (val) {
+    // Sinner was redeemed! Show +5 bonus karma toast
+    karmaToastAmount.value = 5
+    karmaToastType.value = 'positive'
+    karmaToastLabel.value = 'Sinner redeemed! +5 bonus karma!'
+    counter.resetSinnerRedeemed()
+    // Clear the active prayer since it was auto-deactivated
+    akashic.clearActiveAltruisticPrayer()
+    // Refresh sinners list to remove the redeemed sinner
+    akashic.fetchSinners()
+    // Refresh profile to get updated karma
+    prayers.fetchProfile()
   }
 })
 
