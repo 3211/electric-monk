@@ -2,13 +2,13 @@
   <Teleport to="body">
     <Transition name="fade">
       <div v-if="modelValue" class="history-modal-overlay" @click.self="close">
-        <div class="history-modal-container glass-panel glass-gloss">
+        <div class="history-modal-container glass-panel glass-panel-strong glass-gloss">
           <!-- Header -->
           <div class="history-modal-header">
             <h2 class="text-xl font-bold text-theme-accent">{{ title }}</h2>
             <button
               @click="close"
-              class="p-2 text-theme-text-muted hover:text-theme-text transition-colors rounded-lg hover:bg-theme-border/20"
+              class="tactile-icon-btn h-10 w-10 text-theme-text-muted"
               aria-label="Close"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -18,9 +18,11 @@
           </div>
 
           <!-- Prayer Count -->
-          <p class="text-sm text-theme-text-muted mb-3">
-            Showing {{ prayers.length }} prayer{{ prayers.length !== 1 ? 's' : '' }}
-          </p>
+          <div class="px-5 pb-1 sm:px-6">
+            <p class="chip px-3 py-1 text-xs text-theme-text-muted">
+              Showing {{ prayers.length }} prayer{{ prayers.length !== 1 ? 's' : '' }}
+            </p>
+          </div>
 
           <!-- Prayer List — scrollable -->
           <div class="history-modal-list custom-scrollbar">
@@ -62,7 +64,7 @@
                     v-if="showReactivate && !prayer.is_praying && !prayer.is_rejected && !prayer.is_archived"
                     @click="$emit('reactivate', prayer.id)"
                     :disabled="loading"
-                    class="px-3 py-1.5 text-xs font-medium rounded border border-theme-accent/50 text-theme-accent hover:bg-theme-accent/10 transition-colors disabled:opacity-50 whitespace-nowrap"
+                    class="btn-secondary self-start whitespace-nowrap px-4 py-2 text-xs disabled:opacity-50"
                   >
                     ⚡ Reactivate
                   </button>
@@ -70,10 +72,10 @@
                   <!-- Status badge (archived prayers) -->
                   <span
                     v-if="prayer.is_rejected || prayer.is_archived"
-                    class="px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap"
+                    class="chip px-3 py-1 text-xs font-medium whitespace-nowrap"
                     :class="{
-                      'bg-theme-purgatory/20 text-theme-purgatory-dark': prayer.is_rejected,
-                      'bg-theme-panel text-theme-text-muted': prayer.is_archived && !prayer.is_rejected
+                      'border-theme-purgatory/20 bg-theme-purgatory/15 text-theme-purgatory-dark': prayer.is_rejected,
+                      'border-theme-border bg-theme-panel text-theme-text-muted': prayer.is_archived && !prayer.is_rejected
                     }"
                   >
                     {{ prayer.is_rejected ? 'Rejected' : 'Archived' }}
@@ -100,7 +102,7 @@
                   v-if="!prayer.is_archived"
                   @click="$emit('archive', prayer.id)"
                   :disabled="loading"
-                  class="px-2 py-1 text-xs text-theme-text-muted hover:text-theme-purgatory transition-colors disabled:opacity-50"
+                  class="btn-ghost px-3 py-1.5 text-xs disabled:opacity-50"
                   title="Archive this prayer"
                 >
                   Archive
@@ -182,13 +184,14 @@ function formatDate(dateString) {
   padding: 1rem;
   padding-top: max(1rem, env(safe-area-inset-top));
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
-  background: rgba(48, 38, 21, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  animation: fadeIn 0.2s ease-out;
+  background:
+    radial-gradient(circle at 50% 16%, rgba(255, 223, 147, 0.18), transparent 30%),
+    linear-gradient(180deg, rgba(48, 38, 21, 0.68), rgba(48, 38, 21, 0.82));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: overlay-fade 220ms ease-out;
 }
 
-/* Modal Container */
 .history-modal-container {
   width: 100%;
   max-width: 600px;
@@ -196,21 +199,19 @@ function formatDate(dateString) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 2px solid color-mix(in srgb, var(--theme-accent) 40%, transparent);
-  animation: modalSlideIn 0.3s ease-out;
+  border-radius: 28px;
+  animation: modal-rise var(--dur-enter) var(--ease-silk-settle);
 }
 
-/* Header */
 .history-modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--theme-border);
+  border-bottom: 1px solid rgba(139, 125, 91, 0.16);
   flex-shrink: 0;
 }
 
-/* Scrollable List */
 .history-modal-list {
   flex: 1;
   overflow-y: auto;
@@ -219,43 +220,31 @@ function formatDate(dateString) {
   padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.9rem;
 }
 
-/* Prayer Card */
 .history-prayer-card {
-  padding: 0.875rem;
-  border-radius: 16px;
+  padding: 1rem;
+  border-radius: 20px;
   border-width: 1px;
-  transition: opacity 0.15s ease;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38);
+  transition: transform var(--dur-standard) var(--ease-silk-settle), opacity var(--dur-standard) ease, box-shadow var(--dur-standard) ease;
 }
 
 .history-prayer-card:hover {
-  opacity: 0.9;
+  opacity: 0.96;
+  transform: translateY(-1px);
+  box-shadow: 0 16px 30px rgba(48, 38, 21, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.42);
 }
 
-/* Small glow for active prayers */
 .shadow-glow-accent-sm {
-  box-shadow: 0 0 12px color-mix(in srgb, var(--theme-accent) 10%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--theme-accent) 12%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.42);
 }
 
-/* Footer */
 .history-modal-footer {
-  padding: 0.75rem 1.25rem;
-  border-top: 1px solid var(--theme-border);
+  padding: 0.9rem 1.25rem;
+  border-top: 1px solid rgba(139, 125, 91, 0.16);
   flex-shrink: 0;
-}
-
-/* Secondary button (close) */
-.btn-secondary {
-  @apply px-4 py-2 rounded-btn border border-theme-border text-theme-text-dim font-medium transition-all duration-150;
-  background: color-mix(in srgb, var(--theme-panel) 60%, transparent);
-}
-
-.btn-secondary:hover {
-  background: color-mix(in srgb, var(--theme-panel) 80%, var(--theme-accent) 10%);
-  border-color: var(--theme-accent);
-  color: var(--theme-accent);
 }
 
 /* Custom scrollbar */
@@ -288,22 +277,6 @@ function formatDate(dateString) {
   opacity: 0;
 }
 
-/* Slide In Animation */
-@keyframes modalSlideIn {
-  0% {
-    opacity: 0;
-    transform: translateY(-12px) scale(0.97);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes fadeIn {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
-}
 
 /* Mobile adjustments */
 @media (max-width: 640px) {

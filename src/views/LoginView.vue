@@ -1,27 +1,31 @@
 <template>
-  <div class="flex flex-col items-center justify-center bg-theme-wash px-4 py-8">
+  <div class="app-frame flex min-h-screen flex-col items-center justify-center px-4 py-10 sm:py-14">
     <!-- Logo above login card -->
-    <div class="mb-6 flex flex-col items-center">
-      <img src="@/assets/icons/icon.png" alt="Electric Monk" class="w-[200px] h-[200px]" />
+    <div class="mb-8 flex flex-col items-center sm:mb-10">
+      <div class="login-logo-shell">
+        <div class="login-logo-halo"></div>
+        <div class="login-logo-disc"></div>
+        <img src="@/assets/icons/icon.png" alt="Electric Monk" class="login-logo-image" />
+      </div>
     </div>
 
-    <div class="max-w-md w-full glass-panel glass-gloss p-8">
+    <div class="login-card max-w-md w-full glass-panel glass-panel-strong glass-gloss p-6 sm:p-8">
       <!-- Error Message -->
-      <div v-if="auth.error && typeof auth.error === 'string' && auth.error.trim()" class="mb-4 p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm glass-gloss">
+      <div v-if="auth.error && typeof auth.error === 'string' && auth.error.trim()" class="mb-5 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
         {{ auth.error }}
       </div>
 
       <!-- Success Message (Email Confirmation) -->
-      <div v-if="auth.needsConfirmation" class="mb-4 p-3 bg-green-900/20 border border-green-700/50 rounded text-green-800 text-sm glass-gloss">
-        <p class="font-semibold mb-1">Account created successfully!</p>
+      <div v-if="auth.needsConfirmation" class="mb-5 rounded-[20px] border border-theme-accent/25 bg-theme-accent/10 p-3 text-sm text-theme-text-dim shadow-[0_10px_24px_rgba(213,154,23,0.08)]">
+        <p class="mb-1 font-semibold text-theme-accent-dark">Account created successfully!</p>
         <p>Please check your email at <strong>{{ email }}</strong> and click the confirmation link to activate your account.</p>
-        <p class="mt-2 text-xs text-green-700">After confirming, you can sign in below.</p>
+        <p class="mt-2 text-xs text-theme-text-muted">After confirming, you can sign in below.</p>
       </div>
 
       <!-- Login Form -->
-      <form @submit.prevent="handleLogin" class="space-y-4">
-        <div>
-          <label for="email" class="block text-sm font-medium text-theme-text-dim mb-1">
+      <form @submit.prevent="handleLogin" class="space-y-5">
+        <div class="space-y-1.5">
+          <label for="email" class="block text-sm font-medium text-theme-text-dim">
             Email Address
           </label>
           <input
@@ -29,13 +33,13 @@
             v-model="email"
             type="email"
             required
-            class="w-full px-4 py-2 bg-theme-panel border border-theme-border rounded text-theme-text placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent transition-colors"
+            class="form-field px-4 py-3"
             placeholder="you@example.com"
           />
         </div>
 
-        <div>
-          <label for="password" class="block text-sm font-medium text-theme-text-dim mb-1">
+        <div class="space-y-1.5">
+          <label for="password" class="block text-sm font-medium text-theme-text-dim">
             Password
           </label>
           <input
@@ -43,7 +47,7 @@
             v-model="password"
             type="password"
             required
-            class="w-full px-4 py-2 bg-theme-panel border border-theme-border rounded text-theme-text placeholder-theme-text-muted focus:outline-none focus:border-theme-accent focus:ring-1 focus:ring-theme-accent transition-colors"
+            class="form-field px-4 py-3"
             placeholder="••••••••"
           />
         </div>
@@ -51,7 +55,7 @@
         <button
           type="submit"
           :disabled="auth.loading"
-          class="w-full py-3 px-4 btn-primary disabled:cursor-not-allowed transition-all duration-150 ease-out"
+          class="btn-primary w-full"
         >
           <span class="relative z-10 font-medium">
             {{ auth.loading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In') }}
@@ -60,12 +64,12 @@
       </form>
 
       <!-- Divider -->
-      <div class="relative my-6">
+      <div class="relative my-7">
         <div class="absolute inset-0 flex items-center">
-          <div class="w-full border-t border-theme-border"></div>
+          <div class="w-full border-t surface-divider"></div>
         </div>
         <div class="relative flex justify-center text-sm">
-          <span class="px-2 bg-theme-panel text-theme-text-dim">or</span>
+          <span class="rounded-full border border-white/40 bg-theme-panel/80 px-3 py-1 text-theme-text-dim shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">or</span>
         </div>
       </div>
 
@@ -73,7 +77,7 @@
       <button
         @click="handleGoogleSignIn"
         :disabled="auth.loading"
-        class="w-full py-3 px-4 btn-subtle disabled:cursor-not-allowed transition-all duration-150 ease-out flex items-center justify-center gap-2"
+        class="btn-secondary flex w-full items-center justify-center gap-2"
       >
         <svg class="w-5 h-5" viewBox="0 0 24 24">
           <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -91,7 +95,7 @@
         {{ isSignUp ? 'Already have an account?' : "Don't have an account?" }}
         <button
           @click="isSignUp = !isSignUp"
-          class="text-theme-accent hover:text-theme-accent-dark font-medium transition-colors"
+          class="font-medium text-theme-accent transition-colors duration-200 hover:text-theme-accent-dark"
         >
           {{ isSignUp ? 'Sign In' : 'Sign Up' }}
         </button>
@@ -101,7 +105,7 @@
       <p v-if="!isSignUp" class="mt-4 text-center text-sm text-theme-text-dim">
         <button
           @click="handlePasswordReset"
-          class="text-theme-text-muted hover:text-theme-text transition-colors"
+          class="text-theme-text-muted transition-colors duration-200 hover:text-theme-text"
         >
           Forgot your password?
         </button>
@@ -109,8 +113,8 @@
     </div>
 
     <!-- Tagline below login card -->
-    <div class="mt-6 text-center">
-      <p class="text-sm text-theme-text-muted italic">Automated Prayers As A Service</p>
+    <div class="mt-8 text-center">
+      <p class="text-sm italic text-theme-text-muted">Automated Prayers As A Service</p>
     </div>
   </div>
 </template>
@@ -164,47 +168,53 @@ async function handlePasswordReset() {
 </script>
 
 <style scoped>
-/* Primary button with gold gradient */
-.btn-primary {
-  @apply relative overflow-hidden font-sans rounded-btn px-4 py-3 border shadow-inner-top glass-gloss active:translate-y-0 transition-all duration-150 ease-out cursor-pointer;
-  color: white;
-  border-color: color-mix(in srgb, var(--theme-accent) 55%, white 10%);
-  box-shadow: 0 18px 30px color-mix(in srgb, var(--theme-accent) 28%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--theme-accent) 34%, white 12%),
-    color-mix(in srgb, var(--theme-accent-2) 72%, black 15%)
-  );
+.login-card {
+  position: relative;
 }
 
-.btn-primary:hover {
-  transform: translateY(-1px);
+.login-card::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: calc(var(--radius-panel) - 1px);
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 28%);
+  opacity: 0.9;
 }
 
-.btn-primary:disabled {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--theme-accent) 20%, gray 30%),
-    color-mix(in srgb, var(--theme-accent-dark) 40%, gray 40%)
-  );
+.login-logo-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14.5rem;
+  height: 14.5rem;
 }
 
-/* Subtle button variant */
-.btn-subtle {
-  @apply relative overflow-hidden font-sans rounded-btn px-4 py-3 border shadow-inner-top glass-gloss active:translate-y-0 transition-all duration-150 ease-out cursor-pointer;
-  color: var(--theme-text);
-  border-color: rgba(139, 125, 91, 0.2);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.15));
+.login-logo-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 223, 147, 0.34) 0%, rgba(255, 223, 147, 0.12) 38%, transparent 72%);
+  filter: blur(10px);
+  animation: ritual-breathe 6s ease-in-out infinite;
 }
 
-.btn-subtle:hover {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.25));
-  border-color: rgba(139, 125, 91, 0.3);
-  transform: translateY(-1px);
+.login-logo-disc {
+  position: absolute;
+  inset: 16%;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 248, 229, 0.18));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 18px 36px rgba(213, 154, 23, 0.12);
+  backdrop-filter: blur(12px);
 }
 
-.btn-subtle:disabled {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08));
-  cursor: not-allowed;
+.login-logo-image {
+  position: relative;
+  z-index: 1;
+  width: 12.5rem;
+  height: 12.5rem;
+  filter: drop-shadow(0 10px 24px rgba(213, 154, 23, 0.2));
 }
 </style>

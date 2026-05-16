@@ -42,76 +42,65 @@ watch(() => props.amount, (newVal) => {
 <style scoped>
 .karma-toast {
   position: fixed;
-  top: 1rem;
-  right: 1rem;
+  top: 1.5rem;
+  right: 1.5rem;
   z-index: 10000;
-  display: flex;
+  display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.25rem;
-  border-radius: 12px;
-  font-weight: 600;
+  gap: 0.55rem;
+  max-width: min(92vw, 28rem);
+  padding: 0.9rem 1.15rem;
+  border-radius: 20px;
   font-size: 0.95rem;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(8px);
-  animation: slideIn 0.3s ease-out;
+  font-weight: 600;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 38px rgba(48, 38, 21, 0.16), 0 0 32px rgba(240, 182, 59, 0.08);
 }
 
 .karma-toast.positive {
-  background: linear-gradient(135deg, rgba(201, 168, 76, 0.2), rgba(245, 230, 163, 0.15));
-  border: 1px solid rgba(201, 168, 76, 0.5);
-  color: #2d2d2d;
+  background: linear-gradient(135deg, rgba(255, 252, 245, 0.92), rgba(247, 231, 190, 0.88));
+  border: 1px solid rgba(201, 168, 76, 0.34);
+  color: var(--theme-text);
 }
 
 .karma-toast.negative {
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.2), rgba(248, 113, 113, 0.15));
-  border: 1px solid rgba(220, 38, 38, 0.5);
-  color: #fca5a5;
+  background: linear-gradient(135deg, rgba(255, 248, 241, 0.92), rgba(233, 209, 188, 0.88));
+  border: 1px solid rgba(168, 93, 50, 0.3);
+  color: var(--theme-purgatory-dark);
 }
 
 .karma-toast-icon {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
 }
 
 .karma-toast-text {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
 }
 
 .karma-toast-label {
   font-size: 0.8rem;
-  font-weight: 400;
-  opacity: 0.8;
+  font-weight: 500;
+  opacity: 0.84;
 }
 
-/* Transition */
 .karma-toast-enter-active {
-  animation: slideIn 0.3s ease-out;
+  animation: toastSpringIn 320ms var(--ease-silk-settle);
 }
 
 .karma-toast-leave-active {
-  animation: slideOut 0.3s ease-in;
+  animation: toastSpringOut 220ms var(--ease-standard);
 }
 
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(100%) scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-@keyframes slideOut {
-  from {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(100%) scale(0.9);
+@media (max-width: 640px) {
+  .karma-toast {
+    left: 1rem;
+    right: 1rem;
+    top: 1rem;
+    max-width: none;
   }
 }
 </style>

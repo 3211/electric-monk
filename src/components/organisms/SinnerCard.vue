@@ -1,44 +1,42 @@
 <template>
-  <div class="sinner-card glass-panel glass-gloss p-4 relative border border-theme-purgatory/30 hover:border-theme-purgatory/50 transition-all duration-200">
+  <div class="sinner-card glass-panel glass-panel-soft glass-gloss relative border border-theme-purgatory/25 p-5 transition-all duration-300 hover:-translate-y-1 hover:border-theme-purgatory/40 hover:shadow-[0_18px_32px_rgba(168,93,50,0.12)]">
     <!-- Sinner Info -->
-    <div class="flex items-start justify-between gap-3 mb-3">
-      <div class="flex items-center gap-2">
+    <div class="mb-4 flex items-start justify-between gap-3">
+      <div class="flex items-center gap-3">
         <span class="text-xl">😈</span>
         <div>
           <p class="text-sm font-semibold text-theme-text">{{ sinner.username || 'Anonymous Sinner' }}</p>
           <p v-if="sinner.faith" class="text-xs text-theme-text-muted">{{ sinner.faith }}</p>
         </div>
       </div>
-      <div class="text-right">
-        <p class="text-xs text-theme-purgatory font-medium">{{ timeRemaining }}</p>
-        <p class="text-xs text-theme-text-muted">remaining</p>
+      <div class="chip flex-col items-end gap-0.5 px-3 py-2 text-right">
+        <p class="text-xs font-medium text-theme-purgatory">{{ timeRemaining }}</p>
+        <p class="text-[0.68rem] text-theme-text-muted">remaining</p>
       </div>
     </div>
 
     <!-- Rejection Reason -->
-    <div v-if="sinner.rejection_reason" class="mb-3 p-2.5 rounded-lg bg-theme-purgatory/10 border border-theme-purgatory/20">
-      <p class="text-xs text-theme-text-muted uppercase tracking-wider mb-1">Transgression</p>
-      <p class="text-sm text-theme-purgatory-dark italic">"{{ sinner.rejection_reason }}"</p>
+    <div v-if="sinner.rejection_reason" class="mb-4 rounded-[20px] border border-theme-purgatory/20 bg-theme-purgatory/10 p-3">
+      <p class="mb-1 text-xs uppercase tracking-[0.14em] text-theme-text-muted">Transgression</p>
+      <p class="text-sm italic text-theme-purgatory-dark">"{{ sinner.rejection_reason }}"</p>
     </div>
-    <div v-else class="mb-3 p-2.5 rounded-lg bg-theme-purgatory/10 border border-theme-purgatory/20">
-      <p class="text-sm text-theme-text-dim italic">The nature of their transgression is shrouded in mystery...</p>
+    <div v-else class="mb-4 rounded-[20px] border border-theme-purgatory/20 bg-theme-purgatory/10 p-3">
+      <p class="text-sm italic text-theme-text-dim">The nature of their transgression is shrouded in mystery...</p>
     </div>
 
     <!-- Pray Button or Active Counter -->
-    <div class="flex items-center justify-between">
-      <div v-if="isActive" class="flex items-center gap-3 flex-1">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div v-if="isActive" class="flex flex-1 items-center gap-4">
         <div class="prayer-counter-display" :class="{ 'counter-animate': animating }">
-          <span class="text-2xl font-bold text-theme-accent font-mono">{{ displayedCount }}</span>
+          <span class="counter-value text-3xl font-bold text-theme-accent font-mono">{{ displayedCount }}</span>
         </div>
         <div class="flex-1">
-          <p class="text-xs text-theme-text-muted uppercase tracking-wider">Intercessory Prayers</p>
-          <div class="w-full h-1.5 bg-theme-border/30 rounded-full mt-1 overflow-hidden">
+          <p class="text-xs uppercase tracking-[0.14em] text-theme-text-muted">Intercessory Prayers</p>
+          <div class="prayer-progress-track mt-2">
             <div
-              class="h-full rounded-full transition-none"
+              class="prayer-progress-fill transition-none"
               :style="{
-                width: (cycleProgress * 100) + '%',
-                background: 'linear-gradient(90deg, #c9a84c, #f5e6a3, #c9a84c)',
-                boxShadow: '0 0 8px rgba(201, 168, 76, 0.5)'
+                width: (cycleProgress * 100) + '%'
               }"
             ></div>
           </div>
@@ -48,7 +46,7 @@
       <button
         v-if="isActive"
         @click="$emit('stop', sinner)"
-        class="px-3 py-1.5 text-xs text-theme-text-dim hover:text-theme-purgatory border border-theme-border rounded hover:border-theme-purgatory/50 transition-colors"
+        class="btn-ghost self-start px-4 py-2 text-xs"
       >
         Stop
       </button>
@@ -57,7 +55,7 @@
         v-else
         @click="$emit('pray', sinner)"
         :disabled="disabled || loading"
-        class="btn-intercessory"
+        class="btn-danger self-start px-4 py-2"
       >
         <span class="relative z-10 font-medium text-sm">
           {{ loading ? 'Generating Prayer...' : '🕯️ Pray for this Sinner' }}
@@ -109,43 +107,29 @@ const timeRemaining = computed(() => {
 </script>
 
 <style scoped>
-.btn-intercessory {
-  @apply relative overflow-hidden font-sans rounded-btn px-4 py-2 border shadow-inner-top glass-gloss active:translate-y-0 transition-all duration-150 ease-out cursor-pointer;
-  color: white;
-  border-color: color-mix(in srgb, #ef4444 55%, white 10%);
-  box-shadow: 0 8px 16px color-mix(in srgb, #ef4444 20%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, #ef4444 34%, white 12%),
-    color-mix(in srgb, #b91c1c 72%, black 15%)
-  );
+.sinner-card {
+  position: relative;
+  overflow: hidden;
 }
 
-.btn-intercessory:hover {
-  transform: translateY(-1px);
-}
-
-.btn-intercessory:disabled {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, #ef4444 20%, gray 30%),
-    color-mix(in srgb, #b91c1c 40%, gray 40%)
-  );
-  opacity: 0.6;
-  cursor: not-allowed;
+.sinner-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 30%);
 }
 
 .prayer-counter-display {
-  transition: transform 0.15s ease-out;
+  transition: transform var(--dur-quick) var(--ease-ritual-lift);
 }
 
 .counter-animate {
-  animation: counterPulse 0.2s ease-out;
+  animation: counterPulse 180ms var(--ease-ritual-lift);
 }
 
-@keyframes counterPulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.15); text-shadow: 0 0 12px color-mix(in srgb, var(--theme-accent) 60%, transparent); }
-  100% { transform: scale(1); }
+.counter-value {
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
 }
 </style>

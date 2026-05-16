@@ -1,54 +1,52 @@
 <template>
-  <div class="akashic-prayer-card glass-panel glass-gloss p-4 relative border border-theme-border hover:border-theme-accent/30 transition-all duration-200">
+  <div class="akashic-prayer-card glass-panel glass-panel-soft glass-gloss relative border border-theme-border p-5 transition-all duration-300 hover:-translate-y-1 hover:border-theme-accent/30 hover:shadow-[0_18px_32px_rgba(48,38,21,0.12)]">
     <!-- Prayer Author & Time -->
-    <div class="flex items-center justify-between mb-2">
-      <div class="flex items-center gap-2">
-        <span class="text-sm font-medium text-theme-accent">{{ prayer.username || 'Anonymous' }}</span>
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex min-w-0 items-center gap-2">
+        <span class="truncate text-sm font-medium text-theme-accent">{{ prayer.username || 'Anonymous' }}</span>
         <span class="text-xs text-theme-text-muted">·</span>
         <span class="text-xs text-theme-text-muted">{{ formattedDate }}</span>
       </div>
-      <div class="flex items-center gap-1.5">
-        <span class="text-xs text-theme-accent font-semibold">✦ {{ formattedCount }}</span>
+      <div class="chip gap-1.5 px-3 py-1 text-xs font-semibold text-theme-accent">
+        <span>✦ {{ formattedCount }}</span>
       </div>
     </div>
 
     <!-- Monk's Response (only show response, not original prayer) -->
-    <div class="mb-3">
-      <p v-if="prayer.response_content" class="text-theme-text text-sm leading-relaxed">
+    <div class="mb-4">
+      <p v-if="prayer.response_content" class="text-sm leading-7 text-theme-text">
         {{ truncatedResponse }}
       </p>
-      <p v-else class="text-theme-text-dim italic text-sm">The monk's words echo in silence...</p>
+      <p v-else class="text-sm italic text-theme-text-dim">The monk's words echo in silence...</p>
       <button
         v-if="prayer.response_content && prayer.response_content.length > 200"
         @click="expanded = !expanded"
-        class="text-xs text-theme-accent hover:text-theme-accent-dark mt-1 transition-colors"
+        class="mt-2 text-xs font-medium text-theme-accent transition-colors duration-200 hover:text-theme-accent-dark"
       >
         {{ expanded ? 'Show less' : 'Read more' }}
       </button>
     </div>
 
     <!-- Faith Badge -->
-    <div v-if="prayer.faith" class="mb-3">
-      <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-theme-accent/10 text-theme-accent border border-theme-accent/20">
+    <div v-if="prayer.faith" class="mb-4">
+      <span class="chip px-3 py-1 text-xs font-medium text-theme-accent">
         {{ prayer.faith }}
       </span>
     </div>
 
     <!-- Pray Button or Active Counter -->
-    <div class="flex items-center justify-between">
-      <div v-if="isActive" class="flex items-center gap-3">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div v-if="isActive" class="flex flex-1 items-center gap-4">
         <div class="prayer-counter-display" :class="{ 'counter-animate': animating }">
-          <span class="text-2xl font-bold text-theme-accent font-mono">{{ displayedCount }}</span>
+          <span class="counter-value text-3xl font-bold text-theme-accent font-mono">{{ displayedCount }}</span>
         </div>
         <div class="flex-1">
-          <p class="text-xs text-theme-text-muted uppercase tracking-wider">Times Prayed</p>
-          <div class="w-full h-1.5 bg-theme-border/30 rounded-full mt-1 overflow-hidden">
+          <p class="text-xs uppercase tracking-[0.14em] text-theme-text-muted">Times Prayed</p>
+          <div class="prayer-progress-track mt-2">
             <div
-              class="h-full rounded-full transition-none"
+              class="prayer-progress-fill transition-none"
               :style="{
-                width: (cycleProgress * 100) + '%',
-                background: 'linear-gradient(90deg, #c9a84c, #f5e6a3, #c9a84c)',
-                boxShadow: '0 0 8px rgba(201, 168, 76, 0.5)'
+                width: (cycleProgress * 100) + '%'
               }"
             ></div>
           </div>
@@ -59,7 +57,7 @@
         v-else
         @click="$emit('pray', prayer)"
         :disabled="disabled"
-        class="btn-altruistic"
+        class="btn-primary self-start px-4 py-2"
       >
         <span class="relative z-10 font-medium text-sm">
           🙏 Pray for this
@@ -69,7 +67,7 @@
       <button
         v-if="isActive"
         @click="$emit('stop', prayer)"
-        class="px-3 py-1.5 text-xs text-theme-text-dim hover:text-theme-purgatory border border-theme-border rounded hover:border-theme-purgatory/50 transition-colors"
+        class="btn-ghost self-start px-4 py-2 text-xs"
       >
         Stop
       </button>
@@ -123,43 +121,29 @@ const truncatedResponse = computed(() => {
 </script>
 
 <style scoped>
-.btn-altruistic {
-  @apply relative overflow-hidden font-sans rounded-btn px-4 py-2 border shadow-inner-top glass-gloss active:translate-y-0 transition-all duration-150 ease-out cursor-pointer;
-  color: white;
-  border-color: color-mix(in srgb, var(--theme-accent) 55%, white 10%);
-  box-shadow: 0 8px 16px color-mix(in srgb, var(--theme-accent) 20%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--theme-accent) 34%, white 12%),
-    color-mix(in srgb, var(--theme-accent-2) 72%, black 15%)
-  );
+.akashic-prayer-card {
+  position: relative;
+  overflow: hidden;
 }
 
-.btn-altruistic:hover {
-  transform: translateY(-1px);
-}
-
-.btn-altruistic:disabled {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--theme-accent) 20%, gray 30%),
-    color-mix(in srgb, var(--theme-accent-dark) 40%, gray 40%)
-  );
-  opacity: 0.6;
-  cursor: not-allowed;
+.akashic-prayer-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 28%);
 }
 
 .prayer-counter-display {
-  transition: transform 0.15s ease-out;
+  transition: transform var(--dur-quick) var(--ease-ritual-lift);
 }
 
 .counter-animate {
-  animation: counterPulse 0.2s ease-out;
+  animation: counterPulse 180ms var(--ease-ritual-lift);
 }
 
-@keyframes counterPulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.15); text-shadow: 0 0 12px color-mix(in srgb, var(--theme-accent) 60%, transparent); }
-  100% { transform: scale(1); }
+.counter-value {
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
 }
 </style>

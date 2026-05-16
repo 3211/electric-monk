@@ -1,39 +1,42 @@
 <template>
-  <div class="flex items-center justify-center bg-theme-wash px-4 py-8">
-    <div class="max-w-md w-full text-center">
+  <div class="app-frame flex min-h-screen items-center justify-center px-4 py-10 sm:py-14">
+    <div class="purgatory-shell max-w-lg w-full text-center">
       <!-- Header with Karma -->
-      <div class="mb-4">
-        <h1 class="text-5xl font-bold text-theme-purgatory mb-2">Purgatory</h1>
-        <p class="text-theme-text-dim mb-2">Your soul has been tainted by malicious intent</p>
+      <div class="mb-6">
+        <h1 class="ritual-heading text-5xl font-bold text-theme-purgatory sm:text-6xl">Purgatory</h1>
+        <p class="mx-auto mt-3 max-w-md text-theme-text-dim">Your soul has been tainted by malicious intent</p>
         <!-- Karma Display -->
-        <div class="inline-flex items-center gap-2 px-3 py-1 bg-theme-panel rounded border border-theme-border">
+        <div class="chip mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
           <span class="text-lg">{{ prayers.karmaEmoji }}</span>
-          <span class="text-sm text-theme-text-dim">Karma: <span :class="karmaClass">{{ prayers.karma }}</span></span>
+          <span>Karma: <span :class="karmaClass" class="font-semibold">{{ prayers.karma }}</span></span>
         </div>
       </div>
 
       <!-- Intercessory Prayer Count -->
-      <div v-if="intercessoryCount > 0" class="mb-4 p-3 bg-theme-accent/10 border border-theme-accent/30 rounded-lg">
-        <p class="text-theme-accent text-sm font-medium">
+      <div v-if="intercessoryCount > 0" class="glass-panel glass-panel-soft mb-5 rounded-[24px] border border-theme-accent/20 p-4 shadow-[0_18px_28px_rgba(48,38,21,0.08)]">
+        <p class="text-sm font-medium text-theme-accent">
           🕯️ {{ intercessoryCount }} {{ intercessoryCount === 1 ? 'person is' : 'people are' }} praying for your redemption
         </p>
-        <p class="text-theme-text-muted text-xs mt-1">Each completed prayer cycle reduces your time by 1 minute</p>
+        <p class="mt-1 text-xs text-theme-text-muted">Each completed prayer cycle reduces your time by 1 minute</p>
       </div>
 
       <!-- Ban Timer -->
-      <div class="glass-panel glass-gloss p-8 mb-6 border-theme-purgatory shadow-glow-purgatory">
-        <div class="text-6xl font-mono font-bold text-theme-purgatory mb-4">
-          {{ banTimer.formattedTimeRemaining || '0s' }}
+      <div class="purgatory-timer glass-panel glass-panel-strong glass-gloss mb-6 border-theme-purgatory/35 p-8 shadow-glow-purgatory sm:p-10">
+        <div class="purgatory-timer-halo"></div>
+        <div class="relative z-10">
+          <div class="purgatory-timer-value mb-4 text-6xl font-bold text-theme-purgatory sm:text-7xl">
+            {{ banTimer.formattedTimeRemaining || '0s' }}
+          </div>
+          <p class="text-sm text-theme-text-dim">
+            Time remaining until redemption
+          </p>
         </div>
-        <p class="text-theme-text-dim text-sm">
-          Time remaining until redemption
-        </p>
       </div>
 
       <!-- Indulgence Section -->
-      <div class="glass-panel glass-gloss p-6 mb-6">
-        <h2 class="text-xl font-semibold text-theme-accent mb-2">Watch an Indulgence</h2>
-        <p class="text-theme-text-dim text-sm mb-4">
+      <div class="glass-panel glass-panel-strong glass-gloss mb-6 p-6 sm:p-7">
+        <h2 class="text-3xl font-semibold text-theme-accent">Watch an Indulgence</h2>
+        <p class="mt-2 text-sm text-theme-text-dim">
           View a sacred advertisement to reduce your penance by 15 minutes
         </p>
 
@@ -41,7 +44,7 @@
           v-if="!showingAd"
           @click="startIndulgence"
           :disabled="!banTimer.canWatchIndulgence || banTimer.loading"
-          class="w-full py-3 px-4 btn-primary disabled:cursor-not-allowed transition-all duration-150 ease-out"
+          class="btn-primary mt-5 w-full"
         >
           <span class="relative z-10 font-medium">
             {{ banTimer.loading ? 'Processing...' : 'Watch Indulgence (-15 min)' }}
@@ -49,21 +52,21 @@
         </button>
 
         <!-- Ad Placeholder -->
-        <div v-else class="space-y-4">
-          <div class="aspect-video bg-theme-panel rounded flex items-center justify-center border border-theme-border">
-            <div class="text-center">
-              <div class="animate-pulse text-theme-accent mb-2">
-                <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div v-else class="mt-5 space-y-4">
+          <div class="glass-panel glass-panel-soft aspect-video rounded-[24px] border border-theme-border p-6">
+            <div class="flex h-full flex-col items-center justify-center text-center">
+              <div class="mb-2 animate-pulse text-theme-accent">
+                <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
               </div>
-              <p class="text-theme-text-dim text-sm">Sacred Advertisement Loading...</p>
+              <p class="text-sm text-theme-text-dim">Sacred Advertisement Loading...</p>
             </div>
           </div>
           <button
             @click="completeIndulgence"
-            class="w-full py-2 px-4 btn-complete transition-all duration-150 ease-out"
+            class="btn-secondary w-full"
           >
             <span class="relative z-10 font-medium">
               Complete Indulgence
@@ -73,21 +76,21 @@
       </div>
 
       <!-- Error Message -->
-      <div v-if="banTimer.error" class="p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm glass-gloss">
+      <div v-if="banTimer.error" class="mb-6 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
         {{ banTimer.error }}
       </div>
 
       <!-- Reason for Ban (if available) -->
-      <div v-if="rejectionReason" class="mt-6 p-4 glass-panel glass-gloss border-theme-purgatory">
-        <p class="text-theme-text-dim text-xs uppercase tracking-wide mb-1">Last Transgression</p>
-        <p class="text-theme-purgatory-dark italic">"{{ rejectionReason }}"</p>
+      <div v-if="rejectionReason" class="glass-panel glass-panel-soft mt-6 border-theme-purgatory/25 p-5">
+        <p class="text-xs uppercase tracking-[0.18em] text-theme-text-muted">Last Transgression</p>
+        <p class="mt-2 italic text-theme-purgatory-dark">"{{ rejectionReason }}"</p>
       </div>
 
       <!-- Logout -->
       <div class="mt-6">
         <button
           @click="handleLogout"
-          class="px-4 py-2 text-sm text-theme-text-dim hover:text-theme-text transition-colors"
+          class="btn-ghost px-4 py-2 text-sm"
         >
           Logout
         </button>
@@ -175,44 +178,38 @@ function karmaClass() {
 </script>
 
 <style scoped>
-/* Primary button with gold gradient */
-.btn-primary {
-  @apply relative overflow-hidden font-sans rounded-btn px-4 py-3 border shadow-inner-top glass-gloss active:translate-y-0 transition-all duration-150 ease-out cursor-pointer;
-  color: white;
-  border-color: color-mix(in srgb, var(--theme-accent) 55%, white 10%);
-  box-shadow: 0 18px 30px color-mix(in srgb, var(--theme-accent) 28%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--theme-accent) 34%, white 12%),
-    color-mix(in srgb, var(--theme-accent-2) 72%, black 15%)
-  );
+.purgatory-shell {
+  position: relative;
 }
 
-.btn-primary:hover {
-  transform: translateY(-1px);
+.purgatory-timer {
+  position: relative;
+  overflow: hidden;
 }
 
-.btn-primary:disabled {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--theme-accent) 20%, gray 30%),
-    color-mix(in srgb, var(--theme-accent-dark) 40%, gray 40%)
-  );
+.purgatory-timer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 30%);
 }
 
-/* Complete button - green/positive action */
-.btn-complete {
-  @apply relative overflow-hidden font-sans rounded-btn px-4 py-2 border shadow-inner-top glass-gloss active:translate-y-0 transition-all duration-150 ease-out cursor-pointer text-white;
-  border-color: color-mix(in srgb, #16a34a 55%, white 10%);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, #16a34a 50%, white 8%),
-    color-mix(in srgb, #22c55e 70%, black 12%)
-  );
+.purgatory-timer-halo {
+  position: absolute;
+  inset: 14% 18%;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(201, 122, 79, 0.24), rgba(168, 93, 50, 0.12) 40%, transparent 72%);
+  filter: blur(18px);
+  animation: ritual-breathe 5.6s ease-in-out infinite;
 }
 
-.btn-complete:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 18px 30px color-mix(in srgb, #16a34a 28%, transparent);
+.purgatory-timer-value {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-mono);
+  letter-spacing: -0.06em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 20px rgba(168, 93, 50, 0.16);
 }
 </style>

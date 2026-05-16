@@ -1,74 +1,75 @@
 <template>
   <div class="bg-theme-wash">
-    <!-- Header -->
-    <header class="border-b border-theme-border bg-theme-panel/50 backdrop-blur-sm">
-      <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-theme-accent">📜 Akashic Records</h1>
-        <div class="flex items-center gap-4">
-          <!-- Karma Display -->
-          <div class="text-sm text-theme-text-dim flex items-center gap-2">
-            <span class="text-lg">{{ prayers.karmaEmoji }}</span>
-            <span>Karma: <span :class="karmaClass">{{ prayers.karma }}</span></span>
+    <header class="akashic-header border-b surface-divider bg-theme-panel/55 backdrop-blur-[16px]">
+      <div class="app-frame py-6">
+        <div class="flex flex-col gap-5">
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div class="relative">
+              <div class="akashic-header-glow"></div>
+              <h1 class="ritual-heading relative text-3xl font-bold text-theme-accent sm:text-4xl">📜 Akashic Records</h1>
+            </div>
+            <div class="chip gap-2 self-start px-4 py-2 text-sm text-theme-text-dim shadow-[0_12px_24px_rgba(48,38,21,0.08)] lg:self-auto">
+              <span class="text-lg">{{ prayers.karmaEmoji }}</span>
+              <span>Karma: <span :class="karmaClass" class="font-semibold">{{ prayers.karma }}</span></span>
+            </div>
+          </div>
+
+          <div class="segmented-shell self-start">
+            <button
+              @click="activeSubTab = 'prayers'"
+              class="pill-tab"
+              :class="activeSubTab === 'prayers' ? 'pill-tab-active' : 'pill-tab-inactive'"
+            >
+              📿 Prayers
+            </button>
+            <button
+              @click="switchToSinners"
+              class="pill-tab"
+              :class="activeSubTab === 'sinners' ? 'pill-tab-active' : 'pill-tab-inactive'"
+            >
+              😈 Sinners
+            </button>
           </div>
         </div>
       </div>
-
-      <!-- Sub-tabs -->
-      <div class="max-w-4xl mx-auto px-4 flex gap-1">
-        <button
-          @click="activeSubTab = 'prayers'"
-          :class="activeSubTab === 'prayers' ? 'subtab-active' : 'subtab-inactive'"
-        >
-          📿 Prayers
-        </button>
-        <button
-          @click="switchToSinners"
-          :class="activeSubTab === 'sinners' ? 'subtab-active' : 'subtab-inactive'"
-        >
-          😈 Sinners
-        </button>
-      </div>
     </header>
 
-    <main class="max-w-4xl mx-auto px-4 py-6">
-      <!-- Prayers Sub-tab -->
-      <div v-if="activeSubTab === 'prayers'">
-        <!-- Sort Controls -->
-        <div class="flex items-center justify-between mb-4">
+    <main class="app-frame py-8 lg:py-10">
+      <div v-if="activeSubTab === 'prayers'" class="space-y-6">
+        <div class="glass-panel glass-panel-soft glass-gloss flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <p class="text-sm text-theme-text-muted">
             All approved prayers from the community
           </p>
-          <div class="flex gap-2">
+          <div class="segmented-shell self-start sm:self-auto">
             <button
               @click="akashic.setSortBy('newest')"
-              :class="akashic.sortBy === 'newest' ? 'sort-active' : 'sort-inactive'"
+              class="pill-tab"
+              :class="akashic.sortBy === 'newest' ? 'pill-tab-active' : 'pill-tab-inactive'"
             >
               Newest
             </button>
             <button
               @click="akashic.setSortBy('most_prayed')"
-              :class="akashic.sortBy === 'most_prayed' ? 'sort-active' : 'sort-inactive'"
+              class="pill-tab"
+              :class="akashic.sortBy === 'most_prayed' ? 'pill-tab-active' : 'pill-tab-inactive'"
             >
               Most Prayed
             </button>
           </div>
         </div>
 
-        <!-- Loading State -->
-        <div v-if="akashic.loading && akashic.publicPrayers.length === 0" class="text-center py-12 text-theme-text-dim">
-          <div class="text-4xl mb-3 animate-pulse">📜</div>
+        <div v-if="akashic.loading && akashic.publicPrayers.length === 0" class="glass-panel glass-panel-soft p-12 text-center text-theme-text-dim">
+          <div class="mb-3 text-4xl animate-pulse">📜</div>
           <p>Loading the Akashic Records...</p>
         </div>
 
-        <!-- Empty State -->
-        <div v-else-if="akashic.publicPrayers.length === 0 && !akashic.loading" class="glass-panel glass-gloss p-12 text-center border-dashed border-2 border-theme-border">
-          <div class="text-6xl mb-4">🕊️</div>
-          <h3 class="text-lg font-medium text-theme-text mb-2">No Prayers Yet</h3>
+        <div v-else-if="akashic.publicPrayers.length === 0 && !akashic.loading" class="glass-panel glass-panel-strong glass-gloss border-2 border-dashed border-theme-border p-12 text-center">
+          <div class="mb-4 text-6xl">🕊️</div>
+          <h3 class="mb-2 text-lg font-medium text-theme-text">No Prayers Yet</h3>
           <p class="text-theme-text-dim">The Akashic Records are empty. Be the first to submit a prayer.</p>
         </div>
 
-        <!-- Prayer Cards -->
-        <div v-else class="space-y-4">
+        <div v-else class="space-y-5">
           <AkashicPrayerCard
             v-for="prayer in akashic.publicPrayers"
             :key="prayer.id"
@@ -83,38 +84,35 @@
           />
         </div>
 
-        <!-- Load More -->
-        <div v-if="akashic.hasMorePrayers" class="mt-6 text-center">
+        <div v-if="akashic.hasMorePrayers" class="pt-2 text-center">
           <button
             @click="akashic.loadMorePrayers()"
             :disabled="akashic.loading"
-            class="px-6 py-2.5 text-sm text-theme-accent hover:text-theme-accent-dark transition-colors border border-theme-border/50 rounded-xl hover:border-theme-accent/30 hover:bg-theme-accent/5 disabled:opacity-50"
+            class="btn-secondary px-6 py-3 text-sm disabled:opacity-50"
           >
             {{ akashic.loading ? 'Loading...' : 'Load More Prayers' }}
           </button>
         </div>
       </div>
 
-      <!-- Sinners Sub-tab -->
-      <div v-if="activeSubTab === 'sinners'">
-        <!-- Loading State -->
-        <div v-if="akashic.sinnersLoading && akashic.sinners.length === 0" class="text-center py-12 text-theme-text-dim">
-          <div class="text-4xl mb-3 animate-pulse">😈</div>
+      <div v-if="activeSubTab === 'sinners'" class="space-y-6">
+        <div v-if="akashic.sinnersLoading && akashic.sinners.length === 0" class="glass-panel glass-panel-soft p-12 text-center text-theme-text-dim">
+          <div class="mb-3 text-4xl animate-pulse">😈</div>
           <p>Scanning for souls in purgatory...</p>
         </div>
 
-        <!-- Empty State -->
-        <div v-else-if="akashic.sinners.length === 0 && !akashic.sinnersLoading" class="glass-panel glass-gloss p-12 text-center border-dashed border-2 border-theme-border">
-          <div class="text-6xl mb-4">😇</div>
-          <h3 class="text-lg font-medium text-theme-text mb-2">No Souls in Purgatory</h3>
+        <div v-else-if="akashic.sinners.length === 0 && !akashic.sinnersLoading" class="glass-panel glass-panel-strong glass-gloss border-2 border-dashed border-theme-border p-12 text-center">
+          <div class="mb-4 text-6xl">😇</div>
+          <h3 class="mb-2 text-lg font-medium text-theme-text">No Souls in Purgatory</h3>
           <p class="text-theme-text-dim">All is well in the spiritual realm. No one is currently condemned.</p>
         </div>
 
-        <!-- Sinner Cards -->
-        <div v-else class="space-y-4">
-          <p class="text-sm text-theme-text-muted mb-2">
-            Pray for these souls to earn karma (+1 per 100 prays). The Electric Monk will generate an intercessory prayer on their behalf.
-          </p>
+        <div v-else class="space-y-5">
+          <div class="glass-panel glass-panel-soft glass-gloss p-4 sm:p-5">
+            <p class="text-sm text-theme-text-muted">
+              Pray for these souls to earn karma (+1 per 100 prays). The Electric Monk will generate an intercessory prayer on their behalf.
+            </p>
+          </div>
           <SinnerCard
             v-for="sinner in akashic.sinners"
             :key="sinner.id"
@@ -131,44 +129,41 @@
         </div>
       </div>
 
-      <!-- Error Display -->
-      <div v-if="akashic.error" class="mt-4 p-3 bg-theme-purgatory/20 border border-theme-purgatory rounded text-theme-purgatory-dark text-sm glass-gloss">
+      <div v-if="akashic.error" class="glass-panel glass-panel-soft mt-6 border border-theme-purgatory/30 bg-theme-purgatory/10 p-4 text-sm text-theme-purgatory-dark shadow-[0_14px_30px_rgba(168,93,50,0.1)]">
         {{ akashic.error }}
       </div>
     </main>
 
-    <!-- Active Altruistic Prayer Overlay (floating counter at bottom) -->
     <Transition name="slide-up">
-      <div v-if="akashic.activeAltruisticPrayer && showActiveOverlay" class="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50">
-        <div class="glass-panel glass-gloss p-4 border border-theme-accent/50 shadow-glow-accent rounded-xl">
-          <div class="flex items-center justify-between mb-2">
-            <div class="flex items-center gap-2">
-              <span class="text-lg">{{ activePrayerTypeIcon }}</span>
-              <div>
-                <p class="text-sm font-medium text-theme-text">{{ activePrayerTypeLabel }}</p>
-                <p v-if="activeTargetName" class="text-xs text-theme-text-muted">{{ activeTargetName }}</p>
+      <div v-if="akashic.activeAltruisticPrayer && showActiveOverlay" class="active-overlay-shell fixed bottom-5 left-4 right-4 z-50 md:left-auto md:right-6 md:w-[25rem]">
+        <div class="active-overlay-card glass-panel glass-panel-strong glass-gloss border border-theme-accent/40 p-4 shadow-glow-accent sm:p-5">
+          <div class="mb-3 flex items-start justify-between gap-4">
+            <div class="flex min-w-0 items-center gap-3">
+              <span class="chip h-10 w-10 flex-none text-lg text-theme-accent-dark shadow-[0_10px_20px_rgba(213,154,23,0.12)]">{{ activePrayerTypeIcon }}</span>
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-theme-text">{{ activePrayerTypeLabel }}</p>
+                <p v-if="activeTargetName" class="truncate text-xs text-theme-text-muted">{{ activeTargetName }}</p>
               </div>
             </div>
-            <div class="flex items-center gap-2">
-              <span class="text-2xl font-bold text-theme-accent font-mono">{{ counterDisplayedCount }}</span>
-              <span class="text-xs text-theme-text-muted">prays</span>
+            <div class="rounded-[18px] border border-theme-accent/20 bg-white/55 px-3 py-2 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm">
+              <span class="block text-2xl font-bold text-theme-accent font-mono">{{ counterDisplayedCount }}</span>
+              <span class="text-[0.7rem] uppercase tracking-[0.18em] text-theme-text-muted">prays</span>
             </div>
           </div>
-          <!-- Progress Bar -->
-          <div class="w-full h-1.5 bg-theme-border/30 rounded-full overflow-hidden">
+
+          <div class="prayer-progress-track">
             <div
-              class="h-full rounded-full transition-none"
+              class="prayer-progress-fill transition-none"
               :style="{
-                width: (counterCycleProgress * 100) + '%',
-                background: 'linear-gradient(90deg, #c9a84c, #f5e6a3, #c9a84c)',
-                boxShadow: '0 0 8px rgba(201, 168, 76, 0.5)'
+                width: (counterCycleProgress * 100) + '%'
               }"
             ></div>
           </div>
-          <div class="mt-2 flex justify-end">
+
+          <div class="mt-3 flex justify-end">
             <button
               @click="handleStopPraying"
-              class="px-3 py-1 text-xs text-theme-text-dim hover:text-theme-purgatory border border-theme-border rounded hover:border-theme-purgatory/50 transition-colors"
+              class="btn-ghost px-3 py-2 text-xs"
             >
               Stop Praying
             </button>
@@ -177,7 +172,6 @@
       </div>
     </Transition>
 
-    <!-- Karma Toast -->
     <KarmaToast
       :amount="karmaToastAmount"
       :type="karmaToastType"
@@ -401,60 +395,78 @@ function karmaClass() {
 </script>
 
 <style scoped>
-/* Sub-tab styles */
-.subtab-active {
-  @apply px-4 py-2 text-sm font-medium border-b-2 border-theme-accent text-theme-accent transition-colors;
+.akashic-header {
+  position: relative;
+  overflow: clip;
 }
 
-.subtab-inactive {
-  @apply px-4 py-2 text-sm font-medium border-b-2 border-transparent text-theme-text-muted hover:text-theme-text transition-colors;
+.akashic-header::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -1px 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(213, 154, 23, 0.28), transparent);
 }
 
-/* Sort button styles */
-.sort-active {
-  @apply px-3 py-1 text-xs font-medium rounded-lg text-theme-accent border transition-colors;
-  background-color: color-mix(in srgb, var(--theme-accent) 15%, transparent);
-  border-color: color-mix(in srgb, var(--theme-accent) 30%, transparent);
+.akashic-header-glow {
+  position: absolute;
+  inset: -1.1rem auto auto -1rem;
+  width: 12rem;
+  height: 5.5rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 223, 147, 0.28) 0%, rgba(255, 223, 147, 0.1) 42%, transparent 74%);
+  filter: blur(12px);
+  pointer-events: none;
 }
 
-.sort-inactive {
-  @apply px-3 py-1 text-xs font-medium rounded-lg text-theme-text-muted hover:text-theme-text border border-transparent hover:border-theme-border transition-colors;
+.active-overlay-shell {
+  pointer-events: none;
 }
 
-/* Glow effect for active prayer card */
-.shadow-glow-accent {
-  box-shadow: 0 0 20px color-mix(in srgb, var(--theme-accent) 15%, transparent),
-              0 0 40px color-mix(in srgb, var(--theme-accent) 5%, transparent);
+.active-overlay-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 26px;
+  pointer-events: auto;
 }
 
-/* Slide-up transition for active overlay */
+.active-overlay-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 28%),
+    radial-gradient(circle at 12% 12%, rgba(255, 223, 147, 0.18), transparent 34%);
+}
+
 .slide-up-enter-active {
-  animation: slideUp 0.3s ease-out;
+  animation: overlayDockIn var(--dur-enter) var(--ease-silk-settle);
 }
 
 .slide-up-leave-active {
-  animation: slideDown 0.3s ease-in;
+  animation: overlayDockOut 220ms ease;
 }
 
-@keyframes slideUp {
+@keyframes overlayDockIn {
   from {
     opacity: 0;
-    transform: translateY(100%);
+    transform: translateY(1.25rem) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
-@keyframes slideDown {
+@keyframes overlayDockOut {
   from {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
   to {
     opacity: 0;
-    transform: translateY(100%);
+    transform: translateY(1rem) scale(0.98);
   }
 }
 </style>

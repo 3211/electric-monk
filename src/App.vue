@@ -28,27 +28,34 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
 </script>
 
 <template>
-  <div class="min-h-screen bg-theme-wash flex flex-col">
+  <div class="app-shell min-h-screen bg-theme-wash flex flex-col">
     <!-- Tab Navigation (only when authenticated and not banned) -->
-    <nav v-if="auth.isAuthenticated && !banTimer.isBanned" class="border-b border-theme-border bg-theme-panel/50 backdrop-blur-sm">
-      <div class="max-w-4xl mx-auto px-4 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <img :src="iconUrl" alt="Electric Monk" class="w-6 h-6" />
-          <span class="text-sm font-semibold text-theme-text">The Electric Monk - Prayers As A Service</span>
-        </div>
-        <div class="flex items-center gap-1">
-          <button
-            @click="currentTab = 'altar'"
-            :class="currentTab === 'altar' ? 'nav-tab-active' : 'nav-tab-inactive'"
-          >
-            ⚜️ Altar
-          </button>
-          <button
-            @click="currentTab = 'akashic'"
-            :class="currentTab === 'akashic' ? 'nav-tab-active' : 'nav-tab-inactive'"
-          >
-            📜 Akashic Records
-          </button>
+    <nav v-if="auth.isAuthenticated && !banTimer.isBanned" class="sticky top-0 z-40 border-b surface-divider bg-theme-panel/55 backdrop-blur-[18px] supports-[backdrop-filter]:bg-theme-panel/45">
+      <div class="app-frame">
+        <div class="relative flex flex-col gap-4 py-4 md:flex-row md:items-center md:justify-between">
+          <div class="pointer-events-none absolute inset-x-0 top-0 h-full rounded-[32px] bg-[radial-gradient(circle_at_top,rgba(255,223,147,0.16),transparent_60%)] opacity-80"></div>
+          <div class="relative flex min-w-0 items-center gap-3 md:gap-4">
+            <div class="flex h-12 w-12 items-center justify-center rounded-full border border-theme-accent/25 bg-white/55 shadow-[0_12px_24px_rgba(213,154,23,0.14)] backdrop-blur-md">
+              <img :src="iconUrl" alt="Electric Monk" class="h-7 w-7 drop-shadow-[0_4px_10px_rgba(213,154,23,0.32)]" />
+            </div>
+            <div class="min-w-0">
+              <span class="block truncate text-sm font-semibold text-theme-text md:text-base">The Electric Monk - Prayers As A Service</span>
+            </div>
+          </div>
+          <div class="relative segmented-shell w-full justify-between md:w-auto md:justify-start">
+            <button
+              @click="currentTab = 'altar'"
+              :class="currentTab === 'altar' ? 'nav-tab-active' : 'nav-tab-inactive'"
+            >
+              ⚜️ Altar
+            </button>
+            <button
+              @click="currentTab = 'akashic'"
+              :class="currentTab === 'akashic' ? 'nav-tab-active' : 'nav-tab-inactive'"
+            >
+              📜 Akashic Records
+            </button>
+          </div>
         </div>
       </div>
     </nav>
@@ -61,20 +68,25 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
     </div>
     
     <!-- Global Footer -->
-    <footer class="border-t border-theme-border bg-theme-panel/30 backdrop-blur-sm">
-      <div class="max-w-4xl mx-auto px-4 py-3 text-center text-xs text-theme-text-muted">
-        <p>Copyright {{ currentYear }} Lake Boiler Labs. All rights reserved. Contact: <a :href="'mailto:' + devEmail" class="text-theme-accent hover:underline">{{ devEmail }}</a></p>
+    <footer class="mt-10 border-t surface-divider bg-theme-panel/40 backdrop-blur-[18px] supports-[backdrop-filter]:bg-theme-panel/30">
+      <div class="app-frame py-4 text-center text-xs text-theme-text-muted">
+        <p>Copyright {{ currentYear }} Lake Boiler Labs. All rights reserved. Contact: <a :href="'mailto:' + devEmail" class="font-medium text-theme-accent transition-colors duration-200 hover:text-theme-accent-dark hover:underline">{{ devEmail }}</a></p>
       </div>
     </footer>
   </div>
 </template>
 
 <style scoped>
+.nav-tab-active,
+.nav-tab-inactive {
+  @apply pill-tab flex-1 md:flex-none;
+}
+
 .nav-tab-active {
-  @apply px-4 py-3 text-sm font-medium border-b-2 border-theme-accent text-theme-accent transition-colors;
+  @apply pill-tab-active;
 }
 
 .nav-tab-inactive {
-  @apply px-4 py-3 text-sm font-medium border-b-2 border-transparent text-theme-text-muted hover:text-theme-text transition-colors;
+  @apply pill-tab-inactive;
 }
 </style>
