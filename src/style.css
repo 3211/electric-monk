@@ -46,7 +46,7 @@
 
 @layer base {
   body {
-    @apply font-sans antialiased overflow-hidden;
+    @apply font-sans antialiased overflow-x-hidden;
     background: var(--theme-bg-wash);
     color: var(--theme-text);
   }

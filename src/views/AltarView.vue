@@ -205,13 +205,13 @@
         </div>
       </div>
 
-      <!-- Inactive Prayers (can be reactivated) -->
+      <!-- Inactive Prayers (can be reactivated, max 5 inline) -->
       <div v-if="prayers.inactivePrayers.length > 0" class="space-y-4 mb-8">
         <h2 class="text-xl font-semibold text-theme-text-dim">Inactive Prayers</h2>
         
         <div class="space-y-3">
           <div
-            v-for="prayer in prayers.inactivePrayers"
+            v-for="prayer in visibleInactivePrayers"
             :key="prayer.id"
             class="glass-panel glass-gloss p-4 relative border border-theme-border"
           >
@@ -259,20 +259,28 @@
             </div>
           </div>
         </div>
+
+        <!-- View All Inactive Prayers Button -->
+        <button
+          v-if="hasMoreInactive"
+          @click="showHistoryModal = 'inactive'"
+          class="w-full py-2.5 text-sm text-theme-accent hover:text-theme-accent-dark transition-colors border border-theme-border/50 rounded-xl hover:border-theme-accent/30 hover:bg-theme-accent/5"
+        >
+          View All {{ prayers.inactivePrayers.length }} Inactive Prayers →
+        </button>
       </div>
 
-      <!-- Archived Prayers Section (Scrollable) -->
+      <!-- Archived Prayers Section (max 5 inline) -->
       <div v-if="prayers.archivedPrayers.length > 0" class="space-y-4">
         <h2 class="text-xl font-semibold text-theme-text-dim">Archived Prayers</h2>
         
-        <div class="glass-panel glass-gloss p-4 max-h-64 overflow-y-auto space-y-3 custom-scrollbar">
+        <div class="space-y-3">
           <div
-            v-for="prayer in prayers.archivedPrayers"
+            v-for="prayer in visibleArchivedPrayers"
             :key="prayer.id"
-            class="p-3 border border-theme-border/30 rounded opacity-60 hover:opacity-80 transition-opacity"
+            class="glass-panel glass-gloss p-4 opacity-60 hover:opacity-80 transition-opacity"
             :class="{
               'bg-theme-purgatory/10': prayer.is_rejected,
-              'bg-theme-panel': prayer.is_archived
             }"
           >
             <div class="flex items-start justify-between gap-4">
@@ -308,6 +316,15 @@
             </p>
           </div>
         </div>
+
+        <!-- View All Archived Prayers Button -->
+        <button
+          v-if="hasMoreArchived"
+          @click="showHistoryModal = 'archived'"
+          class="w-full py-2.5 text-sm text-theme-accent hover:text-theme-accent-dark transition-colors border border-theme-border/50 rounded-xl hover:border-theme-accent/30 hover:bg-theme-accent/5"
+        >
+          View All {{ prayers.archivedPrayers.length }} Archived Prayers →
+        </button>
       </div>
     </main>
 
@@ -406,6 +423,17 @@
         </div>
       </Transition>
     </Teleport>
+
+    <!-- Prayer History Modal -->
+    <PrayerHistoryModal
+      v-model="showHistoryModal"
+      :prayers="historyModalPrayers"
+      :title="historyModalTitle"
+      :loading="prayers.loading"
+      :show-reactivate="isInactiveModal"
+      @archive="handleArchive"
+      @reactivate="handleReactivate"
+    />
   </div>
 </template>
 
@@ -416,6 +444,7 @@ import { usePrayerCounter } from '@/composables/usePrayerCounter'
 import { useAuth } from '@/composables/useAuth'
 import { useBanTimer } from '@/composables/useBanTimer'
 import ProfileCompletionModal from '@/components/organisms/ProfileCompletionModal.vue'
+import PrayerHistoryModal from '@/components/organisms/PrayerHistoryModal.vue'
 
 // Environment variable for max prayer characters
 const maxPrayerChars = parseInt(import.meta.env.VITE_MAX_PRAYER_CHARS || '1500', 10)
@@ -430,6 +459,40 @@ const showProfileModal = ref(false)
 const profileSaving = ref(false)
 const profileError = ref(null)
 const counterAnimating = ref(false)
+const showHistoryModal = ref(null) // null | 'inactive' | 'archived'
+
+// Limit visible prayers to 5 inline, rest shown via modal
+const MAX_VISIBLE_PRAYERS = 5
+
+const visibleInactivePrayers = computed(() =>
+  prayers.inactivePrayers.slice(0, MAX_VISIBLE_PRAYERS)
+)
+
+const visibleArchivedPrayers = computed(() =>
+  prayers.archivedPrayers.slice(0, MAX_VISIBLE_PRAYERS)
+)
+
+const hasMoreInactive = computed(() =>
+  prayers.inactivePrayers.length > MAX_VISIBLE_PRAYERS
+)
+
+const hasMoreArchived = computed(() =>
+  prayers.archivedPrayers.length > MAX_VISIBLE_PRAYERS
+)
+
+const historyModalPrayers = computed(() => {
+  if (showHistoryModal.value === 'inactive') return prayers.inactivePrayers
+  if (showHistoryModal.value === 'archived') return prayers.archivedPrayers
+  return []
+})
+
+const historyModalTitle = computed(() => {
+  if (showHistoryModal.value === 'inactive') return 'All Inactive Prayers'
+  if (showHistoryModal.value === 'archived') return 'All Archived Prayers'
+  return ''
+})
+
+const isInactiveModal = computed(() => showHistoryModal.value === 'inactive')
 
 // Typewriter effect for Aether modal response
 const displayedResponse = ref('')
