@@ -7,20 +7,22 @@ import AltarView from './views/AltarView.vue'
 import PurgatoryView from './views/PurgatoryView.vue'
 import AkashicRecordsView from './views/AkashicRecordsView.vue'
 import KarmaShopView from './views/KarmaShopView.vue'
+import VaticanView from './views/VaticanView.vue'
+import CatacombsView from './views/CatacombsView.vue'
 import LeaderboardView from './views/LeaderboardView.vue'
 import iconUrl from './assets/icons/icon.png'
 
 const auth = useAuth()
 const banTimer = useBanTimer()
 
-// Tab navigation between Altar, Akashic Records, Karma Shop, and Rankings
+// Tab navigation: Altar, Akashic, Shop, Vatican, Catacombs, Rankings
 const currentTab = ref('altar')
 
 // Determine which view to show
 const currentView = computed(() => {
   if (!auth.isAuthenticated) return 'login'
   if (banTimer.isBanned) return 'purgatory'
-  return currentTab.value // 'altar', 'akashic', 'shop', or 'rankings'
+  return currentTab.value
 })
 
 // Dynamic copyright year and developer email
@@ -43,30 +45,42 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
               <span class="block truncate text-sm font-semibold text-theme-text md:text-base">The Electric Monk - Prayers As A Service</span>
             </div>
           </div>
-          <div class="relative segmented-shell w-full justify-between md:w-auto md:justify-start">
+          <div class="relative segmented-shell w-full justify-between md:w-auto md:justify-start flex-wrap">
             <button
               @click="currentTab = 'altar'"
               :class="currentTab === 'altar' ? 'nav-tab-active' : 'nav-tab-inactive'"
             >
-              ⚜️ Altar
+              &#x269C; Altar
             </button>
             <button
               @click="currentTab = 'akashic'"
               :class="currentTab === 'akashic' ? 'nav-tab-active' : 'nav-tab-inactive'"
             >
-              📜 Akashic
+              &#x1F4DC; Akashic
             </button>
             <button
               @click="currentTab = 'shop'"
               :class="currentTab === 'shop' ? 'nav-tab-active' : 'nav-tab-inactive'"
             >
-              🛒 Shop
+              &#x1F6D2; Shop
+            </button>
+            <button
+              @click="currentTab = 'vatican'"
+              :class="currentTab === 'vatican' ? 'nav-tab-active' : 'nav-tab-inactive'"
+            >
+              &#x1F3F0; Vatican
+            </button>
+            <button
+              @click="currentTab = 'catacombs'"
+              :class="currentTab === 'catacombs' ? 'nav-tab-active' : 'nav-tab-inactive'"
+            >
+              &#x271D; Catacombs
             </button>
             <button
               @click="currentTab = 'rankings'"
               :class="currentTab === 'rankings' ? 'nav-tab-active' : 'nav-tab-inactive'"
             >
-              🏛 Rankings
+              &#x1F3DB; Rankings
             </button>
           </div>
         </div>
@@ -83,6 +97,8 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
         <AltarView v-else-if="currentView === 'altar'" />
         <AkashicRecordsView v-else-if="currentView === 'akashic'" />
         <KarmaShopView v-else-if="currentView === 'shop'" />
+        <VaticanView v-else-if="currentView === 'vatican'" />
+        <CatacombsView v-else-if="currentView === 'catacombs'" />
         <LeaderboardView v-else-if="currentView === 'rankings'" />
       </div>
     </div>

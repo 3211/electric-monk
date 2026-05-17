@@ -4,10 +4,11 @@ import { supabase } from '@/lib/supabase'
 /**
  * useEconomy Composable
  *
- * Manages the 4-resource economy state (Karma, Mana, Gold, Food):
+ * Manages the 5-resource economy state (Karma, Mana, Gold, Food, Heresy):
  * - Fetches player resources and buildings from get_player_economy RPC
  * - Computes daily production rates net of upkeep
  * - Provides building counts and production summaries
+ * - Includes vassalage data (suzerain, vassals, tithes, shield)
  * - Shared state pattern so all components see the same economy data
  */
 
@@ -17,6 +18,7 @@ function createEconomyState() {
   const mana = ref(0)
   const gold = ref(0)
   const food = ref(0)
+  const heresy = ref(0)
   const buildings = ref([])
   const dailyRates = ref({
     mana_per_day: 0,
@@ -24,10 +26,21 @@ function createEconomyState() {
     food_per_day: 0,
     gold_upkeep_per_day: 0,
     food_consumption_per_day: 0,
+    heresy_per_day: 0,
   })
   const gameConfig = ref({})
   const loading = ref(false)
   const error = ref(null)
+
+  // Vassalage state
+  const suzerainId = ref(null)
+  const suzerain = ref(null) // { id, username, faith } or null
+  const vassals = ref([]) // array of { id, username, faith }
+  const vassalCount = ref(0)
+  const dailyTithes = ref({ mana_per_day: 0, gold_per_day: 0, food_per_day: 0 })
+  const schismCount = ref(0)
+  const divineShieldUntil = ref(null)
+  const heresyCap = ref(100)
 
   // Computed: net production rates
   const netManaPerDay = computed(() => dailyRates.value.mana_per_day || 0)
@@ -67,12 +80,29 @@ function createEconomyState() {
     return Math.floor((dailyRates.value.food_per_day || 0) * multiplier)
   })
 
+  // Computed: heresy per day (net of nothing - heresy has no upkeep)
+  const netHeresyPerDay = computed(() => dailyRates.value.heresy_per_day || 0)
+
+  // Computed: is player a vassal (has suzerain)
+  const isVassal = computed(() => suzerainId.value !== null && suzerainId.value !== undefined)
+
+  // Computed: total daily tithes received as formatted string
+  const totalTithesPerDay = computed(() => {
+    const t = dailyTithes.value
+    const parts = []
+    if (t.mana_per_day > 0) parts.push(`${t.mana_per_day} mana`)
+    if (t.gold_per_day > 0) parts.push(`${t.gold_per_day} gold`)
+    if (t.food_per_day > 0) parts.push(`${t.food_per_day} food`)
+    return parts.length > 0 ? parts.join(', ') : 'none'
+  })
+
   // Emoji mappings for resource display
   const resourceEmojis = {
     karma: '\u2726',       // ✦
     mana: '\u{1F4A7}',    // 💧
     gold: '\u{1F4B0}',    // 💰
     food: '\u{1F33E}',    // 🌾
+    heresy: '\u271D',     // ✝
   }
 
   // Building display names and icons — 5 tiers per category
@@ -95,6 +125,9 @@ function createEconomyState() {
     cleric:   { name: 'Cleric',   icon: '\u{1F9D9}', tier: 3, category: 'workforce' },
     bishop:   { name: 'Bishop',   icon: '\u{1F451}', tier: 4, category: 'workforce' },
     cardinal: { name: 'Cardinal', icon: '\u2B50',    tier: 5, category: 'workforce' },
+    // Catacombs: Cultist and Coven
+    cultist: { name: 'Cultist',  icon: '\u{1F9DE}', tier: 1, category: 'catacombs' },
+    coven:   { name: 'Coven',    icon: '\u{1F52E}', tier: 2, category: 'catacombs' },
   }
 
   // Tier progression chains (for prerequisite checking)
@@ -102,6 +135,7 @@ function createEconomyState() {
     mana: ['altar', 'shrine', 'temple', 'church', 'cathedral'],
     food: ['pot', 'patch', 'garden', 'field', 'farm'],
     workforce: ['novice', 'monk', 'cleric', 'bishop', 'cardinal'],
+    catacombs: ['cultist', 'coven'],
   }
 
   /**
@@ -120,6 +154,7 @@ function createEconomyState() {
         mana.value = data.mana || 0
         gold.value = data.gold || 0
         food.value = data.food || 0
+        heresy.value = data.heresy || 0
         buildings.value = data.buildings || []
         dailyRates.value = data.daily_rates || {
           mana_per_day: 0,
@@ -127,6 +162,19 @@ function createEconomyState() {
           food_per_day: 0,
           gold_upkeep_per_day: 0,
           food_consumption_per_day: 0,
+          heresy_per_day: 0,
+        }
+        // Vassalage data from the expanded RPC
+        suzerainId.value = data.suzerain_id || null
+        suzerain.value = data.suzerain || null
+        vassals.value = data.vassals || []
+        vassalCount.value = data.vassal_count || 0
+        dailyTithes.value = data.daily_tithes || { mana_per_day: 0, gold_per_day: 0, food_per_day: 0 }
+        schismCount.value = data.schism_count || 0
+        divineShieldUntil.value = data.divine_shield_until || null
+        // Heresy cap from daily_rates (set by RPC)
+        if (data.daily_rates && data.daily_rates.heresy_cap !== undefined) {
+          heresyCap.value = data.daily_rates.heresy_cap
         }
       }
     } catch (err) {
@@ -163,31 +211,48 @@ function createEconomyState() {
   /**
    * Update local resource values after a purchase or profile refresh
    */
-  function updateResources({ mana: newMana, gold: newGold, food: newFood }) {
+  function updateResources({ mana: newMana, gold: newGold, food: newFood, heresy: newHeresy }) {
     if (newMana !== undefined) mana.value = newMana
     if (newGold !== undefined) gold.value = newGold
     if (newFood !== undefined) food.value = newFood
+    if (newHeresy !== undefined) heresy.value = newHeresy
   }
 
   return reactive({
     mana,
     gold,
     food,
+    heresy,
     buildings,
     dailyRates,
     gameConfig,
     loading,
     error,
+    // Computed
     netManaPerDay,
     netGoldPerDay,
     netFoodPerDay,
+    netHeresyPerDay,
     buildingCounts,
     manaCap,
     goldCap,
     foodCap,
+    heresyCap,
+    isVassal,
+    totalTithesPerDay,
+    // Vassalage state
+    suzerainId,
+    suzerain,
+    vassals,
+    vassalCount,
+    dailyTithes,
+    schismCount,
+    divineShieldUntil,
+    // Display
     resourceEmojis,
     buildingInfo,
     tierChains,
+    // Methods
     fetchEconomy,
     fetchGameConfig,
     updateResources,

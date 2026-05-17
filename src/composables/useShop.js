@@ -7,9 +7,9 @@ import { useEconomy } from './useEconomy'
  * useShop Composable
  *
  * Manages the Karma Shop state and purchase flow:
- * - Active tab state (mana, food, workforce, infrastructure, blessings)
+ * - Active tab state (mana, food, workforce, infrastructure, blessings, catacombs)
  * - Shop item fetching from server-authoritative shop_items table
- * - Purchase flow via purchase_shop_item RPC
+ * - Purchase flow via purchase_shop_item RPC (multi-currency: karma, gold, heresy)
  * - Player building ownership tracking
  * - Cost scaling: base_cost * 1.15^owned (deflationary)
  * - Tier prerequisite checking (must own previous tier)
@@ -62,6 +62,12 @@ export function useShop() {
       .sort((a, b) => a.sort_order - b.sort_order)
   })
 
+  // Computed: catacombs items (sorted by sort_order)
+  const catacombsItems = computed(() => {
+    return (itemsByCategory.value['catacombs'] || [])
+      .sort((a, b) => a.sort_order - b.sort_order)
+  })
+
   // Computed: building counts for ownership display
   const buildingCounts = computed(() => {
     const counts = {}
@@ -84,30 +90,57 @@ export function useShop() {
   }
 
   /**
-   * Calculate the actual (scaled) cost for an item.
+   * Calculate the actual (scaled) karma cost for an item.
    * For stacking buildings: base_cost * 1.15^owned
    * For fixed-cost items (prayer slots): just the base cost
    */
   function scaledCost(item) {
     if (!item) return 0
-    if (!item.cost_scaling) return item.karma_cost
+    if (!item.cost_scaling) return item.karma_cost || 0
 
     const buildingType = item.effect_data?.building_type
-    if (!buildingType) return item.karma_cost
+    if (!buildingType) return item.karma_cost || 0
 
     const count = ownedCount(buildingType)
     const multiplier = economy.gameConfig['shop.cost_scaling_multiplier'] || 1.15
-    return Math.floor(item.karma_cost * Math.pow(multiplier, count))
+    return Math.floor((item.karma_cost || 0) * Math.pow(multiplier, count))
+  }
+
+  /**
+   * Calculate all actual (scaled) costs for a multi-currency item.
+   * Returns { karma, gold, heresy } object.
+   */
+  function scaledCosts(item) {
+    if (!item) return { karma: 0, gold: 0, heresy: 0 }
+    const buildingType = item.effect_data?.building_type
+    const count = buildingType ? ownedCount(buildingType) : 0
+    const multiplier = economy.gameConfig['shop.cost_scaling_multiplier'] || 1.15
+
+    if (item.cost_scaling && buildingType) {
+      return {
+        karma: Math.floor((item.karma_cost || 0) * Math.pow(multiplier, count)),
+        gold: Math.floor((item.gold_cost || 0) * Math.pow(multiplier, count)),
+        heresy: Math.floor((item.heresy_cost || 0) * Math.pow(multiplier, count)),
+      }
+    }
+
+    return {
+      karma: item.karma_cost || 0,
+      gold: item.gold_cost || 0,
+      heresy: item.heresy_cost || 0,
+    }
   }
 
   /**
    * Check if a player can purchase an item.
-   * Validates: karma balance, prerequisites, and that the item is active.
+   * Validates: all currency balances, prerequisites, and that the item is active.
    */
   function canPurchase(item) {
     if (!item || !item.is_active) return false
-    const cost = scaledCost(item)
-    if (prayers.karma < cost) return false
+    const costs = scaledCosts(item)
+    if (costs.karma > 0 && prayers.karma < costs.karma) return false
+    if (costs.gold > 0 && economy.gold < costs.gold) return false
+    if (costs.heresy > 0 && economy.heresy < costs.heresy) return false
     if (item.requires_building) {
       const counts = buildingCounts.value
       if (!counts[item.requires_building] || counts[item.requires_building] === 0) return false
@@ -230,10 +263,12 @@ export function useShop() {
     foodItems,
     workforceItems,
     infrastructureItems,
+    catacombsItems,
     buildingCounts,
     ownedCount,
     purchasedCount,
     scaledCost,
+    scaledCosts,
     canPurchase,
     hasPrerequisite,
     fetchShopItems,
