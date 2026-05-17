@@ -57,25 +57,12 @@
             </div>
             <!-- Change Username Button -->
             <button
-              v-if="prayers.isProfileComplete"
               @click="showUsernameChangeModal = true"
               class="tactile-icon-btn text-theme-text-dim"
               title="Change Username (costs 1000 Karma)"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </button>
-            <!-- Settings Button (only when profile is complete) -->
-            <button
-              v-if="prayers.isProfileComplete"
-              @click="showProfileModal = true"
-              class="tactile-icon-btn text-theme-text-dim"
-              title="Update your identity"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </button>
             <!-- Logout Button -->
@@ -452,14 +439,8 @@
               {{ prayers.error }}
             </div>
 
-            <!-- Profile Incomplete Warning -->
-            <div v-if="!prayers.isProfileComplete" class="mb-4 rounded-[20px] border border-theme-accent/25 bg-theme-accent/10 p-4 text-sm text-theme-accent-dark shadow-[0_10px_24px_rgba(213,154,23,0.08)]">
-              <p class="mb-1 font-semibold">Identity Required</p>
-              <p>You must identify yourself before submitting prayers. Click the button below to provide your name and faith.</p>
-            </div>
-
             <!-- Slot Warning -->
-            <div v-if="!prayers.canSubmitPrayer && prayers.isProfileComplete" class="mb-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-4 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
+            <div v-if="!prayers.canSubmitPrayer" class="mb-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-4 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
               All prayer slots occupied. Pause or archive an active prayer to free up a slot.
             </div>
             
@@ -483,21 +464,10 @@
               </div>
               
               <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p v-if="!prayers.canPray && prayers.isProfileComplete" class="text-sm text-theme-text-dim">
+                <p v-if="!prayers.canPray" class="text-sm text-theme-text-dim">
                   Daily Devotion budget exhausted. Return tomorrow.
                 </p>
                 <button
-                  v-if="!prayers.isProfileComplete"
-                  type="button"
-                  @click="showProfileModal = true"
-                  class="btn-primary w-full sm:w-auto"
-                >
-                  <span class="relative z-10 font-medium">
-                    Complete Your Identity
-                  </span>
-                </button>
-                <button
-                  v-else
                   type="submit"
                   :disabled="!prayerContent.trim() || !prayers.canPray || !prayers.canSubmitPrayer || prayers.loading || prayerContent.length > maxPrayerChars"
                   class="btn-primary w-full sm:w-auto"
@@ -513,16 +483,6 @@
       </div>
 
     </main>
-
-    <!-- Profile Completion Modal -->
-    <ProfileCompletionModal
-      v-model="showProfileModal"
-      :initial-username="prayers.username"
-      :initial-faith="prayers.faith"
-      :saving="profileSaving"
-      :error-message="profileError"
-      @submitted="handleProfileSubmit"
-    />
 
     <!-- Username Change Modal -->
     <UsernameChangeModal
@@ -647,7 +607,6 @@ import { useAuth } from '@/composables/useAuth'
 import { useBanTimer } from '@/composables/useBanTimer'
 import { useEconomy } from '@/composables/useEconomy'
 import KarmaToast from '@/components/molecules/KarmaToast.vue'
-import ProfileCompletionModal from '@/components/organisms/ProfileCompletionModal.vue'
 import UsernameChangeModal from '@/components/organisms/UsernameChangeModal.vue'
 import PrayerHistoryModal from '@/components/organisms/PrayerHistoryModal.vue'
 
@@ -664,9 +623,6 @@ const banTimer = useBanTimer()
 const economy = useEconomy()
 
 const prayerContent = ref('')
-const showProfileModal = ref(false)
-const profileSaving = ref(false)
-const profileError = ref(null)
 const showUsernameChangeModal = ref(false)
 const counterAnimating = ref(false)
 const showHistoryModal = ref(null) // null | 'inactive' | 'archived'
@@ -825,10 +781,6 @@ onMounted(async () => {
   await prayers.fetchDailyCount()
   economy.fetchEconomy()
   
-  // Show modal if profile is incomplete
-  if (!prayers.isProfileComplete) {
-    showProfileModal.value = true
-  }
 })
 
 onUnmounted(() => {
@@ -855,30 +807,11 @@ function formatDate(dateString) {
 }
 
 async function handleSubmit() {
-  // Block submission if profile is incomplete
-  if (!prayers.isProfileComplete) {
-    showProfileModal.value = true
-    return
-  }
-  
   try {
     await prayers.submitPrayer(prayerContent.value)
     prayerContent.value = ''
   } catch (err) {
     // Error is already captured in prayers.error
-  }
-}
-
-async function handleProfileSubmit({ username, faith }) {
-  profileError.value = null
-  profileSaving.value = true
-  try {
-    await prayers.updateProfile(username, faith)
-    showProfileModal.value = false
-  } catch (err) {
-    profileError.value = err.message || 'Failed to save identity. Please try again.'
-  } finally {
-    profileSaving.value = false
   }
 }
 

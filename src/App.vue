@@ -3,10 +3,8 @@ import { computed, provide, ref, watch } from 'vue'
 import { useAuth } from './composables/useAuth'
 import { useBanTimer } from './composables/useBanTimer'
 import { useEconomy } from './composables/useEconomy'
-import { useSects } from './composables/useSects'
 import { usePrayers } from './composables/usePrayers'
 import { useOnboarding } from './composables/useOnboarding'
-import { supabase } from './lib/supabase'
 import LoginView from './views/LoginView.vue'
 import AltarView from './views/AltarView.vue'
 import PurgatoryView from './views/PurgatoryView.vue'
@@ -18,7 +16,6 @@ import LeaderboardView from './views/LeaderboardView.vue'
 import ScriptoriumView from './views/ScriptoriumView.vue'
 import SynodHallView from './views/SynodHallView.vue'
 import ReliquaryView from './views/ReliquaryView.vue'
-import IdentityModal from './components/organisms/IdentityModal.vue'
 import OnboardingWizard from './components/organisms/OnboardingWizard.vue'
 import UsernameChangeModal from './components/organisms/UsernameChangeModal.vue'
 import iconUrl from './assets/icons/icon.png'
@@ -26,7 +23,6 @@ import iconUrl from './assets/icons/icon.png'
 const auth = useAuth()
 const banTimer = useBanTimer()
 const economy = useEconomy()
-const sects = useSects()
 const prayers = usePrayers()
 const onboarding = useOnboarding()
 
@@ -36,12 +32,6 @@ const currentTab = ref('altar')
 // Force evil theme — injected by child views for conditional dark mode
 const forceEvilTheme = ref(false)
 provide('forceEvilTheme', forceEvilTheme)
-
-// Unified identity modal state (combines username + sect selection)
-// Only used as fallback for legacy users who lack identity data
-const showIdentityModal = ref(false)
-const identitySaving = ref(false)
-const identityError = ref(null)
 
 // Username change modal state
 const showUsernameChangeModal = ref(false)
@@ -56,61 +46,19 @@ const currentView = computed(() => {
 const evilViews = new Set(['catacombs', 'purgatory'])
 const isEvilView = computed(() => evilViews.has(currentView.value) || forceEvilTheme.value)
 
-// Watch for authentication to trigger onboarding or identity modal
+// Watch for authentication to trigger onboarding
 watch(() => auth.isAuthenticated, async (isAuth) => {
   if (isAuth) {
     // Fetch economy and profile data
     await economy.fetchEconomy()
     await prayers.fetchProfile()
 
-    // Check onboarding status — new users go through the wizard
-    if (!prayers.onboardingComplete) {
+    // Check onboarding status — new users (or users missing identity) go through the wizard
+    if (!prayers.onboardingComplete || !prayers.username) {
       onboarding.startOnboarding()
-    } else if (!prayers.username || !economy.sectType) {
-      // Legacy fallback: show identity modal for users who somehow lack identity data
-      showIdentityModal.value = true
     }
   }
 }, { immediate: true })
-
-// Handle unified identity submission (username + sect)
-async function onIdentitySubmitted({ username, sectType }) {
-  identitySaving.value = true
-  identityError.value = null
-  try {
-    // Step 1: Upsert profile with username
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('No user logged in')
-
-    const { error: upsertError } = await supabase
-      .from('profiles')
-      .upsert({
-        id: user.id,
-        username: username,
-      }, { onConflict: 'id' })
-
-    if (upsertError) throw upsertError
-
-    // Step 2: Choose sect via RPC
-    const { data, error: sectError } = await supabase.rpc('choose_sect', {
-      p_sect_type: sectType,
-    })
-
-    if (sectError) throw sectError
-
-    // Step 3: Refresh state
-    await prayers.fetchProfile()
-    await economy.fetchEconomy()
-    await sects.fetchSectInfo()
-
-    showIdentityModal.value = false
-  } catch (err) {
-    identityError.value = err.message || 'Failed to save identity'
-    console.error('[App] Identity submission error:', err)
-  } finally {
-    identitySaving.value = false
-  }
-}
 
 // Handle username change
 function onUsernameChanged(newUsername, karmaRemaining) {
@@ -221,14 +169,6 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
         <ReliquaryView v-else-if="currentView === 'reliquary'" />
         <CatacombsView v-else-if="currentView === 'catacombs'" />
         <LeaderboardView v-else-if="currentView === 'rankings'" />
-
-        <!-- Unified Identity Modal (username + sect on first login) -->
-        <IdentityModal
-          v-model="showIdentityModal"
-          :saving="identitySaving"
-          :error-message="identityError"
-          @submitted="onIdentitySubmitted"
-        />
 
         <!-- Onboarding Wizard (new user flow) -->
         <OnboardingWizard />
