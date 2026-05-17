@@ -365,12 +365,12 @@
 import { computed, onMounted } from 'vue'
 import { usePrayers } from '@/composables/usePrayers'
 import { useBlessings } from '@/composables/useBlessings'
-import { useKarmaShop } from '@/composables/useKarmaShop'
+import { useShop } from '@/composables/useShop'
 import { useEconomy } from '@/composables/useEconomy'
 
 const prayers = usePrayers()
 const blessings = useBlessings()
-const shop = useKarmaShop()
+const shop = useShop()
 const economy = useEconomy()
 
 function karmaClass() {

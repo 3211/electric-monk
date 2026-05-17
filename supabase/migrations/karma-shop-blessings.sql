@@ -236,6 +236,13 @@ ON CONFLICT (id) DO UPDATE SET
   is_active = true;
 
 -- 9. Permissions
+GRANT SELECT ON TABLE blessing_types TO authenticated;
+GRANT SELECT ON TABLE blessing_types TO anon;
+GRANT ALL ON TABLE blessing_types TO service_role;
+
+GRANT SELECT ON TABLE prayer_blessings TO authenticated;
+GRANT ALL ON TABLE prayer_blessings TO service_role;
+
 GRANT EXECUTE ON FUNCTION grant_blessing(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_prayer_blessings(UUID[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_public_prayers(INT, INT, TEXT) TO authenticated;

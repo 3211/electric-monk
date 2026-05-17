@@ -183,7 +183,7 @@ function createPrayersState() {
       if (lastPrayerDate !== today) {
         // Reset count via database function
         // Note: This RPC must exist in Supabase. If getting 404, run the schema SQL.
-        const { error: resetError } = await supabase.rpc('reset_daily_prayer_count', { user_id: user.id })
+        const { error: resetError } = await supabase.rpc('reset_daily_prayer_count', { p_user_id: user.id })
         if (resetError) {
           console.warn('[usePrayers] Reset RPC failed (may need to run schema SQL):', resetError)
           // Fallback: just set to 0 locally if RPC fails
