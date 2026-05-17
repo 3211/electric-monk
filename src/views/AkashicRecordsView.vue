@@ -76,6 +76,7 @@
             :prayer="prayer"
             :blessings="getBlessingsForPrayer(prayer.id)"
             :is-active="isPrayerActive(prayer.id)"
+            :is-own-prayer="isOwnPrayer(prayer)"
             :displayed-count="getPrayerDisplayedCount(prayer.id)"
             :cycle-progress="getPrayerCycleProgress(prayer.id)"
             :animating="counterAnimating"
@@ -89,7 +90,7 @@
 
         <div v-if="akashic.hasMorePrayers" class="pt-2 text-center">
           <button
-            @click="akashic.loadMorePrayers()"
+            @click="handleLoadMorePrayers"
             :disabled="akashic.loading"
             class="btn-secondary px-6 py-3 text-sm disabled:opacity-50"
           >
@@ -208,6 +209,7 @@ import { useAkashicRecords } from '@/composables/useAkashicRecords'
 import { usePrayerCounter } from '@/composables/usePrayerCounter'
 import { useBlessings } from '@/composables/useBlessings'
 import { useKarmaShop } from '@/composables/useKarmaShop'
+import { useAuth } from '@/composables/useAuth'
 import AkashicPrayerCard from '@/components/organisms/AkashicPrayerCard.vue'
 import SinnerCard from '@/components/organisms/SinnerCard.vue'
 import KarmaToast from '@/components/molecules/KarmaToast.vue'
@@ -218,6 +220,7 @@ const prayers = usePrayers()
 const akashic = useAkashicRecords()
 const blessings = useBlessings()
 const shop = useKarmaShop()
+const auth = useAuth()
 
 const activeSubTab = ref('prayers')
 const sinnerPrayerLoading = ref(null) // sinner ID being loaded
@@ -235,11 +238,11 @@ const blessingTargetPrayer = ref(null)
 const blessingDetailVisible = ref(false)
 const blessingDetailData = ref([])
 
-// Computed: existing blessing type IDs for the target prayer (to disable already-granted blessings)
+// Computed: blessing type IDs the CURRENT USER has already granted to the target prayer
+// (not all blessings — other users' blessings should NOT block the current user from also blessing)
 const existingBlessingTypeIds = computed(() => {
   if (!blessingTargetPrayer.value) return []
-  const prayerBlessings = blessings.getBlessingsForPrayer(blessingTargetPrayer.value.id)
-  return prayerBlessings.map(b => b.blessing_type_id)
+  return blessings.getMyBlessingTypeIdsForPrayer(blessingTargetPrayer.value.id)
 })
 
 // Altruistic prayer counter - uses the same usePrayerCounter composable
@@ -280,6 +283,11 @@ function isPrayerActive(prayerId) {
   return akashic.activeAltruisticPrayer?.source_prayer_id === prayerId
 }
 
+// Check if a prayer belongs to the current user (cannot bless your own prayer)
+function isOwnPrayer(prayer) {
+  return auth.user?.id && prayer.user_id === auth.user.id
+}
+
 function isSinnerActive(sinnerId) {
   return akashic.activeAltruisticPrayer?.source_sinner_id === sinnerId
 }
@@ -308,6 +316,12 @@ function getSinnerCycleProgress(sinnerId) {
 async function switchToSinners() {
   activeSubTab.value = 'sinners'
   await akashic.fetchSinners()
+}
+
+// Load more prayers and refresh blessing data for new prayers
+async function handleLoadMorePrayers() {
+  await akashic.loadMorePrayers()
+  await refreshBlessingData()
 }
 
 // Get blessings for a specific prayer (from cached blessing data)
@@ -364,11 +378,14 @@ function handleShowBlessingDetail(prayer) {
   blessingDetailVisible.value = true
 }
 
-// Refresh blessing data for all visible prayers
+// Refresh blessing data for all visible prayers (both aggregated counts and current user's own blessings)
 async function refreshBlessingData() {
   const prayerIds = akashic.publicPrayers.map(p => p.id)
   if (prayerIds.length > 0) {
-    await blessings.fetchPrayerBlessings(prayerIds)
+    await Promise.all([
+      blessings.fetchPrayerBlessings(prayerIds),
+      blessings.fetchMyBlessingsForPrayers(prayerIds),
+    ])
   }
 }
 

@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS prayers (
   activated_at TIMESTAMPTZ,          -- When prayer was last activated
   created_at TIMESTAMPTZ DEFAULT now(),
   -- Akashic Records columns (v3.0)
-  karma_awarded INT DEFAULT 0,        -- How many 10-pray milestones have been awarded as karma
+  karma_awarded INT DEFAULT 0,        -- How many 50-pray milestones have been awarded as karma
   source_prayer_id UUID REFERENCES prayers(id) ON DELETE SET NULL,  -- Links altruistic prayer to original
   source_sinner_id UUID REFERENCES profiles(id) ON DELETE SET NULL,  -- Links intercessory prayer to sinner
   prayer_type TEXT DEFAULT 'own' CHECK (prayer_type IN ('own', 'altruistic', 'intercessory'))
@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS prayers (
 -- Migration: Add columns to existing tables (safe to run multiple times)
 ALTER TABLE prayers ADD COLUMN IF NOT EXISTS response_content TEXT;
 ALTER TABLE prayers ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE prayers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
 
 -- Indulgences: Ad views that reduce ban time
 CREATE TABLE IF NOT EXISTS indulgences (
@@ -293,15 +294,15 @@ BEGIN
   RETURNING id, prayer_count, last_counted_at, activated_at, prayer_type, karma_awarded, user_id
   INTO v_prayer;
 
-  -- Check karma milestones (every 10 prays)
-  v_milestones := floor(v_prayer.prayer_count / 10);
+  -- Check karma milestones (every 50 prays, with 5x payout)
+  v_milestones := floor(v_prayer.prayer_count / 50);
 
   IF v_milestones > v_prayer.karma_awarded THEN
-    -- Determine karma rate based on prayer type
+    -- Determine karma rate based on prayer type (5x multiplier for 50-pray threshold)
     IF v_prayer.prayer_type = 'altruistic' THEN
-      v_karma_change := (v_milestones - v_prayer.karma_awarded) * 2;
+      v_karma_change := (v_milestones - v_prayer.karma_awarded) * 5 * 2;
     ELSE
-      v_karma_change := (v_milestones - v_prayer.karma_awarded) * 1;
+      v_karma_change := (v_milestones - v_prayer.karma_awarded) * 5 * 1;
     END IF;
 
     -- Award karma to the praying user
@@ -355,15 +356,15 @@ BEGIN
   RETURNING id, prayer_count, is_praying, activated_at, prayer_type, karma_awarded, user_id
   INTO v_prayer;
 
-  -- Check karma milestones (every 10 prays)
-  v_milestones := floor(v_prayer.prayer_count / 10);
+  -- Check karma milestones (every 50 prays, with 5x payout)
+  v_milestones := floor(v_prayer.prayer_count / 50);
 
   IF v_milestones > v_prayer.karma_awarded THEN
-    -- Determine karma rate based on prayer type
+    -- Determine karma rate based on prayer type (5x multiplier for 50-pray threshold)
     IF v_prayer.prayer_type = 'altruistic' THEN
-      v_karma_change := (v_milestones - v_prayer.karma_awarded) * 2;
+      v_karma_change := (v_milestones - v_prayer.karma_awarded) * 5 * 2;
     ELSE
-      v_karma_change := (v_milestones - v_prayer.karma_awarded) * 1;
+      v_karma_change := (v_milestones - v_prayer.karma_awarded) * 5 * 1;
     END IF;
 
     -- Award karma to the praying user
@@ -696,7 +697,7 @@ BEGIN
 
   EXECUTE format(
     'SELECT jsonb_agg(row_to_json(t)) FROM (
-      SELECT p.id, p.response_content, p.prayer_count,
+      SELECT p.id, p.user_id, p.response_content, p.prayer_count,
              p.created_at, p.prayer_type,
              pr.username, pr.faith
       FROM prayers p

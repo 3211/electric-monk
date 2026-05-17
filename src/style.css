@@ -612,6 +612,14 @@
   }
 }
 
+.modal-container {
+  overflow-y: auto;
+  scrollbar-width: none; /* Safari/Firefox */
+}
+.modal-container::-webkit-scrollbar {
+  display: none; /* Chrome/Edge */
+}
+
 @keyframes sheen-pass {
   0% {
     transform: translateX(-130%);

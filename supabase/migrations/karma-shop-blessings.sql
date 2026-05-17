@@ -182,7 +182,7 @@ BEGIN
 
   EXECUTE format(
     'SELECT jsonb_agg(row_to_json(t)) FROM (
-      SELECT p.id, p.response_content, p.prayer_count,
+      SELECT p.id, p.user_id, p.response_content, p.prayer_count,
              p.created_at, p.prayer_type,
              pr.username, pr.faith,
              COALESCE(

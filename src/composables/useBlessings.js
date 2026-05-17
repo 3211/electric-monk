@@ -8,12 +8,14 @@ import blessingsConfig from '@/config/blessings.json'
  * Manages blessing types and prayer blessing data:
  * - Loads blessing definitions from config + server for active status
  * - Fetches aggregated blessing counts for prayers
+ * - Fetches current user's blessings per prayer (for picker disable logic)
  * - Provides lookup helpers for blessing metadata
  */
 export function useBlessings() {
   // Local config as the display source of truth
   const blessingTypes = ref(blessingsConfig.blessings.map(b => ({ ...b })))
   const prayerBlessings = ref({}) // { prayerId: [{ blessing_type_id, emoji, name, count }] }
+  const myBlessings = ref({}) // { prayerId: [blessing_type_id, ...] } — current user's blessings per prayer
   const loading = ref(false)
   const error = ref(null)
 
@@ -101,6 +103,43 @@ export function useBlessings() {
   }
 
   /**
+   * Fetch the current user's own blessing type IDs for a list of prayers.
+   * Used to determine which blessings the current user has already granted
+   * (so we can disable them in the BlessingPicker).
+   * @param {string[]} prayerIds - Array of prayer UUIDs
+   */
+  async function fetchMyBlessingsForPrayers(prayerIds) {
+    if (!prayerIds || prayerIds.length === 0) return
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data, error: fetchError } = await supabase
+        .from('prayer_blessings')
+        .select('prayer_id, blessing_type_id')
+        .eq('giver_id', user.id)
+        .in('prayer_id', prayerIds)
+
+      if (fetchError) throw fetchError
+
+      // Group by prayer_id
+      const grouped = {}
+      for (const row of (data || [])) {
+        if (!grouped[row.prayer_id]) {
+          grouped[row.prayer_id] = []
+        }
+        grouped[row.prayer_id].push(row.blessing_type_id)
+      }
+
+      myBlessings.value = grouped
+    } catch (err) {
+      console.error('[useBlessings] Fetch my blessings error:', err)
+      // Non-critical — don't set error state, just log
+    }
+  }
+
+  /**
    * Get blessing metadata by ID from local config.
    * @param {string} blessingTypeId
    * @returns {Object|undefined}
@@ -119,21 +158,35 @@ export function useBlessings() {
   }
 
   /**
+   * Get the current user's blessing type IDs for a specific prayer.
+   * Used by BlessingPicker to determine which blessings to disable.
+   * @param {string} prayerId
+   * @returns {string[]} Array of blessing_type_id strings the current user has already granted
+   */
+  function getMyBlessingTypeIdsForPrayer(prayerId) {
+    return myBlessings.value[prayerId] || []
+  }
+
+  /**
    * Clear cached prayer blessings (e.g., after granting a new blessing)
    */
   function clearPrayerBlessings() {
     prayerBlessings.value = {}
+    myBlessings.value = {}
   }
 
   return reactive({
     blessingTypes,
     prayerBlessings,
+    myBlessings,
     loading,
     error,
     fetchBlessingTypes,
     fetchPrayerBlessings,
+    fetchMyBlessingsForPrayers,
     getBlessingById,
     getBlessingsForPrayer,
+    getMyBlessingTypeIdsForPrayer,
     clearPrayerBlessings,
   })
 }

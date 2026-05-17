@@ -69,6 +69,7 @@
           </span>
         </button>
         <button
+          v-if="!isOwnPrayer"
           @click="$emit('bless', prayer)"
           :disabled="disabled"
           class="btn-ghost self-start px-3 py-2 text-xs"
@@ -101,6 +102,7 @@ const props = defineProps({
   cycleProgress: { type: Number, default: 0 },
   animating: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
+  isOwnPrayer: { type: Boolean, default: false },
 })
 
 defineEmits(['pray', 'stop', 'bless', 'showBlessingDetail'])
