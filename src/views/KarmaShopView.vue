@@ -422,7 +422,7 @@
       <div v-if="shop.activeTab === 'blessings'" class="space-y-6">
         <div class="glass-panel glass-panel-soft glass-gloss flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <p class="text-sm text-theme-text-muted">
-            Bless prayers in the Akashic Records with divine emojis. Each blessing grants karma to the receiver.
+            Bless prayers in the Akashic Records to grant karma and <span class="font-medium text-theme-accent">Divine Shield</span> protection to both you and the prayer owner. Shields stack additively.
           </p>
         </div>
 
@@ -451,7 +451,13 @@
                 </div>
               </div>
 
-              <p class="mb-4 text-xs leading-relaxed text-theme-text-dim">{{ blessing.description }}</p>
+              <p class="mb-2 text-xs leading-relaxed text-theme-text-dim">{{ blessing.description }}</p>
+
+              <div class="mb-3 flex items-center gap-1.5 rounded-md border border-blue-400/20 bg-blue-50/30 px-2.5 py-1.5 text-[0.7rem] text-blue-600">
+                <span>🛡</span>
+                <span class="font-medium">{{ formatShieldDuration(blessing) }}</span>
+                <span class="text-blue-500/70">shield to both</span>
+              </div>
 
               <div class="flex items-center gap-3 border-t border-theme-border/50 pt-3 text-[0.7rem] text-theme-text-muted">
                 <div class="flex items-center gap-1">
@@ -508,6 +514,17 @@ function buildingUpkeep(buildingType, configKey) {
 // Calculate the scaled cost for an item (base * 1.15^owned)
 function scaledCost(item) {
   return shop.scaledCost(item)
+}
+
+// Format shield duration for a blessing in human-readable form
+function formatShieldDuration(blessing) {
+  const minutes = blessings.getShieldMinutes(blessing)
+  if (!minutes || minutes <= 0) return '0m'
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  if (h > 0 && m > 0) return `${h}h ${m}m`
+  if (h > 0) return `${h}h`
+  return `${m}m`
 }
 
 // Format cost for display

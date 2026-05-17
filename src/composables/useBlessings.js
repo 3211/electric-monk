@@ -1,4 +1,4 @@
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
 import blessingsConfig from '@/config/blessings.json'
 
@@ -10,17 +10,46 @@ import blessingsConfig from '@/config/blessings.json'
  * - Fetches aggregated blessing counts for prayers
  * - Fetches current user's blessings per prayer (for picker disable logic)
  * - Provides lookup helpers for blessing metadata
+ * - Calculates shield duration per blessing (for UI display)
  */
 export function useBlessings() {
   // Local config as the display source of truth
   const blessingTypes = ref(blessingsConfig.blessings.map(b => ({ ...b })))
+  const shieldMinutesPerKarma = ref(blessingsConfig.shieldMinutesPerKarma || 10)
   const prayerBlessings = ref({}) // { prayerId: [{ blessing_type_id, emoji, name, count }] }
   const myBlessings = ref({}) // { prayerId: [blessing_type_id, ...] } — current user's blessings per prayer
   const loading = ref(false)
   const error = ref(null)
 
   /**
-   * Fetch active blessing types from server (for is_active check + karma values)
+   * Calculate shield duration in minutes for a blessing type.
+   * Uses per-blessing override (shield_minutes) if set, otherwise
+   * falls back to karma_cost * shieldMinutesPerKarma.
+   * @param {Object} blessing - A blessing type object
+   * @returns {number} Shield duration in minutes
+   */
+  function getShieldMinutes(blessing) {
+    if (!blessing) return 0
+    if (blessing.shield_minutes != null) return blessing.shield_minutes
+    return (blessing.karma_cost || 0) * shieldMinutesPerKarma.value
+  }
+
+  /**
+   * Format shield duration as a human-readable string.
+   * @param {number} minutes
+   * @returns {string} e.g. "1h 40m", "4h 10m", "30m"
+   */
+  function formatShieldDuration(minutes) {
+    if (!minutes || minutes <= 0) return '0m'
+    const h = Math.floor(minutes / 60)
+    const m = minutes % 60
+    if (h > 0 && m > 0) return `${h}h ${m}m`
+    if (h > 0) return `${h}h`
+    return `${m}m`
+  }
+
+  /**
+   * Fetch active blessing types from server (for is_active check + karma values + shield_minutes)
    * Merges server data into local config definitions.
    */
   async function fetchBlessingTypes() {
@@ -36,7 +65,7 @@ export function useBlessings() {
 
       if (fetchError) throw fetchError
 
-      // Merge server data with local config (server is authoritative for costs/active state)
+      // Merge server data with local config (server is authoritative for costs/active state/shield)
       if (data && data.length > 0) {
         const serverMap = Object.fromEntries(data.map(b => [b.id, b]))
         blessingTypes.value = blessingsConfig.blessings.map(local => {
@@ -48,6 +77,7 @@ export function useBlessings() {
               karma_to_giver: server.karma_to_giver,
               karma_to_receiver: server.karma_to_receiver,
               is_active: server.is_active,
+              shield_minutes: server.shield_minutes, // may be null (use formula)
             }
           }
           return { ...local, is_active: false }
@@ -126,7 +156,7 @@ export function useBlessings() {
       // Group by prayer_id
       const grouped = {}
       for (const row of (data || [])) {
-        if (!grouped[row.prayer_id]) {
+        if (!grouped[row.prayer_id]]) {
           grouped[row.prayer_id] = []
         }
         grouped[row.prayer_id].push(row.blessing_type_id)
@@ -177,6 +207,7 @@ export function useBlessings() {
 
   return reactive({
     blessingTypes,
+    shieldMinutesPerKarma,
     prayerBlessings,
     myBlessings,
     loading,
@@ -187,6 +218,8 @@ export function useBlessings() {
     getBlessingById,
     getBlessingsForPrayer,
     getMyBlessingTypeIdsForPrayer,
+    getShieldMinutes,
+    formatShieldDuration,
     clearPrayerBlessings,
   })
 }

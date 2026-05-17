@@ -37,6 +37,9 @@
                   <span v-if="isAlreadyGranted(blessing)" class="chip px-1.5 py-0.5 text-[0.6rem] font-medium text-theme-accent">Granted</span>
                 </div>
                 <p class="mt-0.5 truncate text-[0.7rem] text-theme-text-dim">{{ blessing.description }}</p>
+                <p class="mt-0.5 text-[0.65rem] text-theme-accent/70">
+                  🛡 {{ formatShieldDuration(getShieldMinutes(blessing)) }} shield (both)
+                </p>
               </div>
               <div class="flex flex-none flex-col items-end gap-0.5">
                 <span class="text-xs font-semibold text-theme-accent">{{ blessing.karma_cost }} ✦</span>
@@ -72,9 +75,26 @@ const blessingTypes = computed(() => {
   return blessingsConfig.blessings.slice().sort((a, b) => a.sort_order - b.sort_order)
 })
 
+const shieldMinutesPerKarma = blessingsConfig.shieldMinutesPerKarma || 10
+
 const minCost = computed(() => {
   return Math.min(...blessingTypes.value.map(b => b.karma_cost))
 })
+
+function getShieldMinutes(blessing) {
+  if (!blessing) return 0
+  if (blessing.shield_minutes != null) return blessing.shield_minutes
+  return (blessing.karma_cost || 0) * shieldMinutesPerKarma
+}
+
+function formatShieldDuration(minutes) {
+  if (!minutes || minutes <= 0) return '0m'
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  if (h > 0 && m > 0) return `${h}h ${m}m`
+  if (h > 0) return `${h}h`
+  return `${m}m`
+}
 
 function isAlreadyGranted(blessing) {
   return props.existingBlessingTypeIds.includes(blessing.id)

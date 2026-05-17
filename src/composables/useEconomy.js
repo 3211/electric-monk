@@ -71,6 +71,25 @@ function createEconomyState() {
   const title = ref(null)
   const avatarUrl = ref(null)
 
+  // Blessing Shield Buff: active miracles/buffs
+  const activeMiracles = ref([]) // array of { id, miracle_type, effect_data, expires_at }
+
+  // Computed: is the player currently shielded (divine_shield_until in the future)?
+  const shieldActive = computed(() => {
+    if (!divineShieldUntil.value) return false
+    return new Date(divineShieldUntil.value) > new Date()
+  })
+
+  // Computed: blessing shield miracles only (for buff display)
+  const blessingShields = computed(() => {
+    return activeMiracles.value.filter(m => m.miracle_type === 'blessing_shield')
+  })
+
+  // Computed: all active buff types for quick UI checks
+  const activeBuffTypes = computed(() => {
+    return new Set(activeMiracles.value.map(m => m.miracle_type))
+  })
+
   // Computed: net production rates
   const netManaPerDay = computed(() => dailyRates.value.mana_per_day || 0)
   const netGoldPerDay = computed(() => {
@@ -224,6 +243,8 @@ function createEconomyState() {
         // Rapture Update: Profile customization
         title.value = data.title || null
         avatarUrl.value = data.avatar_url || null
+        // Blessing Shield Buff: active miracles
+        activeMiracles.value = data.active_miracles || []
       }
     } catch (err) {
       error.value = err.message
@@ -320,6 +341,11 @@ function createEconomyState() {
     // Rapture Update: Profile
     title,
     avatarUrl,
+    // Blessing Shield Buff
+    activeMiracles,
+    shieldActive,
+    blessingShields,
+    activeBuffTypes,
     // Display
     resourceEmojis,
     buildingInfo,
