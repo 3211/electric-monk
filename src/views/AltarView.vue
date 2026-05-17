@@ -8,10 +8,22 @@
             <h1 class="ritual-heading text-4xl font-bold text-theme-accent sm:text-5xl">The Altar</h1>
           </div>
           <div class="flex flex-wrap items-center justify-start gap-3 xl:justify-end">
-            <!-- Karma Display -->
+            <!-- Resource Bar -->
             <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
               <span class="text-lg">{{ prayers.karmaEmoji }}</span>
               <span>Karma: <span :class="karmaClass" class="font-semibold">{{ prayers.karma }}</span></span>
+            </div>
+            <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
+              <span class="text-lg">&#x1F4A7;</span>
+              <span>Mana: <span class="font-semibold text-blue-400">{{ economy.mana }}</span><span class="text-theme-text-muted">/{{ economy.manaCap }}</span></span>
+            </div>
+            <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
+              <span class="text-lg">&#x1FA99;</span>
+              <span>Gold: <span class="font-semibold text-yellow-500">{{ economy.gold }}</span><span class="text-theme-text-muted">/{{ economy.goldCap }}</span></span>
+            </div>
+            <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
+              <span class="text-lg">&#x1F33E;</span>
+              <span>Food: <span class="font-semibold text-green-600">{{ economy.food }}</span><span class="text-theme-text-muted">/{{ economy.foodCap }}</span></span>
             </div>
             <!-- Prayer Slots Display -->
             <div class="chip gap-3 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
@@ -25,15 +37,15 @@
                 @click="handlePurchaseSlot"
                 :disabled="prayers.loading"
                 class="btn-secondary min-h-[2.2rem] px-3 py-2 text-xs disabled:opacity-50"
-                :title="'Purchase additional prayer slot for ' + slotCost + ' karma (+100 Mana)'"
+                :title="'Purchase additional prayer slot for ' + slotCost + ' karma (+100 Devotion)'"
               >
                 + Slot ({{ slotCost }} ✦)
               </button>
             </div>
-            <!-- Daily Mana Budget Counter -->
+            <!-- Daily Devotion Budget Counter -->
             <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
               <span class="font-semibold text-theme-accent">{{ prayers.tokensRemaining }}</span>
-              <span>Mana remaining</span>
+              <span>Devotion remaining</span>
             </div>
             <!-- Settings Button (only when profile is complete) -->
             <button
@@ -447,13 +459,13 @@
                   {{ prayerContent.length }} / {{ maxPrayerChars }} chars
                 </span>
                 <span class="font-medium text-theme-accent">
-                  ~{{ estimatedManaCost }} Mana
+                  ~{{ estimatedManaCost }} Devotion
                 </span>
               </div>
               
               <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p v-if="!prayers.canPray && prayers.isProfileComplete" class="text-sm text-theme-text-dim">
-                  Daily Mana budget exhausted. Return tomorrow.
+                  Daily Devotion budget exhausted. Return tomorrow.
                 </p>
                 <button
                   v-if="!prayers.isProfileComplete"
@@ -606,6 +618,7 @@ import { usePrayers } from '@/composables/usePrayers'
 import { usePrayerCounter } from '@/composables/usePrayerCounter'
 import { useAuth } from '@/composables/useAuth'
 import { useBanTimer } from '@/composables/useBanTimer'
+import { useEconomy } from '@/composables/useEconomy'
 import KarmaToast from '@/components/molecules/KarmaToast.vue'
 import ProfileCompletionModal from '@/components/organisms/ProfileCompletionModal.vue'
 import PrayerHistoryModal from '@/components/organisms/PrayerHistoryModal.vue'
@@ -617,6 +630,7 @@ const manaRatio = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5', 10)
 const prayers = usePrayers()
 const auth = useAuth()
 const banTimer = useBanTimer()
+const economy = useEconomy()
 
 const prayerContent = ref('')
 const showProfileModal = ref(false)
@@ -769,10 +783,11 @@ const slotCost = computed(() => {
 })
 
 onMounted(async () => {
-  // Fetch prayers, profile (karma/slots), and daily count
+  // Fetch prayers, profile (karma/slots), daily count, and economy
   await prayers.fetchPrayers()
   await prayers.fetchProfile()
   await prayers.fetchDailyCount()
+  economy.fetchEconomy()
   
   // Show modal if profile is incomplete
   if (!prayers.isProfileComplete) {

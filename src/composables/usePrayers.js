@@ -1,9 +1,9 @@
 import { ref, computed, reactive } from 'vue'
 import { supabase } from '@/lib/supabase'
 
-// Environment variables for Mana-based limits
+// Environment variables for Devotion-based limits
 // Note: These are used for UI display only. Actual limits are enforced server-side via RPC.
-// Default daily mana limit is now 100 per prayer slot (base 1 slot = 100 mana)
+// Default daily devotion limit is now 100 per prayer slot (base 1 slot = 100 devotion)
 const MAX_PRAYER_CHARS = parseInt(import.meta.env.VITE_MAX_PRAYER_CHARS || '1500', 10)
 const DAILY_MANA_LIMIT = parseInt(import.meta.env.VITE_DAILY_TOKEN_LIMIT || '100', 10)
 const PRAYER_MANA_RATIO = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5', 10)
@@ -28,9 +28,12 @@ let sharedState = null
 
 function createPrayersState() {
   const prayers = ref([])
-  const dailyManaLimit = ref(DAILY_MANA_LIMIT)
-  const dailyManaSpent = ref(0)
+  const dailyManaLimit = ref(DAILY_MANA_LIMIT) // DB column: daily_token_limit (UI: "Devotion limit")
+  const dailyManaSpent = ref(0) // DB column: tokens_spent_today (UI: "Devotion spent")
   const karma = ref(0)
+  const mana = ref(0) // Building-generated action resource
+  const gold = ref(0) // Worker-generated currency
+  const food = ref(0) // Garden-generated sustaining resource
   const maxPrayerSlots = ref(1)
   const username = ref(null)
   const faith = ref(null)
@@ -88,7 +91,7 @@ function createPrayersState() {
   }
 
   /**
-   * Fetch user's profile including karma, max prayer slots, username, and faith
+   * Fetch user's profile including karma, mana, gold, food, max prayer slots, username, and faith
    */
   async function fetchProfile() {
     try {
@@ -97,7 +100,7 @@ function createPrayersState() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('karma, max_prayer_slots, username, faith')
+        .select('karma, max_prayer_slots, username, faith, mana, gold, food')
         .eq('id', user.id)
         .single()
 
@@ -106,6 +109,9 @@ function createPrayersState() {
         maxPrayerSlots.value = profile.max_prayer_slots || 1
         username.value = profile.username || null
         faith.value = profile.faith || null
+        mana.value = profile.mana || 0
+        gold.value = profile.gold || 0
+        food.value = profile.food || 0
       }
     } catch (err) {
       console.error('[usePrayers] Profile fetch error:', err)
@@ -681,6 +687,9 @@ function createPrayersState() {
     dailyManaLimit,
     dailyManaSpent,
     karma,
+    mana,
+    gold,
+    food,
     maxPrayerSlots,
     username,
     faith,

@@ -7,19 +7,20 @@ import AltarView from './views/AltarView.vue'
 import PurgatoryView from './views/PurgatoryView.vue'
 import AkashicRecordsView from './views/AkashicRecordsView.vue'
 import KarmaShopView from './views/KarmaShopView.vue'
+import LeaderboardView from './views/LeaderboardView.vue'
 import iconUrl from './assets/icons/icon.png'
 
 const auth = useAuth()
 const banTimer = useBanTimer()
 
-// Tab navigation between Altar, Akashic Records, and Karma Shop
+// Tab navigation between Altar, Akashic Records, Karma Shop, and Rankings
 const currentTab = ref('altar')
 
 // Determine which view to show
 const currentView = computed(() => {
   if (!auth.isAuthenticated) return 'login'
   if (banTimer.isBanned) return 'purgatory'
-  return currentTab.value // 'altar', 'akashic', or 'shop'
+  return currentTab.value // 'altar', 'akashic', 'shop', or 'rankings'
 })
 
 // Dynamic copyright year and developer email
@@ -61,6 +62,12 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
             >
               🛒 Shop
             </button>
+            <button
+              @click="currentTab = 'rankings'"
+              :class="currentTab === 'rankings' ? 'nav-tab-active' : 'nav-tab-inactive'"
+            >
+              🏛 Rankings
+            </button>
           </div>
         </div>
       </div>
@@ -76,6 +83,7 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
         <AltarView v-else-if="currentView === 'altar'" />
         <AkashicRecordsView v-else-if="currentView === 'akashic'" />
         <KarmaShopView v-else-if="currentView === 'shop'" />
+        <LeaderboardView v-else-if="currentView === 'rankings'" />
       </div>
     </div>
     
