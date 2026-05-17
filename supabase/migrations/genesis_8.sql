@@ -39,7 +39,13 @@ BEGIN
     WHERE p.username ILIKE '%' || p_search || '%'
       AND p.id != v_user_id
       AND p.username IS NOT NULL
-    ORDER BY similarity(p.username, p_search) DESC, p.username ASC
+    ORDER BY
+        CASE
+            WHEN p.username ILIKE p_search THEN 0        -- exact match
+            WHEN p.username ILIKE p_search || '%' THEN 1 -- prefix match
+            ELSE 2                                        -- substring match
+        END ASC,
+        p.username ASC
     LIMIT 5;
 
     RETURN COALESCE(v_result, '[]'::jsonb);
