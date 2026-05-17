@@ -14,7 +14,6 @@ import VaticanView from './views/VaticanView.vue'
 import LeaderboardView from './views/LeaderboardView.vue'
 import ScriptoriumView from './views/ScriptoriumView.vue'
 import SynodHallView from './views/SynodHallView.vue'
-import ReliquaryView from './views/ReliquaryView.vue'
 import OnboardingWizard from './components/organisms/OnboardingWizard.vue'
 import UsernameChangeModal from './components/organisms/UsernameChangeModal.vue'
 const auth = useAuth()
@@ -42,7 +41,7 @@ const currentView = computed(() => {
 
 // Views that own a light/dark sub-toggle — they manage forceEvilTheme themselves.
 // All OTHER views force light mode on entry, preventing dark-mode persistence bleed.
-const toggleableViews = new Set(['scriptorium', 'akashic', 'vatican'])
+const toggleableViews = new Set(['scriptorium', 'akashic', 'vatican', 'synod'])
 const evilViews = new Set(['purgatory'])
 const isEvilView = computed(() => evilViews.has(currentView.value) || forceEvilTheme.value)
 
@@ -125,12 +124,6 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
                 &#x2694; Synod
               </button>
               <button
-                @click="currentTab = 'reliquary'"
-                :class="currentTab === 'reliquary' ? 'nav-tab-active' : 'nav-tab-inactive'"
-              >
-                &#x1F3F8; Reliquary
-              </button>
-              <button
                 @click="currentTab = 'rankings'"
                 :class="currentTab === 'rankings' ? 'nav-tab-active' : 'nav-tab-inactive'"
               >
@@ -183,7 +176,6 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
         <KarmaShopView v-else-if="currentView === 'shop'" />
         <VaticanView v-else-if="currentView === 'vatican'" />
         <SynodHallView v-else-if="currentView === 'synod'" />
-        <ReliquaryView v-else-if="currentView === 'reliquary'" />
         <LeaderboardView v-else-if="currentView === 'rankings'" />
 
         <!-- Onboarding Wizard (new user flow) -->
