@@ -409,6 +409,13 @@
                   class="relative z-10 h-[160px] w-[160px] drop-shadow-[0_10px_24px_rgba(213,154,23,0.18)] sm:h-[180px] sm:w-[180px]"
                 />
               </div>
+              <div
+                v-if="currentSectInfo"
+                class="mb-2 rounded-full border px-3 py-1 text-center text-xs font-semibold uppercase tracking-[0.18em] shadow-[0_10px_18px_rgba(48,38,21,0.06)]"
+                :class="[currentSectInfo.bg, currentSectInfo.color]"
+              >
+                {{ currentSectInfo.name }}
+              </div>
               <p class="eyebrow-label mb-2">Invocation</p>
               <h2 class="text-center text-2xl font-semibold text-theme-text">Submit Your Prayer</h2>
             </div>
@@ -588,6 +595,7 @@ import { usePrayers } from '@/composables/usePrayers'
 import { usePrayerCounter } from '@/composables/usePrayerCounter'
 import { useBanTimer } from '@/composables/useBanTimer'
 import { useEconomy } from '@/composables/useEconomy'
+import { useSects } from '@/composables/useSects'
 import KarmaToast from '@/components/molecules/KarmaToast.vue'
 import PrayerHistoryModal from '@/components/organisms/PrayerHistoryModal.vue'
 
@@ -601,6 +609,12 @@ const forceEvilTheme = inject('forceEvilTheme', ref(false))
 const prayers = usePrayers()
 const banTimer = useBanTimer()
 const economy = useEconomy()
+const sects = useSects()
+
+const currentSectInfo = computed(() => {
+  if (!economy.sectType) return null
+  return sects.sectInfo[economy.sectType] || null
+})
 
 const prayerContent = ref('')
 const counterAnimating = ref(false)

@@ -66,7 +66,12 @@
             <div class="mb-5">
               <div class="flex justify-center mb-5">
                 <div class="pfp-frame">
-                  <img :src="defaultPfpUrl" alt="Profile" class="pfp-image" />
+                  <img
+                    src="/pfp/0.png"
+                    alt="Profile picture"
+                    aria-label="Current profile picture"
+                    class="pfp-image"
+                  />
                 </div>
               </div>
               <div class="mb-4">
@@ -292,8 +297,6 @@ const MAX_USERNAME_CHARS = 30
 const COUNT_VISIBLE_THRESHOLD = 0.9
 const maxPrayerChars = parseInt(import.meta.env.VITE_MAX_PRAYER_CHARS || '1500', 10)
 
-const defaultPfpUrl = '/pfp/0.png'
-
 const onboarding = useOnboarding()
 const sects = useSects()
 const prayers = usePrayers()
@@ -504,32 +507,38 @@ async function handleComplete() {
 
 .pfp-frame {
   position: relative;
-  width: 96px;
-  height: 96px;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 3px solid var(--theme-accent);
-  box-shadow:
-    0 0 0 1px rgba(213, 154, 23, 0.3),
-    0 4px 16px rgba(213, 154, 23, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  background: var(--theme-bg-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 5.75rem;
+  height: 5.75rem;
+  padding: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(213, 154, 23, 0.24);
+  background: linear-gradient(180deg, rgba(255, 253, 246, 0.92), rgba(248, 238, 214, 0.86));
+  box-shadow: 0 18px 32px rgba(48, 38, 21, 0.1), 0 0 24px rgba(240, 182, 59, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
 
 .pfp-frame::before {
   content: "";
   position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  border-radius: 9px;
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.15);
+  inset: -0.6rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 223, 147, 0.24) 0%, rgba(255, 223, 147, 0.08) 44%, transparent 72%);
+  filter: blur(10px);
+  z-index: 0;
 }
 
 .pfp-image {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  background: rgba(255, 252, 246, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 10px 20px rgba(48, 38, 21, 0.08);
 }
 
 .submission-logo-shell {
