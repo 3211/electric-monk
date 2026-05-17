@@ -181,12 +181,15 @@ function createPrayersState() {
         : null
 
       if (lastPrayerDate !== today) {
-        // Reset count via database function
-        // Note: This RPC must exist in Supabase. If getting 404, run the schema SQL.
-        const { error: resetError } = await supabase.rpc('reset_daily_prayer_count', { p_user_id: user.id })
+        // Reset daily Devotion count directly via profile update
+        const todayStr = new Date().toISOString().split('T')[0]
+        const { error: resetError } = await supabase
+          .from('profiles')
+          .update({ tokens_spent_today: 0, last_prayer_date: todayStr })
+          .eq('id', user.id)
         if (resetError) {
-          console.warn('[usePrayers] Reset RPC failed (may need to run schema SQL):', resetError)
-          // Fallback: just set to 0 locally if RPC fails
+          console.warn('[usePrayers] Daily reset failed:', resetError)
+          // Fallback: just set to 0 locally if update fails
           dailyManaSpent.value = 0
         } else {
           dailyManaSpent.value = 0

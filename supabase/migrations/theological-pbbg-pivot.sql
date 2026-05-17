@@ -614,6 +614,25 @@ GRANT EXECUTE ON FUNCTION get_player_economy() TO service_role;
 GRANT EXECUTE ON FUNCTION calculate_automated_karma() TO service_role;
 
 -- ============================================
+-- 13b. FIX: Replace broken reset_daily_prayer_count function
+-- ============================================
+-- The original function referenced a non-existent column "daily_prayer_count"
+-- but the actual column is "tokens_spent_today". Recreate it correctly.
+
+CREATE OR REPLACE FUNCTION reset_daily_prayer_count(p_user_id UUID)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE profiles
+    SET tokens_spent_today = 0,
+        last_prayer_date = CURRENT_DATE
+    WHERE id = p_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION reset_daily_prayer_count(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION reset_daily_prayer_count(UUID) TO service_role;
+
+-- ============================================
 -- 14. VERIFY CRON JOB IS SCHEDULED
 -- ============================================
 -- The cron job should already be running from the automated-karma migration.
