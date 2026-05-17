@@ -271,6 +271,10 @@
     padding-inline: clamp(1rem, 2vw, 1.5rem);
   }
 
+  .mobile-shell-safe {
+    min-width: 0;
+  }
+
   .glass-panel {
     @apply relative overflow-hidden border backdrop-blur-glass;
     border-radius: var(--radius-panel);
@@ -1000,6 +1004,87 @@
   }
   100% {
     transform: translate3d(-0.6%, 1.4%, 0) scale(1.12);
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --radius-panel: 22px;
+    --radius-panel-soft: 20px;
+    --radius-field: 16px;
+    --radius-button: 14px;
+  }
+
+  .app-frame {
+    padding-inline: clamp(0.8rem, 4vw, 1rem);
+  }
+
+  .glass-panel,
+  .glass-panel-soft,
+  .glass-panel-strong,
+  .floating-console {
+    border-radius: min(var(--radius-panel), calc(100vw - 1.6rem));
+  }
+
+  .segmented-shell {
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 0.3rem;
+    gap: 0.35rem;
+    border-radius: 22px;
+  }
+
+  .pill-tab {
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 calc(50% - 0.35rem);
+    padding: 0.6rem 0.85rem;
+    font-size: 0.82rem;
+    line-height: 1.2;
+  }
+
+  .chip {
+    max-width: 100%;
+    padding-inline: 0.65rem;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-ghost,
+  .btn-danger {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .tactile-icon-btn {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .mobile-shell-safe {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  :root {
+    --radius-panel: 20px;
+    --radius-panel-soft: 18px;
+  }
+
+  .segmented-shell {
+    border-radius: 20px;
+  }
+
+  .pill-tab {
+    flex-basis: 100%;
+    min-height: 2.55rem;
+    padding-inline: 0.8rem;
+    font-size: 0.8rem;
   }
 }
 

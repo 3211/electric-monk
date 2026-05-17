@@ -14,7 +14,7 @@
       </div>
 
       <!-- Intercessory Prayer Count -->
-      <div v-if="intercessoryCount > 0" class="glass-panel glass-panel-soft glass-gloss evil-purgatory-support mb-5 rounded-[24px] border border-theme-accent/20 p-4">
+      <div v-if="intercessoryCount > 0" class="glass-panel glass-panel-soft glass-gloss evil-purgatory-support mb-5 rounded-[20px] border border-theme-accent/20 p-4 sm:rounded-[24px]">
         <p class="text-sm font-medium text-theme-accent">
           🕯️ {{ intercessoryCount }} {{ intercessoryCount === 1 ? 'person is' : 'people are' }} praying for your redemption
         </p>
@@ -54,7 +54,7 @@
 
         <!-- Ad Placeholder -->
         <div v-else class="mt-5 space-y-4">
-          <div class="glass-panel glass-panel-soft evil-purgatory-ad aspect-video rounded-[24px] border border-theme-border p-6">
+          <div class="glass-panel glass-panel-soft evil-purgatory-ad aspect-video rounded-[20px] border border-theme-border p-5 sm:rounded-[24px] sm:p-6">
             <div class="flex h-full flex-col items-center justify-center text-center">
               <div class="mb-2 animate-pulse text-theme-accent">
                 <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -255,6 +255,17 @@ function karmaClass() {
   border: 1px solid rgba(255, 255, 255, 0.05);
   background: radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.03), transparent 54%);
   pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .purgatory-timer::before {
+    inset: 0.8rem;
+    border-radius: 20px;
+  }
+
+  .purgatory-timer-halo {
+    inset: 14% 10%;
+  }
 }
 
 .purgatory-timer::after {

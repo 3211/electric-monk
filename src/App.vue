@@ -87,7 +87,7 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
           <div :class="['global-nav-veil', isEvilView ? 'global-nav-veil--evil' : 'global-nav-veil--holy']"></div>
           <div class="global-nav-row relative flex flex-wrap items-center gap-2 sm:gap-3">
             <!-- Primary tabs cluster (flex-grows to consume slack) -->
-            <div class="global-nav-shell segmented-shell flex-1 min-w-0 flex flex-wrap items-center justify-start gap-1">
+            <div class="global-nav-shell mobile-shell-safe segmented-shell flex-1 min-w-0 flex flex-wrap items-center justify-start gap-1">
               <button
                 @click="currentTab = 'altar'"
                 :class="currentTab === 'altar' ? 'nav-tab-active' : 'nav-tab-inactive'"
@@ -133,10 +133,12 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
             </div>
 
             <!-- Shield indicator (global, always visible when shield active) -->
-            <ShieldTimer v-if="economy.shieldActive" :shield-until="economy.divineShieldUntil" />
+            <div v-if="economy.shieldActive" class="global-nav-shield mobile-shell-safe">
+              <ShieldTimer :shield-until="economy.divineShieldUntil" />
+            </div>
 
             <!-- Account cluster: change-username (icon) + logout (pill, matches nav buttons) -->
-            <div class="global-nav-account segmented-shell flex items-center gap-1 flex-none ml-auto">
+            <div class="global-nav-account mobile-shell-safe segmented-shell flex items-center gap-1 flex-none ml-auto">
               <button
                 @click="showUsernameChangeModal = true"
                 class="nav-account-btn"
@@ -273,27 +275,65 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
 @media (max-width: 640px) {
   .global-nav-row {
     gap: 0.6rem;
+    align-items: stretch;
   }
 
-  .global-nav-shell {
+  .global-nav-shell,
+  .global-nav-account,
+  .global-nav-shield {
     width: 100%;
+    max-width: 100%;
+  }
+
+  .global-nav-shell,
+  .global-nav-account {
+    justify-content: center;
+  }
+
+  .global-nav-shield {
+    display: flex;
     justify-content: center;
   }
 
   .global-nav-account {
-    margin-left: auto;
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+
+  .global-nav-account .nav-tab-inactive {
+    flex: 0 1 auto;
   }
 
   .nav-tab-active,
   .nav-tab-inactive {
+    flex: 1 1 calc(50% - 0.35rem);
+    max-width: 100%;
+    justify-content: center;
     padding: 0.45rem 0.7rem;
     font-size: 0.78rem;
     min-height: 2.25rem;
+    text-align: center;
+    white-space: normal;
   }
 
   .nav-account-btn {
     width: 2.25rem;
     height: 2.25rem;
+  }
+
+  .global-nav-veil {
+    border-radius: 28px;
+  }
+}
+
+@media (max-width: 420px) {
+  .nav-tab-active,
+  .nav-tab-inactive {
+    flex-basis: 100%;
+  }
+
+  .global-nav-veil {
+    border-radius: 24px;
   }
 }
 .app-shell {

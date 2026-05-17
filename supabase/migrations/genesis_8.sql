@@ -29,24 +29,26 @@ DECLARE
     v_user_id UUID := auth.uid();
     v_result JSONB;
 BEGIN
-    SELECT jsonb_agg(jsonb_build_object(
-        'id', p.id,
-        'username', p.username,
-        'faith', p.faith,
-        'divine_shield_until', p.divine_shield_until
-    )) INTO v_result
-    FROM profiles p
-    WHERE p.username ILIKE '%' || p_search || '%'
-      AND p.id != v_user_id
-      AND p.username IS NOT NULL
-    ORDER BY
-        CASE
-            WHEN p.username ILIKE p_search THEN 0        -- exact match
-            WHEN p.username ILIKE p_search || '%' THEN 1 -- prefix match
-            ELSE 2                                        -- substring match
-        END ASC,
-        p.username ASC
-    LIMIT 5;
+    SELECT jsonb_agg(row_to_json(t)) INTO v_result
+    FROM (
+        SELECT
+            p.id,
+            p.username,
+            p.faith,
+            p.divine_shield_until
+        FROM profiles p
+        WHERE p.username ILIKE '%' || p_search || '%'
+          AND p.id != v_user_id
+          AND p.username IS NOT NULL
+        ORDER BY
+            CASE
+                WHEN p.username ILIKE p_search THEN 0
+                WHEN p.username ILIKE p_search || '%' THEN 1
+                ELSE 2
+            END ASC,
+            p.username ASC
+        LIMIT 5
+    ) t;
 
     RETURN COALESCE(v_result, '[]'::jsonb);
 END;

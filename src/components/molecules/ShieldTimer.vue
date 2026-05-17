@@ -1,5 +1,5 @@
 <template>
-  <div v-if="displayTime" class="chip gap-2 px-4 py-2 text-sm shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
+  <div v-if="displayTime" class="chip mobile-shell-safe max-w-full flex-wrap justify-center gap-2 px-4 py-2 text-center text-sm shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
     <span :class="iconColor">🛡</span>
     <span :class="textColor" class="font-semibold">Shield: {{ displayTime }}</span>
   </div>

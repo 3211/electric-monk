@@ -132,11 +132,11 @@
                     filter: `blur(${Math.min(index + 1, 2) * 0.4}px)`
                   }"
                 >
-                  <div class="glass-panel glass-panel-soft h-32 rounded-[24px] border border-theme-border/30"></div>
+                  <div class="glass-panel glass-panel-soft stacked-prayer-shadow-card h-32 rounded-[20px] border border-theme-border/30 sm:rounded-[24px]"></div>
                 </div>
 
                 <!-- Selected (front) card with full detail -->
-                <div v-if="selectedPrayer" class="active-prayer-card glass-panel glass-panel-strong glass-gloss relative z-10 rounded-[28px] border border-theme-accent/45 p-6 shadow-glow-accent sm:p-7">
+                <div v-if="selectedPrayer" class="active-prayer-card glass-panel glass-panel-strong glass-gloss relative z-10 rounded-[22px] border border-theme-accent/45 p-6 shadow-glow-accent sm:rounded-[28px] sm:p-7">
                   <!-- Delete/Archive Button -->
                   <button
                     @click="handleArchive(selectedPrayer.id)"
@@ -203,7 +203,7 @@
             </div>
 
             <!-- Single Active Prayer Card (original layout, no stacking) -->
-            <div v-else-if="prayers.currentActivePrayer" class="active-prayer-card glass-panel glass-panel-strong glass-gloss relative rounded-[28px] border border-theme-accent/45 p-6 shadow-glow-accent sm:p-7">
+            <div v-else-if="prayers.currentActivePrayer" class="active-prayer-card glass-panel glass-panel-strong glass-gloss relative rounded-[22px] border border-theme-accent/45 p-6 shadow-glow-accent sm:rounded-[28px] sm:p-7">
               <!-- Delete/Archive Button -->
               <button
                 @click="handleArchive(prayers.currentActivePrayer.id)"
@@ -1234,6 +1234,25 @@ async function handleAetherContinue() {
   animation: blink 0.7s infinite;
   color: var(--theme-accent);
   font-weight: 100;
+}
+
+@media (max-width: 640px) {
+  .active-prayer-card {
+    border-radius: 22px;
+  }
+
+  .stacked-prayer-shadow-card {
+    border-radius: 20px;
+  }
+
+  .stacked-cards-container {
+    min-height: 20.5rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .counter-value {
+    font-size: clamp(2.35rem, 12vw, 3.4rem);
+  }
 }
 
 @keyframes loaderShimmer {
