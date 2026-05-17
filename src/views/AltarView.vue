@@ -25,6 +25,26 @@
               <span class="text-lg">&#x1F33E;</span>
               <span>Food: <span class="font-semibold text-green-600">{{ economy.food }}</span><span class="text-theme-text-muted">/{{ economy.foodCap }}</span></span>
             </div>
+            <!-- Dogma (Rapture Update) -->
+            <div v-if="economy.dogma > 0 || economy.sectType" class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
+              <span class="text-lg">&#x1F4D1;</span>
+              <span>Dogma: <span class="font-semibold text-amber-600">{{ economy.dogma }}</span></span>
+            </div>
+            <!-- Sacred Acres (Rapture Update) -->
+            <div v-if="economy.sectType" class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
+              <span class="text-lg">&#x1F3D8;</span>
+              <span>Acres: <span class="font-semibold text-emerald-600">{{ economy.sacredAcresFree }}</span><span class="text-theme-text-muted">/{{ economy.sacredAcres }}</span></span>
+            </div>
+            <!-- Indulgences (Rapture Update) -->
+            <div v-if="economy.indulgences > 0 || economy.papalBullActive" class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
+              <span class="text-lg">✨</span>
+              <span>Indulgences: <span class="font-semibold text-purple-500">{{ economy.indulgences }}</span></span>
+            </div>
+            <!-- Papal Bull Active (Rapture Update) -->
+            <div v-if="economy.papalBullActive" class="chip status-chip gap-2 px-4 py-2 text-sm">
+              <span>🐂</span>
+              <span class="font-semibold">Bull Active</span>
+            </div>
             <!-- Prayer Slots Display -->
             <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
               <span class="font-semibold text-theme-accent">{{ prayers.activePrayerCount }}</span>

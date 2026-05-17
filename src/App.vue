@@ -1,7 +1,9 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useAuth } from './composables/useAuth'
 import { useBanTimer } from './composables/useBanTimer'
+import { useEconomy } from './composables/useEconomy'
+import { useSects } from './composables/useSects'
 import LoginView from './views/LoginView.vue'
 import AltarView from './views/AltarView.vue'
 import PurgatoryView from './views/PurgatoryView.vue'
@@ -10,13 +12,22 @@ import KarmaShopView from './views/KarmaShopView.vue'
 import VaticanView from './views/VaticanView.vue'
 import CatacombsView from './views/CatacombsView.vue'
 import LeaderboardView from './views/LeaderboardView.vue'
+import ScriptoriumView from './views/ScriptoriumView.vue'
+import SynodHallView from './views/SynodHallView.vue'
+import ReliquaryView from './views/ReliquaryView.vue'
+import SectSelectionModal from './components/organisms/SectSelectionModal.vue'
 import iconUrl from './assets/icons/icon.png'
 
 const auth = useAuth()
 const banTimer = useBanTimer()
+const economy = useEconomy()
+const sects = useSects()
 
-// Tab navigation: Altar, Akashic, Shop, Vatican, Catacombs, Rankings
+// Tab navigation
 const currentTab = ref('altar')
+
+// Sect selection modal state
+const showSectModal = ref(false)
 
 // Determine which view to show
 const currentView = computed(() => {
@@ -24,6 +35,22 @@ const currentView = computed(() => {
   if (banTimer.isBanned) return 'purgatory'
   return currentTab.value
 })
+
+// Watch for authentication to trigger sect selection
+watch(() => auth.isAuthenticated, async (isAuth) => {
+  if (isAuth) {
+    // Fetch economy data which includes sect_type
+    await economy.fetchEconomy()
+    // If no sect selected, show modal
+    if (!economy.sectType) {
+      showSectModal.value = true
+    }
+  }
+}, { immediate: true })
+
+function onSectChosen(sectType) {
+  showSectModal.value = false
+}
 
 // Dynamic copyright year and developer email
 const currentYear = new Date().getFullYear()
@@ -53,6 +80,12 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
               &#x269C; Altar
             </button>
             <button
+              @click="currentTab = 'scriptorium'"
+              :class="currentTab === 'scriptorium' ? 'nav-tab-active' : 'nav-tab-inactive'"
+            >
+              &#x1F4D1; Scriptorium
+            </button>
+            <button
               @click="currentTab = 'akashic'"
               :class="currentTab === 'akashic' ? 'nav-tab-active' : 'nav-tab-inactive'"
             >
@@ -69,6 +102,18 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
               :class="currentTab === 'vatican' ? 'nav-tab-active' : 'nav-tab-inactive'"
             >
               &#x1F3F0; Vatican
+            </button>
+            <button
+              @click="currentTab = 'synod'"
+              :class="currentTab === 'synod' ? 'nav-tab-active' : 'nav-tab-inactive'"
+            >
+              &#x2694; Synod
+            </button>
+            <button
+              @click="currentTab = 'reliquary'"
+              :class="currentTab === 'reliquary' ? 'nav-tab-active' : 'nav-tab-inactive'"
+            >
+              &#x1F3F8; Reliquary
             </button>
             <button
               @click="currentTab = 'catacombs'"
@@ -95,11 +140,20 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
         <LoginView v-if="currentView === 'login'" />
         <PurgatoryView v-else-if="currentView === 'purgatory'" />
         <AltarView v-else-if="currentView === 'altar'" />
+        <ScriptoriumView v-else-if="currentView === 'scriptorium'" />
         <AkashicRecordsView v-else-if="currentView === 'akashic'" />
         <KarmaShopView v-else-if="currentView === 'shop'" />
         <VaticanView v-else-if="currentView === 'vatican'" />
+        <SynodHallView v-else-if="currentView === 'synod'" />
+        <ReliquaryView v-else-if="currentView === 'reliquary'" />
         <CatacombsView v-else-if="currentView === 'catacombs'" />
         <LeaderboardView v-else-if="currentView === 'rankings'" />
+
+    <!-- Sect Selection Modal (forced on first login) -->
+    <SectSelectionModal
+      :visible="showSectModal"
+      @chosen="onSectChosen"
+    />
       </div>
     </div>
     

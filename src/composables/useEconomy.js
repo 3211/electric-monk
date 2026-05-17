@@ -4,11 +4,12 @@ import { supabase } from '@/lib/supabase'
 /**
  * useEconomy Composable
  *
- * Manages the 5-resource economy state (Karma, Mana, Gold, Food, Heresy):
+ * Manages the 6-resource economy state (Karma, Mana, Gold, Food, Heresy, Dogma):
  * - Fetches player resources and buildings from get_player_economy RPC
  * - Computes daily production rates net of upkeep
  * - Provides building counts and production summaries
  * - Includes vassalage data (suzerain, vassals, tithes, shield)
+ * - Includes sect, sacred ground, synod, research, relic, indulgence data
  * - Shared state pattern so all components see the same economy data
  */
 
@@ -19,6 +20,7 @@ function createEconomyState() {
   const gold = ref(0)
   const food = ref(0)
   const heresy = ref(0)
+  const dogma = ref(0)
   const buildings = ref([])
   const dailyRates = ref({
     mana_per_day: 0,
@@ -27,6 +29,7 @@ function createEconomyState() {
     gold_upkeep_per_day: 0,
     food_consumption_per_day: 0,
     heresy_per_day: 0,
+    dogma_per_day: 0,
   })
   const gameConfig = ref({})
   const loading = ref(false)
@@ -41,6 +44,32 @@ function createEconomyState() {
   const schismCount = ref(0)
   const divineShieldUntil = ref(null)
   const heresyCap = ref(100)
+
+  // Rapture Update: Sect & Sacred Ground state
+  const sectType = ref(null)
+  const sacredAcres = ref(0)
+  const sacredAcresUsed = ref(0)
+  const sacredAcresFree = computed(() => sacredAcres.value - sacredAcresUsed.value)
+
+  // Rapture Update: Indulgences & Papal Bull state
+  const indulgences = ref(0)
+  const papalBullUntil = ref(null)
+  const papalBullActive = computed(() => {
+    if (!papalBullUntil.value) return false
+    return new Date(papalBullUntil.value) > new Date()
+  })
+
+  // Rapture Update: Synod state
+  const synodId = ref(null)
+  const synodInfo = ref(null) // { name, role, member_count, vault_gold, ... }
+
+  // Rapture Update: Research unlocks & held relics
+  const researchUnlocks = ref([]) // array of { node_id, researched_at }
+  const heldRelics = ref([]) // array of relic objects the player holds
+
+  // Rapture Update: Profile customization
+  const title = ref(null)
+  const avatarUrl = ref(null)
 
   // Computed: net production rates
   const netManaPerDay = computed(() => dailyRates.value.mana_per_day || 0)
@@ -103,6 +132,7 @@ function createEconomyState() {
     gold: '\u{1F4B0}',    // 💰
     food: '\u{1F33E}',    // 🌾
     heresy: '\u271D',     // ✝
+    dogma: '\u{1F4D1}',   // 📑
   }
 
   // Building display names and icons — 5 tiers per category
@@ -155,6 +185,7 @@ function createEconomyState() {
         gold.value = data.gold || 0
         food.value = data.food || 0
         heresy.value = data.heresy || 0
+        dogma.value = data.dogma || 0
         buildings.value = data.buildings || []
         dailyRates.value = data.daily_rates || {
           mana_per_day: 0,
@@ -163,6 +194,7 @@ function createEconomyState() {
           gold_upkeep_per_day: 0,
           food_consumption_per_day: 0,
           heresy_per_day: 0,
+          dogma_per_day: 0,
         }
         // Vassalage data from the expanded RPC
         suzerainId.value = data.suzerain_id || null
@@ -176,6 +208,22 @@ function createEconomyState() {
         if (data.daily_rates && data.daily_rates.heresy_cap !== undefined) {
           heresyCap.value = data.daily_rates.heresy_cap
         }
+        // Rapture Update: Sect & Sacred Ground
+        sectType.value = data.sect_type || null
+        sacredAcres.value = data.sacred_acres || 0
+        sacredAcresUsed.value = data.sacred_acres_used || 0
+        // Rapture Update: Indulgences & Papal Bull
+        indulgences.value = data.indulgences || 0
+        papalBullUntil.value = data.papal_bull_until || null
+        // Rapture Update: Synod
+        synodId.value = data.synod_id || null
+        synodInfo.value = data.synod || null
+        // Rapture Update: Research & Relics
+        researchUnlocks.value = data.research_unlocks || []
+        heldRelics.value = data.held_relics || []
+        // Rapture Update: Profile customization
+        title.value = data.title || null
+        avatarUrl.value = data.avatar_url || null
       }
     } catch (err) {
       error.value = err.message
@@ -208,14 +256,18 @@ function createEconomyState() {
     }
   }
 
+  // Computed: dogma per day
+  const netDogmaPerDay = computed(() => dailyRates.value.dogma_per_day || 0)
+
   /**
    * Update local resource values after a purchase or profile refresh
    */
-  function updateResources({ mana: newMana, gold: newGold, food: newFood, heresy: newHeresy }) {
+  function updateResources({ mana: newMana, gold: newGold, food: newFood, heresy: newHeresy, dogma: newDogma }) {
     if (newMana !== undefined) mana.value = newMana
     if (newGold !== undefined) gold.value = newGold
     if (newFood !== undefined) food.value = newFood
     if (newHeresy !== undefined) heresy.value = newHeresy
+    if (newDogma !== undefined) dogma.value = newDogma
   }
 
   return reactive({
@@ -223,6 +275,7 @@ function createEconomyState() {
     gold,
     food,
     heresy,
+    dogma,
     buildings,
     dailyRates,
     gameConfig,
@@ -233,6 +286,7 @@ function createEconomyState() {
     netGoldPerDay,
     netFoodPerDay,
     netHeresyPerDay,
+    netDogmaPerDay,
     buildingCounts,
     manaCap,
     goldCap,
@@ -248,6 +302,24 @@ function createEconomyState() {
     dailyTithes,
     schismCount,
     divineShieldUntil,
+    // Rapture Update: Sect & Sacred Ground
+    sectType,
+    sacredAcres,
+    sacredAcresUsed,
+    sacredAcresFree,
+    // Rapture Update: Indulgences & Papal Bull
+    indulgences,
+    papalBullUntil,
+    papalBullActive,
+    // Rapture Update: Synod
+    synodId,
+    synodInfo,
+    // Rapture Update: Research & Relics
+    researchUnlocks,
+    heldRelics,
+    // Rapture Update: Profile
+    title,
+    avatarUrl,
     // Display
     resourceEmojis,
     buildingInfo,
