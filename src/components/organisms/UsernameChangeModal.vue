@@ -4,6 +4,14 @@
       <div class="username-card glass-panel glass-panel-strong glass-gloss max-w-md w-full p-6 sm:p-8">
         <!-- Header -->
         <div class="mb-6 text-center">
+          <div class="username-avatar-shell mx-auto mb-4">
+            <img
+              src="/pfp/0.png"
+              alt="Profile picture"
+              aria-label="Current profile picture"
+              class="username-avatar-image"
+            />
+          </div>
           <h2 class="ritual-heading mb-2 text-2xl font-bold text-theme-accent">Change Username</h2>
           <p class="text-sm text-theme-text-dim">This operation costs <span class="font-bold text-theme-accent">1,000 Karma</span>.</p>
         </div>
@@ -175,6 +183,42 @@ function close() {
 .username-card {
   position: relative;
   animation: modal-rise var(--dur-enter) var(--ease-silk-settle);
+}
+
+.username-avatar-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 5.75rem;
+  height: 5.75rem;
+  padding: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(213, 154, 23, 0.24);
+  background: linear-gradient(180deg, rgba(255, 253, 246, 0.92), rgba(248, 238, 214, 0.86));
+  box-shadow: 0 18px 32px rgba(48, 38, 21, 0.1), 0 0 24px rgba(240, 182, 59, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.username-avatar-shell::before {
+  content: "";
+  position: absolute;
+  inset: -0.6rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 223, 147, 0.24) 0%, rgba(255, 223, 147, 0.08) 44%, transparent 72%);
+  filter: blur(10px);
+  z-index: 0;
+}
+
+.username-avatar-image {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  background: rgba(255, 252, 246, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 10px 20px rgba(48, 38, 21, 0.08);
 }
 
 .username-card::after {

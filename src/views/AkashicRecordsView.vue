@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div :class="activeSubTab === 'sinners' ? 'evil-shell' : ''">
     <header class="akashic-header border-b surface-divider bg-theme-panel/55 backdrop-blur-[16px]">
       <div class="app-frame py-6">
         <div class="flex flex-col gap-5">
@@ -14,27 +14,30 @@
             </div>
           </div>
 
-          <div class="segmented-shell self-start">
-            <button
-              @click="activeSubTab = 'prayers'"
-              class="pill-tab"
-              :class="activeSubTab === 'prayers' ? 'pill-tab-active' : 'pill-tab-inactive'"
-            >
-              📿 Prayers
-            </button>
-            <button
-              @click="switchToSinners"
-              class="pill-tab"
-              :class="activeSubTab === 'sinners' ? 'pill-tab-active' : 'pill-tab-inactive'"
-            >
-              😈 Sinners
-            </button>
-          </div>
         </div>
       </div>
     </header>
 
     <main class="app-frame py-8 lg:py-10">
+      <div class="mb-8 flex justify-center">
+        <div class="segmented-shell">
+          <button
+            @click="activeSubTab = 'prayers'"
+            class="pill-tab"
+            :class="activeSubTab === 'prayers' ? 'pill-tab-active' : 'pill-tab-inactive'"
+          >
+            📿 Prayers
+          </button>
+          <button
+            @click="switchToSinners"
+            class="pill-tab"
+            :class="activeSubTab === 'sinners' ? 'pill-tab-active' : 'pill-tab-inactive'"
+          >
+            😈 Sinners
+          </button>
+        </div>
+      </div>
+
       <div v-if="activeSubTab === 'prayers'" class="space-y-6">
         <div class="glass-panel glass-panel-soft glass-gloss flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <p class="text-sm text-theme-text-muted">

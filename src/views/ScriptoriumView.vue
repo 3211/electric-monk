@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div :class="activeTab === 'dark' ? 'evil-shell' : ''">
     <!-- Header -->
     <header class="border-b surface-divider bg-theme-panel/50 backdrop-blur-sm">
       <div class="app-frame py-5">
@@ -28,13 +28,15 @@
         <div class="segmented-shell">
           <button
             @click="activeTab = 'light'"
-            :class="activeTab === 'light' ? 'nav-tab-active' : 'nav-tab-inactive'"
+            class="pill-tab"
+            :class="activeTab === 'light' ? 'pill-tab-active' : 'pill-tab-inactive'"
           >
             ☀️ Scriptorium
           </button>
           <button
             @click="activeTab = 'dark'"
-            :class="activeTab === 'dark' ? 'nav-tab-active' : 'nav-tab-inactive'"
+            class="pill-tab"
+            :class="activeTab === 'dark' ? 'pill-tab-active' : 'pill-tab-inactive'"
           >
             🌑 Occult Library
           </button>
@@ -84,7 +86,6 @@
               <div class="flex items-center gap-3">
                 <div class="text-right">
                   <div class="text-sm font-medium text-amber-600">Cost: {{ node.cost }} Dogma</div>
-                  <div class="text-xs text-theme-text-muted">{{ node.effect_type }}</div>
                 </div>
                 <button
                   v-if="!isUnlocked(node.id)"
@@ -102,7 +103,7 @@
         </div>
 
         <!-- Dark Tech Tree -->
-        <div v-if="activeTab === 'dark'" class="evil-shell rounded-[var(--radius-panel)] p-6 sm:p-8 space-y-6">
+        <div v-if="activeTab === 'dark'" class="rounded-[var(--radius-panel)] p-6 sm:p-8 space-y-6">
           <div class="relative z-10">
             <div v-if="research.darkNodes.length === 0" class="text-center py-8">
               <p class="text-theme-text-muted">No occult research available yet.</p>
@@ -128,7 +129,6 @@
                 <div class="flex items-center gap-3">
                   <div class="text-right">
                     <div class="text-sm font-medium text-[#ff6bd6]">Cost: {{ node.cost }} Heresy</div>
-                    <div class="text-xs text-theme-text-muted">{{ node.effect_type }}</div>
                   </div>
                   <button
                     v-if="!isUnlocked(node.id)"

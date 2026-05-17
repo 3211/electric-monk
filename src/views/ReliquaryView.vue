@@ -82,11 +82,6 @@
             </div>
           </div>
 
-          <!-- Effect Badge -->
-          <div v-if="relic.effect_type" class="mb-4">
-            <span class="chip text-xs">{{ relic.effect_type }}: {{ formatEffect(relic.effect_data) }}</span>
-          </div>
-
           <!-- Steal Button -->
           <button
             v-if="relic.holder_id !== currentUserId"
@@ -233,17 +228,6 @@ function formatDate(dateString) {
   if (!dateString) return 'N/A'
   const date = new Date(dateString)
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-function formatEffect(effectData) {
-  if (!effectData) return ''
-  if (typeof effectData === 'string') return effectData
-  try {
-    const parsed = typeof effectData === 'string' ? JSON.parse(effectData) : effectData
-    return Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join(', ')
-  } catch {
-    return String(effectData)
-  }
 }
 
 onMounted(() => {

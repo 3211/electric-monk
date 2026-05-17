@@ -139,10 +139,6 @@
                   <span class="text-red-500">-</span>
                   <span>{{ buildingUpkeep(item.effect_data.building_type, 'gold_upkeep_per_day') }} gold upkeep/day each</span>
                 </div>
-                <div v-if="item.cost_scaling" class="flex items-center gap-1 text-theme-accent/60">
-                  <span>📈</span>
-                  <span>Cost scales with ownership</span>
-                </div>
               </div>
 
               <!-- Next cost preview for scaling items -->
@@ -227,10 +223,6 @@
                 <div v-if="buildingProduction(item.effect_data.building_type, 'food_per_day') > 0" class="flex items-center gap-1">
                   <span class="text-emerald-600">+</span>
                   <span>{{ buildingProduction(item.effect_data.building_type, 'food_per_day') }} food/day each</span>
-                </div>
-                <div v-if="item.cost_scaling" class="flex items-center gap-1 text-theme-accent/60">
-                  <span>📈</span>
-                  <span>Cost scales with ownership</span>
                 </div>
               </div>
 
@@ -320,10 +312,6 @@
                 <div v-if="buildingUpkeep(item.effect_data.building_type, 'food_consumption_per_day') > 0" class="flex items-center gap-1">
                   <span class="text-red-500">-</span>
                   <span>{{ buildingUpkeep(item.effect_data.building_type, 'food_consumption_per_day') }} food consumed/day each</span>
-                </div>
-                <div v-if="item.cost_scaling" class="flex items-center gap-1 text-theme-accent/60">
-                  <span>📈</span>
-                  <span>Cost scales with ownership</span>
                 </div>
               </div>
 

@@ -222,10 +222,6 @@ function formatNextCost(item) {
                   <span class="text-red-400">-</span>
                   <span>{{ buildingProduction('coven', 'gold_upkeep_per_day') }} gold upkeep/day each</span>
                 </div>
-                <div v-if="item.cost_scaling" class="flex items-center gap-1 text-purple-400/60">
-                  <span>&#x1F4C8;</span>
-                  <span>Cost scales with ownership</span>
-                </div>
               </div>
 
               <!-- Next cost preview for scaling items -->

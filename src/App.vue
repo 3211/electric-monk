@@ -11,15 +11,12 @@ import PurgatoryView from './views/PurgatoryView.vue'
 import AkashicRecordsView from './views/AkashicRecordsView.vue'
 import KarmaShopView from './views/KarmaShopView.vue'
 import VaticanView from './views/VaticanView.vue'
-import CatacombsView from './views/CatacombsView.vue'
 import LeaderboardView from './views/LeaderboardView.vue'
 import ScriptoriumView from './views/ScriptoriumView.vue'
 import SynodHallView from './views/SynodHallView.vue'
 import ReliquaryView from './views/ReliquaryView.vue'
 import OnboardingWizard from './components/organisms/OnboardingWizard.vue'
 import UsernameChangeModal from './components/organisms/UsernameChangeModal.vue'
-import iconUrl from './assets/icons/icon.png'
-
 const auth = useAuth()
 const banTimer = useBanTimer()
 const economy = useEconomy()
@@ -29,7 +26,7 @@ const onboarding = useOnboarding()
 // Tab navigation
 const currentTab = ref('altar')
 
-// Force evil theme — injected by child views for conditional dark mode
+// Force evil theme — injected by child views for conditional dark mode (Scriptorium, Records, Vatican)
 const forceEvilTheme = ref(false)
 provide('forceEvilTheme', forceEvilTheme)
 
@@ -43,8 +40,18 @@ const currentView = computed(() => {
   return currentTab.value
 })
 
-const evilViews = new Set(['catacombs', 'purgatory'])
+// Views that own a light/dark sub-toggle — they manage forceEvilTheme themselves.
+// All OTHER views force light mode on entry, preventing dark-mode persistence bleed.
+const toggleableViews = new Set(['scriptorium', 'akashic', 'vatican'])
+const evilViews = new Set(['purgatory'])
 const isEvilView = computed(() => evilViews.has(currentView.value) || forceEvilTheme.value)
+
+// Reset dark theme when navigating to a non-toggleable view (Altar, Shop, Synod, Reliquary, Rankings)
+watch(currentTab, (tab) => {
+  if (!toggleableViews.has(tab)) {
+    forceEvilTheme.value = false
+  }
+})
 
 // Watch for authentication to trigger onboarding
 watch(() => auth.isAuthenticated, async (isAuth) => {
@@ -76,71 +83,81 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
     <!-- Tab Navigation (only when authenticated and not banned) -->
     <nav v-if="auth.isAuthenticated && !banTimer.isBanned" class="global-nav sticky top-0 z-40 border-b backdrop-blur-[18px]">
       <div class="app-frame">
-        <div class="relative flex flex-col gap-4 py-4 md:flex-row md:items-center md:justify-between">
+        <div class="relative py-3 sm:py-4">
           <div :class="['global-nav-veil', isEvilView ? 'global-nav-veil--evil' : 'global-nav-veil--holy']"></div>
-          <div class="relative flex min-w-0 items-center gap-3 md:gap-4">
-            <div class="app-brand-mark flex h-12 w-12 items-center justify-center rounded-full border backdrop-blur-md">
-              <img :src="iconUrl" alt="Electric Monk" class="h-7 w-7 app-brand-icon" />
+          <div class="global-nav-row relative flex flex-wrap items-center gap-2 sm:gap-3">
+            <!-- Primary tabs cluster (flex-grows to consume slack) -->
+            <div class="global-nav-shell segmented-shell flex-1 min-w-0 flex flex-wrap items-center justify-start gap-1">
+              <button
+                @click="currentTab = 'altar'"
+                :class="currentTab === 'altar' ? 'nav-tab-active' : 'nav-tab-inactive'"
+              >
+                &#x269C; Altar
+              </button>
+              <button
+                @click="currentTab = 'scriptorium'"
+                :class="currentTab === 'scriptorium' ? 'nav-tab-active' : 'nav-tab-inactive'"
+              >
+                &#x1F4D1; Scriptorium
+              </button>
+              <button
+                @click="currentTab = 'akashic'"
+                :class="currentTab === 'akashic' ? 'nav-tab-active' : 'nav-tab-inactive'"
+              >
+                &#x1F4DC; Records
+              </button>
+              <button
+                @click="currentTab = 'shop'"
+                :class="currentTab === 'shop' ? 'nav-tab-active' : 'nav-tab-inactive'"
+              >
+                &#x1F6D2; Shop
+              </button>
+              <button
+                @click="currentTab = 'vatican'"
+                :class="currentTab === 'vatican' ? 'nav-tab-active' : 'nav-tab-inactive'"
+              >
+                &#x1F3F0; Vatican
+              </button>
+              <button
+                @click="currentTab = 'synod'"
+                :class="currentTab === 'synod' ? 'nav-tab-active' : 'nav-tab-inactive'"
+              >
+                &#x2694; Synod
+              </button>
+              <button
+                @click="currentTab = 'reliquary'"
+                :class="currentTab === 'reliquary' ? 'nav-tab-active' : 'nav-tab-inactive'"
+              >
+                &#x1F3F8; Reliquary
+              </button>
+              <button
+                @click="currentTab = 'rankings'"
+                :class="currentTab === 'rankings' ? 'nav-tab-active' : 'nav-tab-inactive'"
+              >
+                &#x1F3DB; Rankings
+              </button>
             </div>
-            <div class="min-w-0">
-              <span class="app-brand-title block truncate text-sm font-semibold md:text-base">The Electric Monk - Prayers As A Service</span>
+
+            <!-- Account cluster: change-username (icon) + logout (pill, matches nav buttons) -->
+            <div class="global-nav-account segmented-shell flex items-center gap-1 flex-none ml-auto">
+              <button
+                @click="showUsernameChangeModal = true"
+                class="nav-account-btn"
+                title="Change Username (costs 1000 Karma)"
+                aria-label="Change Username"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </button>
+              <button
+                @click="auth.signOut()"
+                class="nav-tab-inactive"
+                title="Logout"
+              >
+                Logout
+              </button>
             </div>
-          </div>
-          <div class="relative global-nav-shell segmented-shell w-full justify-between md:w-auto md:justify-start flex-wrap">
-            <button
-              @click="currentTab = 'altar'"
-              :class="currentTab === 'altar' ? 'nav-tab-active' : 'nav-tab-inactive'"
-            >
-              &#x269C; Altar
-            </button>
-            <button
-              @click="currentTab = 'scriptorium'"
-              :class="currentTab === 'scriptorium' ? 'nav-tab-active' : 'nav-tab-inactive'"
-            >
-              &#x1F4D1; Scriptorium
-            </button>
-            <button
-              @click="currentTab = 'akashic'"
-              :class="currentTab === 'akashic' ? 'nav-tab-active' : 'nav-tab-inactive'"
-            >
-              &#x1F4DC; Akashic
-            </button>
-            <button
-              @click="currentTab = 'shop'"
-              :class="currentTab === 'shop' ? 'nav-tab-active' : 'nav-tab-inactive'"
-            >
-              &#x1F6D2; Shop
-            </button>
-            <button
-              @click="currentTab = 'vatican'"
-              :class="currentTab === 'vatican' ? 'nav-tab-active' : 'nav-tab-inactive'"
-            >
-              &#x1F3F0; Vatican
-            </button>
-            <button
-              @click="currentTab = 'synod'"
-              :class="currentTab === 'synod' ? 'nav-tab-active' : 'nav-tab-inactive'"
-            >
-              &#x2694; Synod
-            </button>
-            <button
-              @click="currentTab = 'reliquary'"
-              :class="currentTab === 'reliquary' ? 'nav-tab-active' : 'nav-tab-inactive'"
-            >
-              &#x1F3F8; Reliquary
-            </button>
-            <button
-              @click="currentTab = 'catacombs'"
-              :class="currentTab === 'catacombs' ? 'nav-tab-active' : 'nav-tab-inactive'"
-            >
-              &#x271D; Catacombs
-            </button>
-            <button
-              @click="currentTab = 'rankings'"
-              :class="currentTab === 'rankings' ? 'nav-tab-active' : 'nav-tab-inactive'"
-            >
-              &#x1F3DB; Rankings
-            </button>
           </div>
         </div>
       </div>
@@ -167,7 +184,6 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
         <VaticanView v-else-if="currentView === 'vatican'" />
         <SynodHallView v-else-if="currentView === 'synod'" />
         <ReliquaryView v-else-if="currentView === 'reliquary'" />
-        <CatacombsView v-else-if="currentView === 'catacombs'" />
         <LeaderboardView v-else-if="currentView === 'rankings'" />
 
         <!-- Onboarding Wizard (new user flow) -->
@@ -195,7 +211,11 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
 <style scoped>
 .nav-tab-active,
 .nav-tab-inactive {
-  @apply pill-tab flex-1 md:flex-none;
+  @apply pill-tab;
+  flex: 0 0 auto;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.85rem;
 }
 
 .nav-tab-active {
@@ -206,6 +226,80 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
   @apply pill-tab-inactive;
 }
 
+.nav-account-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  color: var(--theme-text-muted);
+  background: rgba(255, 253, 248, 0.45);
+  backdrop-filter: blur(10px);
+  transition: all var(--dur-standard) var(--ease-ritual-lift);
+  flex: 0 0 auto;
+}
+
+.nav-account-btn:hover {
+  color: var(--theme-text);
+  border-color: rgba(213, 154, 23, 0.18);
+  background: rgba(255, 251, 243, 0.72);
+  transform: translateY(-1px);
+}
+
+.app-shell--evil .nav-account-btn {
+  color: #a9b6c4;
+  border-color: rgba(137, 108, 178, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.app-shell--evil .nav-account-btn:hover {
+  color: #d5ffe0;
+  border-color: rgba(126, 255, 161, 0.18);
+  background: rgba(126, 255, 161, 0.08);
+}
+
+.global-nav-row {
+  align-items: flex-start;
+}
+
+.global-nav-shell {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+.global-nav-account {
+  padding: 0.25rem;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .global-nav-row {
+    gap: 0.6rem;
+  }
+
+  .global-nav-shell {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .global-nav-account {
+    margin-left: auto;
+  }
+
+  .nav-tab-active,
+  .nav-tab-inactive {
+    padding: 0.45rem 0.7rem;
+    font-size: 0.78rem;
+    min-height: 2.25rem;
+  }
+
+  .nav-account-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+}
 .app-shell {
   transition:
     background 420ms var(--ease-ritual-lift),
@@ -228,12 +322,11 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
 .global-nav,
 .global-footer,
 .global-nav-shell,
-.app-brand-mark,
-.app-brand-icon,
-.app-brand-title,
+.global-nav-account,
 .global-footer-link,
 .nav-tab-active,
-.nav-tab-inactive {
+.nav-tab-inactive,
+.nav-account-btn {
   transition:
     background 420ms var(--ease-ritual-lift),
     border-color 420ms var(--ease-ritual-lift),
@@ -311,21 +404,8 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
   opacity: 0.95;
 }
 
-.app-brand-mark {
-  border-color: rgba(213, 154, 23, 0.25);
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow: 0 12px 24px rgba(213, 154, 23, 0.14);
-}
-
-.app-brand-icon {
-  filter: drop-shadow(0 4px 10px rgba(213, 154, 23, 0.32));
-}
-
-.app-brand-title {
-  color: var(--theme-text);
-}
-
-.global-nav-shell {
+.global-nav-shell,
+.global-nav-account {
   position: relative;
 }
 
@@ -333,25 +413,8 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
   color: var(--theme-accent);
 }
 
-.app-shell--evil .app-brand-mark {
-  border-color: rgba(206, 170, 255, 0.26);
-  background: linear-gradient(180deg, rgba(44, 35, 60, 0.82), rgba(16, 12, 24, 0.92));
-  box-shadow:
-    0 16px 32px rgba(3, 2, 10, 0.34),
-    0 0 22px rgba(177, 128, 255, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.app-shell--evil .app-brand-icon {
-  filter: grayscale(0.18) brightness(1.18) contrast(1.08) drop-shadow(0 0 12px rgba(206, 170, 255, 0.24));
-}
-
-.app-shell--evil .app-brand-title {
-  color: #eef3f7;
-  text-shadow: 0 0 18px rgba(206, 170, 255, 0.16);
-}
-
-.app-shell--evil .global-nav-shell {
+.app-shell--evil .global-nav-shell,
+.app-shell--evil .global-nav-account {
   border-color: rgba(137, 108, 178, 0.34);
   background: linear-gradient(180deg, rgba(22, 17, 31, 0.88), rgba(10, 8, 15, 0.84));
   box-shadow:

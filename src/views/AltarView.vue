@@ -45,33 +45,6 @@
               <span>🐂</span>
               <span class="font-semibold">Bull Active</span>
             </div>
-            <!-- Prayer Slots Display -->
-            <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-              <span class="font-semibold text-theme-accent">{{ prayers.activePrayerCount }}</span>
-              / {{ prayers.maxPrayerSlots }} slots
-            </div>
-            <!-- Daily Devotion Budget Counter -->
-            <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-              <span class="font-semibold text-theme-accent">{{ prayers.tokensRemaining }}</span>
-              <span>Devotion remaining</span>
-            </div>
-            <!-- Change Username Button -->
-            <button
-              @click="showUsernameChangeModal = true"
-              class="tactile-icon-btn text-theme-text-dim"
-              title="Change Username (costs 1000 Karma)"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </button>
-            <!-- Logout Button -->
-            <button
-              @click="handleLogout"
-              class="btn-ghost px-4 py-2 text-sm"
-            >
-              Logout
-            </button>
           </div>
         </div>
       </div>
@@ -428,7 +401,13 @@
             <div class="mb-5 flex flex-col items-center">
               <div class="submission-logo-shell mb-2">
                 <div class="submission-logo-halo"></div>
-                <img src="@/assets/icons/icon.png" alt="Electric Monk" class="relative z-10 h-[160px] w-[160px] drop-shadow-[0_10px_24px_rgba(213,154,23,0.18)] sm:h-[180px] sm:w-[180px]" />
+                <img
+                  src="@/assets/icons/icon.png"
+                  alt="The Electric Monk — Prayers As A Service"
+                  aria-label="The Electric Monk — Prayers As A Service. A robed mechanical monk silhouette nested inside a golden halo, the brand emblem for the application."
+                  role="img"
+                  class="relative z-10 h-[160px] w-[160px] drop-shadow-[0_10px_24px_rgba(213,154,23,0.18)] sm:h-[180px] sm:w-[180px]"
+                />
               </div>
               <p class="eyebrow-label mb-2">Invocation</p>
               <h2 class="text-center text-2xl font-semibold text-theme-text">Submit Your Prayer</h2>
@@ -462,35 +441,39 @@
                   ~{{ estimatedManaCost }} Devotion
                 </span>
               </div>
-              
-              <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p v-if="!prayers.canPray" class="text-sm text-theme-text-dim">
-                  Daily Devotion budget exhausted. Return tomorrow.
-                </p>
+
+              <!-- Send row: stacked slot / devotion chips on the left, Send Prayer pill on the right -->
+              <div class="submission-send-row mt-5 flex items-stretch gap-3">
+                <div class="submission-meta-stack flex flex-col justify-between gap-2 flex-1 min-w-0">
+                  <div class="submission-meta-chip">
+                    <span class="submission-meta-value">{{ prayers.activePrayerCount }}<span class="submission-meta-divider">/</span>{{ prayers.maxPrayerSlots }}</span>
+                    <span class="submission-meta-label">Prayer slots</span>
+                  </div>
+                  <div class="submission-meta-chip">
+                    <span class="submission-meta-value">{{ prayers.tokensRemaining }}</span>
+                    <span class="submission-meta-label">Devotion left</span>
+                  </div>
+                </div>
                 <button
                   type="submit"
                   :disabled="!prayerContent.trim() || !prayers.canPray || !prayers.canSubmitPrayer || prayers.loading || prayerContent.length > maxPrayerChars"
-                  class="btn-primary w-full sm:w-auto"
+                  class="btn-primary submission-send-btn"
                 >
                   <span class="relative z-10 font-medium">
                     {{ prayers.loading ? 'Submitting...' : 'Send Prayer' }}
                   </span>
                 </button>
               </div>
+
+              <p v-if="!prayers.canPray" class="mt-3 text-center text-sm text-theme-text-dim">
+                Daily Devotion budget exhausted. Return tomorrow.
+              </p>
             </form>
           </div>
         </aside>
       </div>
 
     </main>
-
-    <!-- Username Change Modal -->
-    <UsernameChangeModal
-      v-model="showUsernameChangeModal"
-      :current-username="prayers.username"
-      :karma-balance="prayers.karma"
-      @changed="onUsernameChanged"
-    />
 
     <!-- Aether Processing Modal -->
     <Teleport to="body">
@@ -603,11 +586,9 @@
 import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 import { usePrayers } from '@/composables/usePrayers'
 import { usePrayerCounter } from '@/composables/usePrayerCounter'
-import { useAuth } from '@/composables/useAuth'
 import { useBanTimer } from '@/composables/useBanTimer'
 import { useEconomy } from '@/composables/useEconomy'
 import KarmaToast from '@/components/molecules/KarmaToast.vue'
-import UsernameChangeModal from '@/components/organisms/UsernameChangeModal.vue'
 import PrayerHistoryModal from '@/components/organisms/PrayerHistoryModal.vue'
 
 // Environment variable for max prayer characters
@@ -618,12 +599,10 @@ const manaRatio = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5', 10)
 const forceEvilTheme = inject('forceEvilTheme', ref(false))
 
 const prayers = usePrayers()
-const auth = useAuth()
 const banTimer = useBanTimer()
 const economy = useEconomy()
 
 const prayerContent = ref('')
-const showUsernameChangeModal = ref(false)
 const counterAnimating = ref(false)
 const showHistoryModal = ref(null) // null | 'inactive' | 'archived'
 const selectedPrayerId = ref(null) // Which active prayer card is selected
@@ -815,16 +794,6 @@ async function handleSubmit() {
   }
 }
 
-function onUsernameChanged() {
-  // Refresh profile data after username change
-  prayers.fetchProfile()
-  economy.fetchEconomy()
-}
-
-async function handleLogout() {
-  await auth.signOut()
-}
-
 async function handleArchive(prayerId) {
   if (confirm('Archive this prayer? It will be hidden but retained.')) {
     await prayers.archivePrayer(prayerId)
@@ -966,6 +935,70 @@ async function handleAetherContinue() {
   inset: 0;
   pointer-events: none;
   background: radial-gradient(circle at top center, rgba(255, 223, 147, 0.12), transparent 42%);
+}
+
+.submission-send-row {
+  align-items: stretch;
+}
+
+.submission-send-btn {
+  flex: 0 0 auto;
+  align-self: stretch;
+  min-width: 11rem;
+  padding-block: 0;
+}
+
+.submission-meta-stack {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+.submission-meta-chip {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex: 1 1 0%;
+  min-height: 0;
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-chip);
+  border: 1px solid rgba(213, 154, 23, 0.18);
+  background: linear-gradient(180deg, rgba(255, 251, 240, 0.92), rgba(248, 232, 194, 0.74));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 8px 16px rgba(48, 38, 21, 0.06);
+}
+
+.submission-meta-value {
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--theme-accent-dark);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.submission-meta-divider {
+  margin: 0 0.15rem;
+  color: var(--theme-text-muted);
+  font-weight: 500;
+}
+
+.submission-meta-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--theme-text-muted);
+  white-space: nowrap;
+}
+
+.app-shell--evil .submission-meta-chip {
+  border-color: rgba(206, 170, 255, 0.22);
+  background: linear-gradient(180deg, rgba(38, 25, 56, 0.92), rgba(20, 13, 32, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 10px 22px rgba(3, 2, 10, 0.32);
+}
+
+.app-shell--evil .submission-meta-value {
+  color: var(--theme-accent-light);
 }
 
 .submission-logo-shell {
