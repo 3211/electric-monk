@@ -7,14 +7,15 @@ import { useEconomy } from './useEconomy'
  * useShop Composable
  *
  * Manages the Karma Shop state and purchase flow:
- * - Active tab state (real_estate, workforce, infrastructure, blessings, etc.)
+ * - Active tab state (mana, food, workforce, infrastructure, blessings)
  * - Shop item fetching from server-authoritative shop_items table
  * - Purchase flow via purchase_shop_item RPC
  * - Player building ownership tracking
- * - Can-purchase validation against karma balance and limits
+ * - Cost scaling: base_cost * 1.15^owned (deflationary)
+ * - Tier prerequisite checking (must own previous tier)
  */
 export function useShop() {
-  const activeTab = ref('real_estate')
+  const activeTab = ref('mana')
   const shopItems = ref([])
   const playerBuildings = ref([])
   const purchasing = ref(false)
@@ -37,19 +38,25 @@ export function useShop() {
     return groups
   })
 
-  // Computed: real estate items
-  const realEstateItems = computed(() => {
-    return (itemsByCategory.value['real_estate'] || [])
+  // Computed: mana estate items (sorted by sort_order)
+  const manaItems = computed(() => {
+    return (itemsByCategory.value['mana'] || [])
       .sort((a, b) => a.sort_order - b.sort_order)
   })
 
-  // Computed: workforce items
+  // Computed: food estate items (sorted by sort_order)
+  const foodItems = computed(() => {
+    return (itemsByCategory.value['food'] || [])
+      .sort((a, b) => a.sort_order - b.sort_order)
+  })
+
+  // Computed: workforce items (sorted by sort_order)
   const workforceItems = computed(() => {
     return (itemsByCategory.value['workforce'] || [])
       .sort((a, b) => a.sort_order - b.sort_order)
   })
 
-  // Computed: infrastructure items
+  // Computed: infrastructure items (sorted by sort_order)
   const infrastructureItems = computed(() => {
     return (itemsByCategory.value['infrastructure'] || [])
       .sort((a, b) => a.sort_order - b.sort_order)
@@ -66,16 +73,41 @@ export function useShop() {
     return counts
   })
 
-  // Computed: count how many of a specific item the player has purchased
+  // Computed: count how many of a specific building type the player owns
+  function ownedCount(buildingType) {
+    return playerBuildings.value.filter(b => b.building_type === buildingType && b.is_active).length
+  }
+
+  // Computed: count how many times a specific shop item was purchased
   function purchasedCount(itemId) {
     return playerBuildings.value.filter(b => b.purchased_with === itemId).length
   }
 
-  // Computed: check if player can afford and is allowed to purchase an item
+  /**
+   * Calculate the actual (scaled) cost for an item.
+   * For stacking buildings: base_cost * 1.15^owned
+   * For fixed-cost items (prayer slots): just the base cost
+   */
+  function scaledCost(item) {
+    if (!item) return 0
+    if (!item.cost_scaling) return item.karma_cost
+
+    const buildingType = item.effect_data?.building_type
+    if (!buildingType) return item.karma_cost
+
+    const count = ownedCount(buildingType)
+    const multiplier = economy.gameConfig['shop.cost_scaling_multiplier'] || 1.15
+    return Math.floor(item.karma_cost * Math.pow(multiplier, count))
+  }
+
+  /**
+   * Check if a player can purchase an item.
+   * Validates: karma balance, prerequisites, and that the item is active.
+   */
   function canPurchase(item) {
     if (!item || !item.is_active) return false
-    if (prayers.karma < item.karma_cost) return false
-    if (item.purchase_limit !== null && purchasedCount(item.id) >= item.purchase_limit) return false
+    const cost = scaledCost(item)
+    if (prayers.karma < cost) return false
     if (item.requires_building) {
       const counts = buildingCounts.value
       if (!counts[item.requires_building] || counts[item.requires_building] === 0) return false
@@ -83,11 +115,13 @@ export function useShop() {
     return true
   }
 
-  // Computed: check if an item is at its purchase limit
-  function isAtLimit(item) {
-    if (!item) return false
-    if (item.purchase_limit !== null && purchasedCount(item.id) >= item.purchase_limit) return true
-    return false
+  /**
+   * Check if a player meets the prerequisite for an item.
+   */
+  function hasPrerequisite(item) {
+    if (!item || !item.requires_building) return true
+    const counts = buildingCounts.value
+    return counts[item.requires_building] && counts[item.requires_building] > 0
   }
 
   /**
@@ -136,7 +170,7 @@ export function useShop() {
 
   /**
    * Purchase a shop item via RPC
-   * Atomically validates cost, deducts karma, applies effect
+   * Server handles cost scaling and validation atomically
    */
   async function purchaseItem(itemId) {
     try {
@@ -192,13 +226,16 @@ export function useShop() {
     lastPurchase,
     loading,
     itemsByCategory,
-    realEstateItems,
+    manaItems,
+    foodItems,
     workforceItems,
     infrastructureItems,
     buildingCounts,
+    ownedCount,
     purchasedCount,
+    scaledCost,
     canPurchase,
-    isAtLimit,
+    hasPrerequisite,
     fetchShopItems,
     fetchPlayerBuildings,
     purchaseItem,

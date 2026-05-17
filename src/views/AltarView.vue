@@ -18,7 +18,7 @@
               <span>Mana: <span class="font-semibold text-blue-400">{{ economy.mana }}</span><span class="text-theme-text-muted">/{{ economy.manaCap }}</span></span>
             </div>
             <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-              <span class="text-lg">&#x1FA99;</span>
+              <span class="text-lg">&#x1F4B0;</span>
               <span>Gold: <span class="font-semibold text-yellow-500">{{ economy.gold }}</span><span class="text-theme-text-muted">/{{ economy.goldCap }}</span></span>
             </div>
             <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">

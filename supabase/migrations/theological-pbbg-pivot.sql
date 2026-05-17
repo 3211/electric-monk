@@ -1,14 +1,16 @@
 -- =====================================================
 -- ELECTRIC MONK - THEOLOGICAL PBBG PIVOT (THE GREAT SCHISM)
--- Migration Version: 5.0
+-- Migration Version: 6.0 — Idle-Game Tier System
 -- Date: 2026-05-17
 --
 -- Adds: 4-resource economy (Karma, Mana, Gold, Food)
 --       game_config table (centralized balance values)
 --       shop_items table (server-authoritative catalog)
---       player_buildings table (building ownership)
+--       player_buildings table (building ownership, stacking)
 --       Resource generation + upkeep in cron heartbeat
---       Starting assets: Shrine, Garden, Worker
+--       Starting assets: Altar, Pot, Novice
+--       Cost scaling: base_cost * 1.15^owned (deflationary)
+--       5-tier progression per category with prerequisites
 --
 -- PASTE THIS ENTIRE SCRIPT INTO SUPABASE SQL EDITOR
 -- Run it as a single transaction
@@ -37,26 +39,41 @@ CREATE POLICY "Game config is publicly readable" ON game_config
 -- ============================================
 -- 2. SEED game_config WITH DEFAULT VALUES
 -- ============================================
--- Using ON CONFLICT DO UPDATE for idempotency
+-- Clear old building config entries (safe to re-run)
+DELETE FROM game_config WHERE key LIKE 'building.%';
+DELETE FROM game_config WHERE key = 'shop.cost_scaling_multiplier';
 
 INSERT INTO game_config (key, value, description, category) VALUES
-  -- Building production rates
-  ('building.shrine.mana_per_day', 5, 'Mana generated per day by a Shrine', 'production'),
-  ('building.garden.food_per_day', 3, 'Food generated per day by a Garden', 'production'),
-  ('building.worker.gold_per_day', 2, 'Gold generated per day by a Worker', 'production'),
-  ('building.temple.mana_per_day', 10, 'Mana generated per day by a Temple', 'production'),
-  ('building.church.mana_per_day', 30, 'Mana generated per day by a Church', 'production'),
-  -- Building upkeep costs
-  ('building.shrine.gold_upkeep_per_day', 0, 'Gold upkeep per day for a Shrine', 'upkeep'),
-  ('building.shrine.food_consumption_per_day', 0, 'Food consumed per day by a Shrine', 'upkeep'),
-  ('building.garden.gold_upkeep_per_day', 0, 'Gold upkeep per day for a Garden', 'upkeep'),
-  ('building.garden.food_consumption_per_day', 0, 'Food consumed per day by a Garden', 'upkeep'),
-  ('building.worker.gold_upkeep_per_day', 0, 'Gold upkeep per day for a Worker', 'upkeep'),
-  ('building.worker.food_consumption_per_day', 1, 'Food consumed per day by a Worker', 'upkeep'),
+  -- Mana Estate production rates
+  ('building.altar.mana_per_day', 5, 'Mana generated per day by an Altar', 'production'),
+  ('building.shrine.mana_per_day', 12, 'Mana generated per day by a Shrine', 'production'),
+  ('building.temple.mana_per_day', 30, 'Mana generated per day by a Temple', 'production'),
+  ('building.church.mana_per_day', 80, 'Mana generated per day by a Church', 'production'),
+  ('building.cathedral.mana_per_day', 200, 'Mana generated per day by a Cathedral', 'production'),
+  -- Food Estate production rates
+  ('building.pot.food_per_day', 3, 'Food generated per day by a Pot', 'production'),
+  ('building.patch.food_per_day', 8, 'Food generated per day by a Patch', 'production'),
+  ('building.garden.food_per_day', 20, 'Food generated per day by a Garden', 'production'),
+  ('building.field.food_per_day', 55, 'Food generated per day by a Field', 'production'),
+  ('building.farm.food_per_day', 150, 'Food generated per day by a Farm', 'production'),
+  -- Workforce production rates (Gold)
+  ('building.novice.gold_per_day', 2, 'Gold generated per day by a Novice', 'production'),
+  ('building.monk.gold_per_day', 5, 'Gold generated per day by a Monk', 'production'),
+  ('building.cleric.gold_per_day', 14, 'Gold generated per day by a Cleric', 'production'),
+  ('building.bishop.gold_per_day', 40, 'Gold generated per day by a Bishop', 'production'),
+  ('building.cardinal.gold_per_day', 100, 'Gold generated per day by a Cardinal', 'production'),
+  -- Mana Estate upkeep (higher tiers cost gold)
   ('building.temple.gold_upkeep_per_day', 1, 'Gold upkeep per day for a Temple', 'upkeep'),
-  ('building.temple.food_consumption_per_day', 0, 'Food consumed per day by a Temple', 'upkeep'),
   ('building.church.gold_upkeep_per_day', 2, 'Gold upkeep per day for a Church', 'upkeep'),
-  ('building.church.food_consumption_per_day', 0, 'Food consumed per day by a Church', 'upkeep'),
+  ('building.cathedral.gold_upkeep_per_day', 5, 'Gold upkeep per day for a Cathedral', 'upkeep'),
+  -- Workforce upkeep (all workers consume food)
+  ('building.novice.food_consumption_per_day', 1, 'Food consumed per day by a Novice', 'upkeep'),
+  ('building.monk.food_consumption_per_day', 2, 'Food consumed per day by a Monk', 'upkeep'),
+  ('building.cleric.food_consumption_per_day', 4, 'Food consumed per day by a Cleric', 'upkeep'),
+  ('building.bishop.food_consumption_per_day', 8, 'Food consumed per day by a Bishop', 'upkeep'),
+  ('building.cardinal.food_consumption_per_day', 15, 'Food consumed per day by a Cardinal', 'upkeep'),
+  -- Shop cost scaling
+  ('shop.cost_scaling_multiplier', 1.15, 'Cost scaling multiplier per owned building (exponential)', 'shop'),
   -- Resource caps (multiplier of daily production, 0 = uncapped)
   ('cap.mana_multiplier', 10, 'Mana cap = total_daily_mana * this multiplier', 'caps'),
   ('cap.gold_multiplier', 10, 'Gold cap = total_daily_gold * this multiplier', 'caps'),
@@ -90,8 +107,20 @@ CREATE TABLE IF NOT EXISTS shop_items (
   requires_building TEXT,
   sort_order INT DEFAULT 0,
   is_active BOOLEAN DEFAULT true,
+  cost_scaling BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Add cost_scaling column if it doesn't exist (migration safety)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'shop_items' AND column_name = 'cost_scaling'
+  ) THEN
+    ALTER TABLE shop_items ADD COLUMN cost_scaling BOOLEAN DEFAULT false;
+  END IF;
+END $$;
 
 -- RLS: anyone authenticated can read, only service_role can write
 ALTER TABLE shop_items ENABLE ROW LEVEL SECURITY;
@@ -100,29 +129,43 @@ CREATE POLICY "Shop items are publicly readable" ON shop_items
   FOR SELECT USING (true);
 
 -- ============================================
--- 4. SEED shop_items WITH INITIAL CATALOG
+-- 4. SEED shop_items WITH TIER CATALOG
 -- ============================================
+-- 5 tiers per category, stacking buildings with cost scaling.
+-- Prices shown are BASE costs; actual cost = base * 1.15^owned.
 
-INSERT INTO shop_items (id, category, name, description, emoji_icon, karma_cost, effect_type, effect_data, purchase_limit, requires_building, sort_order, is_active) VALUES
-  -- REAL ESTATE: Gardens
-  ('garden-2', 'real_estate', 'Second Garden', 'Grow more food to sustain additional workers.', 'garden', 200, 'add_building', '{"building_type": "garden"}'::jsonb, NULL, NULL, 1, true),
-  ('garden-3', 'real_estate', 'Third Garden', 'A thriving agricultural operation.', 'garden', 600, 'add_building', '{"building_type": "garden"}'::jsonb, NULL, NULL, 2, true),
-  ('garden-4', 'real_estate', 'Fourth Garden', 'Food security for a growing congregation.', 'garden', 1800, 'add_building', '{"building_type": "garden"}'::jsonb, NULL, NULL, 3, true),
-  -- REAL ESTATE: Temples
-  ('temple-1', 'real_estate', 'Temple', 'A proper temple generating mana. Requires gold upkeep.', 'temple', 500, 'add_building', '{"building_type": "temple"}'::jsonb, NULL, NULL, 4, true),
-  ('temple-2', 'real_estate', 'Second Temple', 'Expand your spiritual dominion with another temple.', 'temple', 1500, 'add_building', '{"building_type": "temple"}'::jsonb, NULL, NULL, 5, true),
-  ('temple-3', 'real_estate', 'Third Temple', 'A sprawling estate of devotion.', 'temple', 4000, 'add_building', '{"building_type": "temple"}'::jsonb, NULL, NULL, 6, true),
-  -- REAL ESTATE: Church Upgrade
-  ('church-upgrade', 'real_estate', 'Upgrade to Church', 'Elevate a Temple into a Church for triple mana output.', 'church', 2000, 'upgrade_building', '{"from_type": "temple", "to_type": "church"}'::jsonb, NULL, 'temple', 7, true),
-  -- WORKFORCE: Workers
-  ('worker-2', 'workforce', 'Second Worker', 'Another devoted worker generating gold. Consumes food.', 'worker', 300, 'add_building', '{"building_type": "worker"}'::jsonb, NULL, NULL, 10, true),
-  ('worker-3', 'workforce', 'Third Worker', 'A growing labor force for your congregation.', 'worker', 900, 'add_building', '{"building_type": "worker"}'::jsonb, NULL, NULL, 11, true),
-  ('worker-4', 'workforce', 'Fourth Worker', 'A small army of devoted workers.', 'worker', 2700, 'add_building', '{"building_type": "worker"}'::jsonb, NULL, NULL, 12, true),
-  -- INFRASTRUCTURE: Prayer Slots
-  ('prayer-slot-2', 'infrastructure', 'Second Prayer Slot', 'Pray two prayers simultaneously.', 'prayer-slot', 100, 'add_prayer_slot', '{"slots_to_add": 1, "daily_devotion_bonus": 100}'::jsonb, NULL, NULL, 20, true),
-  ('prayer-slot-3', 'infrastructure', 'Third Prayer Slot', 'The truly devoted can pray three prayers at once.', 'prayer-slot', 300, 'add_prayer_slot', '{"slots_to_add": 1, "daily_devotion_bonus": 100}'::jsonb, NULL, NULL, 21, true),
-  ('prayer-slot-4', 'infrastructure', 'Fourth Prayer Slot', 'Four simultaneous prayers. A holy multitasker.', 'prayer-slot', 800, 'add_prayer_slot', '{"slots_to_add": 1, "daily_devotion_bonus": 100}'::jsonb, NULL, NULL, 22, true),
-  ('prayer-slot-5', 'infrastructure', 'Fifth Prayer Slot', 'Five prayers at once. Divine concurrency.', 'prayer-slot', 2000, 'add_prayer_slot', '{"slots_to_add": 1, "daily_devotion_bonus": 100}'::jsonb, NULL, NULL, 23, true)
+-- Remove old catalog items
+DELETE FROM shop_items WHERE id IN (
+  'garden-2', 'garden-3', 'garden-4',
+  'temple-1', 'temple-2', 'temple-3',
+  'church-upgrade',
+  'worker-2', 'worker-3', 'worker-4'
+);
+
+INSERT INTO shop_items (id, category, name, description, emoji_icon, karma_cost, effect_type, effect_data, purchase_limit, requires_building, sort_order, is_active, cost_scaling) VALUES
+  -- ======= MANA ESTATES (5 tiers) =======
+  ('altar', 'mana', 'Altar', 'A humble altar where devotion begins. Generates Mana.', '🕯️', 10, 'add_building', '{"building_type": "altar"}'::jsonb, NULL, NULL, 1, true, true),
+  ('shrine', 'mana', 'Shrine', 'A shrine channeling greater spiritual energy. Generates more Mana.', '⛩️', 50, 'add_building', '{"building_type": "shrine"}'::jsonb, NULL, 'altar', 2, true, true),
+  ('temple', 'mana', 'Temple', 'A grand temple of devotion. Generates significant Mana. Requires gold upkeep.', '🏛️', 250, 'add_building', '{"building_type": "temple"}'::jsonb, NULL, 'shrine', 3, true, true),
+  ('church', 'mana', 'Church', 'A holy church radiating divine power. Generates abundant Mana. Requires gold upkeep.', '⛪', 1200, 'add_building', '{"building_type": "church"}'::jsonb, NULL, 'temple', 4, true, true),
+  ('cathedral', 'mana', 'Cathedral', 'A towering cathedral, pinnacle of spiritual architecture. Requires gold upkeep.', '🏰', 6000, 'add_building', '{"building_type": "cathedral"}'::jsonb, NULL, 'church', 5, true, true),
+  -- ======= FOOD ESTATES (5 tiers) =======
+  ('pot', 'food', 'Pot', 'A simple pot for brewing sustenance. Generates Food.', '🍲', 10, 'add_building', '{"building_type": "pot"}'::jsonb, NULL, NULL, 11, true, true),
+  ('patch', 'food', 'Patch', 'A garden patch for growing crops. Generates more Food.', '🌱', 50, 'add_building', '{"building_type": "patch"}'::jsonb, NULL, 'pot', 12, true, true),
+  ('garden', 'food', 'Garden', 'A lush garden of plenty. Generates significant Food.', '🌾', 250, 'add_building', '{"building_type": "garden"}'::jsonb, NULL, 'patch', 13, true, true),
+  ('field', 'food', 'Field', 'A sprawling field of golden grain. Generates abundant Food.', '🌻', 1200, 'add_building', '{"building_type": "field"}'::jsonb, NULL, 'garden', 14, true, true),
+  ('farm', 'food', 'Farm', 'A grand farm estate, pinnacle of agricultural mastery.', '🏡', 6000, 'add_building', '{"building_type": "farm"}'::jsonb, NULL, 'field', 15, true, true),
+  -- ======= WORKFORCE (5 tiers) =======
+  ('novice', 'workforce', 'Novice', 'A novice devotee learning the ways. Generates Gold, consumes Food.', '🙏', 15, 'add_building', '{"building_type": "novice"}'::jsonb, NULL, NULL, 21, true, true),
+  ('monk', 'workforce', 'Monk', 'A disciplined monk. Generates more Gold, consumes more Food.', '🧘', 75, 'add_building', '{"building_type": "monk"}'::jsonb, NULL, 'novice', 22, true, true),
+  ('cleric', 'workforce', 'Cleric', 'A powerful cleric channeling divine wealth. Generates significant Gold.', '🧙', 400, 'add_building', '{"building_type": "cleric"}'::jsonb, NULL, 'monk', 23, true, true),
+  ('bishop', 'workforce', 'Bishop', 'A bishop commanding vast resources. Generates abundant Gold.', '👑', 2000, 'add_building', '{"building_type": "bishop"}'::jsonb, NULL, 'cleric', 24, true, true),
+  ('cardinal', 'workforce', 'Cardinal', 'A cardinal, highest authority in the divine hierarchy. Generates immense Gold.', '⭐', 10000, 'add_building', '{"building_type": "cardinal"}'::jsonb, NULL, 'bishop', 25, true, true),
+  -- ======= INFRASTRUCTURE: Prayer Slots (fixed cost, no scaling) =======
+  ('prayer-slot-2', 'infrastructure', 'Second Prayer Slot', 'Pray two prayers simultaneously. +100 Devotion per day.', '🙏', 100, 'add_prayer_slot', '{"slots_to_add": 1, "daily_devotion_bonus": 100}'::jsonb, NULL, NULL, 31, true, false),
+  ('prayer-slot-3', 'infrastructure', 'Third Prayer Slot', 'The truly devoted can pray three prayers at once. +100 Devotion per day.', '🙏', 300, 'add_prayer_slot', '{"slots_to_add": 1, "daily_devotion_bonus": 100}'::jsonb, NULL, NULL, 32, true, false),
+  ('prayer-slot-4', 'infrastructure', 'Fourth Prayer Slot', 'Four simultaneous prayers. A holy multitasker. +100 Devotion per day.', '🙏', 800, 'add_prayer_slot', '{"slots_to_add": 1, "daily_devotion_bonus": 100}'::jsonb, NULL, NULL, 33, true, false),
+  ('prayer-slot-5', 'infrastructure', 'Fifth Prayer Slot', 'Five prayers at once. Divine concurrency. +100 Devotion per day.', '🙏', 2000, 'add_prayer_slot', '{"slots_to_add": 1, "daily_devotion_bonus": 100}'::jsonb, NULL, NULL, 34, true, false)
 ON CONFLICT (id) DO UPDATE SET
   category = EXCLUDED.category,
   name = EXCLUDED.name,
@@ -134,12 +177,14 @@ ON CONFLICT (id) DO UPDATE SET
   purchase_limit = EXCLUDED.purchase_limit,
   requires_building = EXCLUDED.requires_building,
   sort_order = EXCLUDED.sort_order,
-  is_active = EXCLUDED.is_active;
+  is_active = EXCLUDED.is_active,
+  cost_scaling = EXCLUDED.cost_scaling;
 
 -- ============================================
 -- 5. CREATE player_buildings TABLE
 -- ============================================
 -- Tracks building ownership per player.
+-- Buildings STACK: multiple Pots = multiple food production.
 -- Production rates come from game_config, NOT from this table.
 
 CREATE TABLE IF NOT EXISTS player_buildings (
@@ -170,10 +215,11 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS gold INT DEFAULT 0;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS food INT DEFAULT 0;
 
 -- ============================================
--- 7. RPC: purchase_shop_item
+-- 7. RPC: purchase_shop_item (with cost scaling)
 -- ============================================
 -- Atomic purchase that validates cost, deducts karma, applies effect.
--- Production rates are read from game_config at effect time.
+-- For stacking buildings: actual cost = base_cost * multiplier^owned_count
+-- For prayer slots: cost is fixed (no scaling)
 
 CREATE OR REPLACE FUNCTION purchase_shop_item(p_item_id TEXT)
 RETURNS JSONB AS $$
@@ -181,11 +227,11 @@ DECLARE
     v_user_id UUID := auth.uid();
     v_item RECORD;
     v_user_karma INT;
-    v_purchase_count INT;
-    v_building_count INT;
+    v_actual_cost INT;
+    v_owned_count INT;
     v_effect_building_type TEXT;
-    v_effect_from_type TEXT;
-    v_effect_to_type TEXT;
+    v_building_count INT;
+    v_scaling_multiplier NUMERIC;
     v_new_max_slots INT;
     v_new_daily_limit INT;
 BEGIN
@@ -195,23 +241,33 @@ BEGIN
         RAISE EXCEPTION 'Shop item not found or inactive';
     END IF;
 
-    -- Check karma balance
+    -- Calculate actual cost (with scaling for buildings)
+    IF v_item.cost_scaling AND v_item.effect_type = 'add_building' THEN
+        -- Get building type from effect_data
+        v_effect_building_type := v_item.effect_data->>'building_type';
+
+        -- Count how many of this building type the player already owns
+        SELECT COUNT(*)::INT INTO v_owned_count
+        FROM player_buildings
+        WHERE user_id = v_user_id AND building_type = v_effect_building_type AND is_active = true;
+
+        -- Get scaling multiplier from game_config
+        SELECT value INTO v_scaling_multiplier FROM game_config WHERE key = 'shop.cost_scaling_multiplier';
+        IF v_scaling_multiplier IS NULL THEN v_scaling_multiplier := 1.15; END IF;
+
+        -- Calculate: base_cost * multiplier^owned
+        v_actual_cost := FLOOR(v_item.karma_cost * POWER(v_scaling_multiplier, v_owned_count))::INT;
+    ELSE
+        v_actual_cost := v_item.karma_cost;
+    END IF;
+
+    -- Check karma balance against actual cost
     SELECT karma INTO v_user_karma FROM profiles WHERE id = v_user_id;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Profile not found';
     END IF;
-    IF v_user_karma < v_item.karma_cost THEN
-        RAISE EXCEPTION 'Insufficient karma. You have % but need %.', v_user_karma, v_item.karma_cost;
-    END IF;
-
-    -- Check purchase limit
-    IF v_item.purchase_limit IS NOT NULL THEN
-        SELECT COUNT(*)::INT INTO v_purchase_count
-        FROM player_buildings
-        WHERE user_id = v_user_id AND purchased_with = p_item_id;
-        IF v_purchase_count >= v_item.purchase_limit THEN
-            RAISE EXCEPTION 'Purchase limit reached for this item';
-        END IF;
+    IF v_user_karma < v_actual_cost THEN
+        RAISE EXCEPTION 'Insufficient karma. You have % but need %.', v_user_karma, v_actual_cost;
     END IF;
 
     -- Check building prerequisite
@@ -224,8 +280,8 @@ BEGIN
         END IF;
     END IF;
 
-    -- Deduct karma
-    UPDATE profiles SET karma = karma - v_item.karma_cost, updated_at = now()
+    -- Deduct actual cost
+    UPDATE profiles SET karma = karma - v_actual_cost, updated_at = now()
     WHERE id = v_user_id;
 
     -- Apply effect based on type
@@ -234,21 +290,6 @@ BEGIN
             v_effect_building_type := v_item.effect_data->>'building_type';
             INSERT INTO player_buildings (user_id, building_type, is_active, purchased_with)
             VALUES (v_user_id, v_effect_building_type, true, v_item.id);
-
-        WHEN 'upgrade_building' THEN
-            v_effect_from_type := v_item.effect_data->>'from_type';
-            v_effect_to_type := v_item.effect_data->>'to_type';
-            -- Upgrade the OLDEST building of the required type (FIFO)
-            UPDATE player_buildings
-            SET building_type = v_effect_to_type
-            WHERE id = (
-                SELECT id FROM player_buildings
-                WHERE user_id = v_user_id
-                  AND building_type = v_effect_from_type
-                  AND is_active = true
-                ORDER BY purchased_at ASC
-                LIMIT 1
-            );
 
         WHEN 'add_prayer_slot' THEN
             UPDATE profiles
@@ -265,7 +306,7 @@ BEGIN
     RETURN jsonb_build_object(
         'success', true,
         'item_id', p_item_id,
-        'karma_spent', v_item.karma_cost,
+        'karma_spent', v_actual_cost,
         'new_karma', (SELECT karma FROM profiles WHERE id = v_user_id),
         'new_mana', (SELECT mana FROM profiles WHERE id = v_user_id),
         'new_gold', (SELECT gold FROM profiles WHERE id = v_user_id),
@@ -278,7 +319,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ============================================
 -- 8. RPC: get_leaderboard
 -- ============================================
--- Returns top 100 players sorted by karma (primary) and mana (secondary).
 
 CREATE OR REPLACE FUNCTION get_leaderboard(
     p_offset INT DEFAULT 0,
@@ -551,41 +591,36 @@ BEGIN
     VALUES (NEW.id, NEW.email)
     ON CONFLICT (id) DO NOTHING;
 
-    -- Grant starting buildings: Shrine, Garden, Worker
+    -- Grant starting buildings: Altar, Pot, Novice
     INSERT INTO public.player_buildings (user_id, building_type, is_active, purchased_with) VALUES
-        (NEW.id, 'shrine', true, 'starting-shrine'),
-        (NEW.id, 'garden', true, 'starting-garden'),
-        (NEW.id, 'worker', true, 'starting-worker');
+        (NEW.id, 'altar', true, 'starting-altar'),
+        (NEW.id, 'pot', true, 'starting-pot'),
+        (NEW.id, 'novice', true, 'starting-novice');
 
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ============================================
--- 12. BACKFILL: Grant starting buildings to existing users
+-- 12. BACKFILL: Reset buildings and grant new starting assets
 -- ============================================
--- Only inserts if the user doesn't already have that building type.
+-- Clean slate: remove all old buildings, grant new starting set.
+
+-- Remove all existing buildings (old system used shrine/garden/worker/temple/church)
+TRUNCATE player_buildings;
+
+-- Grant starting buildings to all existing users
+INSERT INTO player_buildings (user_id, building_type, is_active, purchased_with)
+SELECT p.id, 'altar', true, 'starting-altar'
+FROM profiles p;
 
 INSERT INTO player_buildings (user_id, building_type, is_active, purchased_with)
-SELECT p.id, 'shrine', true, 'starting-shrine'
-FROM profiles p
-WHERE NOT EXISTS (
-    SELECT 1 FROM player_buildings pb WHERE pb.user_id = p.id AND pb.building_type = 'shrine'
-);
+SELECT p.id, 'pot', true, 'starting-pot'
+FROM profiles p;
 
 INSERT INTO player_buildings (user_id, building_type, is_active, purchased_with)
-SELECT p.id, 'garden', true, 'starting-garden'
-FROM profiles p
-WHERE NOT EXISTS (
-    SELECT 1 FROM player_buildings pb WHERE pb.user_id = p.id AND pb.building_type = 'garden'
-);
-
-INSERT INTO player_buildings (user_id, building_type, is_active, purchased_with)
-SELECT p.id, 'worker', true, 'starting-worker'
-FROM profiles p
-WHERE NOT EXISTS (
-    SELECT 1 FROM player_buildings pb WHERE pb.user_id = p.id AND pb.building_type = 'worker'
-);
+SELECT p.id, 'novice', true, 'starting-novice'
+FROM profiles p;
 
 -- ============================================
 -- 13. GRANT PERMISSIONS
@@ -616,8 +651,6 @@ GRANT EXECUTE ON FUNCTION calculate_automated_karma() TO service_role;
 -- ============================================
 -- 13b. FIX: Replace broken reset_daily_prayer_count function
 -- ============================================
--- The original function referenced a non-existent column "daily_prayer_count"
--- but the actual column is "tokens_spent_today". Recreate it correctly.
 
 CREATE OR REPLACE FUNCTION reset_daily_prayer_count(p_user_id UUID)
 RETURNS VOID AS $$
@@ -635,8 +668,6 @@ GRANT EXECUTE ON FUNCTION reset_daily_prayer_count(UUID) TO service_role;
 -- ============================================
 -- 14. VERIFY CRON JOB IS SCHEDULED
 -- ============================================
--- The cron job should already be running from the automated-karma migration.
--- This just ensures it's still scheduled after the function replacement.
 
 DO $$
 BEGIN

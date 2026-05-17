@@ -46,7 +46,9 @@ function createEconomyState() {
   const buildingCounts = computed(() => {
     const counts = {}
     for (const b of buildings.value) {
-      counts[b.building_type] = (counts[b.building_type] || 0) + 1
+      if (b.is_active) {
+        counts[b.building_type] = (counts[b.building_type] || 0) + 1
+      }
     }
     return counts
   })
@@ -73,13 +75,33 @@ function createEconomyState() {
     food: '\u{1F33E}',    // 🌾
   }
 
-  // Building display names and icons
+  // Building display names and icons — 5 tiers per category
   const buildingInfo = {
-    shrine: { name: 'Shrine', icon: '\u{269B}' },      // ⚛
-    garden: { name: 'Garden', icon: '\u{1F33E}' },     // 🌾
-    worker: { name: 'Worker', icon: '\u{2692}' },      // ⚒
-    temple: { name: 'Temple', icon: '\u{269B}' },       // ⚛
-    church: { name: 'Church', icon: '\u26EA' },         // ⛪
+    // Mana Estates: Altar 🕯️ → Shrine ⛩️ → Temple 🏛️ → Church ⛪ → Cathedral 🏰
+    altar:     { name: 'Altar',     icon: '\u{1F56F}',  tier: 1, category: 'mana' },
+    shrine:    { name: 'Shrine',    icon: '\u26E9',     tier: 2, category: 'mana' },
+    temple:    { name: 'Temple',    icon: '\u{1F3DB}',  tier: 3, category: 'mana' },
+    church:    { name: 'Church',    icon: '\u26EA',     tier: 4, category: 'mana' },
+    cathedral: { name: 'Cathedral', icon: '\u{1F3F0}',  tier: 5, category: 'mana' },
+    // Food Estates: Pot 🍲 → Patch 🌱 → Garden 🌾 → Field 🌻 → Farm 🏡
+    pot:    { name: 'Pot',    icon: '\u{1F372}', tier: 1, category: 'food' },
+    patch:  { name: 'Patch',  icon: '\u{1F331}', tier: 2, category: 'food' },
+    garden: { name: 'Garden', icon: '\u{1F33E}', tier: 3, category: 'food' },
+    field:  { name: 'Field',  icon: '\u{1F33B}', tier: 4, category: 'food' },
+    farm:   { name: 'Farm',   icon: '\u{1F3E1}', tier: 5, category: 'food' },
+    // Workforce: Novice 🙏 → Monk 🧘 → Cleric 🧙 → Bishop 👑 → Cardinal ⭐
+    novice:   { name: 'Novice',   icon: '\u{1F64F}', tier: 1, category: 'workforce' },
+    monk:     { name: 'Monk',     icon: '\u{1F9D8}', tier: 2, category: 'workforce' },
+    cleric:   { name: 'Cleric',   icon: '\u{1F9D9}', tier: 3, category: 'workforce' },
+    bishop:   { name: 'Bishop',   icon: '\u{1F451}', tier: 4, category: 'workforce' },
+    cardinal: { name: 'Cardinal', icon: '\u2B50',    tier: 5, category: 'workforce' },
+  }
+
+  // Tier progression chains (for prerequisite checking)
+  const tierChains = {
+    mana: ['altar', 'shrine', 'temple', 'church', 'cathedral'],
+    food: ['pot', 'patch', 'garden', 'field', 'farm'],
+    workforce: ['novice', 'monk', 'cleric', 'bishop', 'cardinal'],
   }
 
   /**
@@ -165,6 +187,7 @@ function createEconomyState() {
     foodCap,
     resourceEmojis,
     buildingInfo,
+    tierChains,
     fetchEconomy,
     fetchGameConfig,
     updateResources,
