@@ -115,7 +115,7 @@ BEGIN
     RETURNING id INTO v_new_synod_id;
 
     -- Set user's synod_id and synod_role
-    UPDATE profiles SET synod_id = v_new_synod_id, synod_role = 'leader', updated_at = now() WHERE id = v_user_id;
+    UPDATE profiles SET synod_role = 'leader', synod_id = v_new_synod_id, updated_at = now() WHERE id = v_user_id;
 
     RETURN jsonb_build_object(
         'success', true,
@@ -587,7 +587,7 @@ BEGIN
             (SELECT COALESCE(value, 0) FROM game_config WHERE key = 'building.' || ub.building_type || '.dogma_per_day') * ub.count
         ), 0)
     ), '{}'::jsonb) INTO v_production
-    FROM user_buildings ub;
+    FROM user_buildings;
 
     -- Calculate heresy cap
     SELECT value INTO v_heresy_base FROM game_config WHERE key = 'cap.heresy_base';
@@ -1108,43 +1108,43 @@ BEGIN
             p.suzerain_id,
             -- Mana with sect multiplier
             CASE
-                WHEN p.sect_type = 'gilded_path' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.mana_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.gilded_path.mana_multiplier'), 0.8)
-                WHEN p.sect_type = 'holy_way' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.mana_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.holy_way.mana_multiplier'), 1.2)
-                WHEN p.sect_type = 'black_tribunal' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.mana_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.black_tribunal.mana_multiplier'), 0.7)
-                ELSE (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.mana_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true)
+                WHEN p.sect_type = 'gilded_path' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.mana_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.gilded_path.mana_multiplier'), 0.8)
+                WHEN p.sect_type = 'holy_way' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.mana_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.holy_way.mana_multiplier'), 1.2)
+                WHEN p.sect_type = 'black_tribunal' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.mana_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.black_tribunal.mana_multiplier'), 0.7)
+                ELSE (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.mana_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true)
             END AS gross_mana_per_day,
             -- Gold with sect multiplier
             CASE
-                WHEN p.sect_type = 'gilded_path' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.gold_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.gilded_path.gold_multiplier'), 1.5)
-                WHEN p.sect_type = 'final_watch' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.gold_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.final_watch.gold_multiplier'), 0.75)
-                ELSE (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.gold_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true)
+                WHEN p.sect_type = 'gilded_path' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.gold_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.gilded_path.gold_multiplier'), 1.5)
+                WHEN p.sect_type = 'final_watch' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.gold_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.final_watch.gold_multiplier'), 0.75)
+                ELSE (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.gold_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true)
             END AS gross_gold_per_day,
             -- Food with sect multiplier
             CASE
-                WHEN p.sect_type = 'final_watch' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.food_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.final_watch.food_multiplier'), 1.5)
-                ELSE (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.food_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true)
+                WHEN p.sect_type = 'final_watch' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.food_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.final_watch.food_multiplier'), 1.5)
+                ELSE (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.food_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true)
             END AS gross_food_per_day,
             -- Gold upkeep with sect multiplier
             CASE
-                WHEN p.sect_type = 'gilded_path' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.gold_upkeep_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) + (SELECT COALESCE(SUM(CASE WHEN pb.building_type = 'coven' THEN COALESCE((SELECT value FROM game_config WHERE key = 'building.coven.gold_upkeep_per_day'), 3) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = 'coven' AND is_active = true) ELSE 0 END), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.gilded_path.cathedral_upkeep_multiplier'), 2.0)
-                ELSE (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.gold_upkeep_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) + COALESCE((SELECT SUM(CASE WHEN pb.building_type = 'coven' THEN COALESCE((SELECT value FROM game_config WHERE key = 'building.coven.gold_upkeep_per_day'), 3) ELSE 0 END) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true), 0)
+                WHEN p.sect_type = 'gilded_path' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.gold_upkeep_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) + (SELECT COALESCE(SUM(CASE WHEN pb.building_type = 'coven' THEN COALESCE((SELECT value FROM game_config WHERE key = 'building.coven.gold_upkeep_per_day'), 3) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = 'coven' AND is_active = true) ELSE 0 END), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.gilded_path.cathedral_upkeep_multiplier'), 2.0)
+                ELSE (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.gold_upkeep_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) + COALESCE((SELECT SUM(CASE WHEN pb.building_type = 'coven' THEN COALESCE((SELECT value FROM game_config WHERE key = 'building.coven.gold_upkeep_per_day'), 3) ELSE 0 END) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true), 0)
             END AS total_gold_upkeep_per_day,
             -- Food consumption with sect multiplier
             CASE
-                WHEN p.sect_type = 'holy_way' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.food_consumption_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.holy_way.food_consumption_multiplier'), 0.5)
-                ELSE (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.food_consumption_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true)
+                WHEN p.sect_type = 'holy_way' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.food_consumption_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.holy_way.food_consumption_multiplier'), 0.5)
+                ELSE (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.food_consumption_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true)
             END AS total_food_consumption_per_day,
             -- Heresy with sect multiplier
             CASE
-                WHEN p.sect_type = 'black_tribunal' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.heresy_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.black_tribunal.heresy_multiplier'), 2.0)
-                ELSE (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.heresy_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true)
+                WHEN p.sect_type = 'black_tribunal' THEN (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.heresy_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) * COALESCE((SELECT value FROM game_config WHERE key = 'sect.black_tribunal.heresy_multiplier'), 2.0)
+                ELSE (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.heresy_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true)
             END AS gross_heresy_per_day,
             -- Dogma (no sect multiplier)
-            (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.dogma_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0)) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) AS gross_dogma_per_day,
+            (SELECT COALESCE(SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.' || pb.building_type || '.dogma_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = pb.building_type AND is_active = true)), 0) FROM player_buildings pb WHERE pb.user_id = p.id AND pb.is_active = true) AS gross_dogma_per_day,
             -- Coven count for heresy cap
             (SELECT COUNT(*)::INT FROM player_buildings WHERE user_id = p.id AND building_type = 'coven' AND is_active = true) AS coven_count,
             -- Food consumed by coven heresy
-            COALESCE((SELECT SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.coven.food_consumption_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = 'coven' AND is_active = true)), 0)), 0) AS total_heresy_food_consume_per_day,
+            COALESCE((SELECT SUM(COALESCE((SELECT value FROM game_config WHERE key = 'building.coven.food_consumption_per_day'), 0) * (SELECT COUNT(*) FROM player_buildings WHERE user_id = p.id AND building_type = 'coven' AND is_active = true)) FROM player_buildings WHERE user_id = p.id AND building_type = 'coven' AND is_active = true), 0) AS total_heresy_food_consume_per_day,
             -- Scriptitorium count (for research)
             (SELECT COUNT(*)::INT FROM player_buildings WHERE user_id = p.id AND building_type = 'scriptorium' AND is_active = true) AS scriptorium_count
         FROM profiles p
@@ -1285,7 +1285,7 @@ BEGIN
     -- ========================================
     -- PHASE 4: PROCESS DIVINE ARCHITECT QUEUE
     -- ========================================
-    FOR r IN
+    FOR v_r IN
         SELECT bq.*, si.karma_cost, si.gold_cost, si.heresy_cost, si.effect_type, si.effect_data, si.acre_cost, si.cost_scaling
         FROM build_queue bq
         JOIN shop_items si ON si.id = bq.item_id
@@ -1297,12 +1297,12 @@ BEGIN
             v_bq_user_heresy INT;
         BEGIN
             SELECT karma, gold, heresy INTO v_bq_user_karma, v_bq_user_gold, v_bq_user_heresy
-            FROM profiles WHERE id = r.user_id;
+            FROM profiles WHERE id = v_r.user_id;
 
-            IF v_bq_user_karma >= r.karma_cost AND v_bq_user_gold >= r.gold_cost AND v_bq_user_heresy >= r.heresy_cost THEN
+            IF v_bq_user_karma >= v_r.karma_cost AND v_bq_user_gold >= v_r.gold_cost AND v_bq_user_heresy >= v_r.heresy_cost THEN
                 BEGIN
-                    PERFORM purchase_shop_item(r.item_id);
-                    UPDATE build_queue SET executed_at = now() WHERE id = r.id;
+                    PERFORM purchase_shop_item(v_r.item_id);
+                    UPDATE build_queue SET executed_at = now() WHERE id = v_r.id;
                 EXCEPTION WHEN OTHERS THEN
                     NULL;
                 END;
