@@ -156,7 +156,7 @@ export function useBlessings() {
       // Group by prayer_id
       const grouped = {}
       for (const row of (data || [])) {
-        if (!grouped[row.prayer_id]]) {
+        if (!grouped[row.prayer_id]) {
           grouped[row.prayer_id] = []
         }
         grouped[row.prayer_id].push(row.blessing_type_id)
