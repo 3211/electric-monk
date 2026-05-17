@@ -1,13 +1,15 @@
 <template>
-  <Transition name="karma-toast">
-    <div v-if="visible" class="karma-toast" :class="type">
-      <span class="karma-toast-icon">{{ type === 'positive' ? '✨' : '😈' }}</span>
-      <span class="karma-toast-text">
-        {{ type === 'positive' ? '+' : '' }}{{ amount }} Karma
-      </span>
-      <span class="karma-toast-label">{{ label }}</span>
-    </div>
-  </Transition>
+  <Teleport to="body">
+    <Transition name="karma-toast">
+      <div v-if="visible" class="karma-toast" :class="type">
+        <span class="karma-toast-icon">{{ type === 'positive' ? '✨' : '😈' }}</span>
+        <span class="karma-toast-text">
+          {{ type === 'positive' ? '+' : '' }}{{ amount }} Karma
+        </span>
+        <span class="karma-toast-label">{{ label }}</span>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup>
@@ -44,7 +46,8 @@ watch(() => props.amount, (newVal) => {
   position: fixed;
   top: 1.5rem;
   right: 1.5rem;
-  z-index: 10000;
+  z-index: 2147483000;
+  pointer-events: none;
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;

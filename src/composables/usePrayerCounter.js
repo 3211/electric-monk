@@ -5,24 +5,24 @@ import { supabase } from '@/lib/supabase'
  * Configurable: milliseconds per character of the monk's response.
  * ~200 chars (short prayer) ≈ 40s, ~300 chars (average) ≈ 60s, ~500 chars (long) ≈ 100s
  * Adjust this single value to speed up or slow down the prayer cycle.
+ * NOTE: This must match the server-side calculation in calculate_automated_karma()
  */
 const TIME_PER_CHAR_MS = 200
 const MIN_CYCLE_MS = 15_000   // 15 seconds minimum
 const MAX_CYCLE_MS = 180_000  // 3 minutes maximum
 const DEFAULT_CYCLE_MS = 60_000 // 1 minute fallback when no content
 
-const SYNC_INTERVAL_MS = 10_000 // Ping backend every 10 seconds
+const SYNC_INTERVAL_MS = 15_000 // Snap to server truth every 15 seconds
 
 /**
- * usePrayerCounter Composable
+ * usePrayerCounter Composable - SERVER-AUTHORITATIVE VERSION
  *
- * Manages real-time prayer counting for the active prayer.
- * - Calculates cycle time from monk's response_content length (falls back to user content)
- * - Increments displayed count each cycle
- * - Provides cycleProgress (0–1) for golden progress bar animation
- * - Syncs to backend every 10 seconds via sync_prayer_count RPC
- * - Syncs on beforeunload and visibilitychange to prevent count loss
- * - Stops and cleans up on deactivation/unmount
+ * The server (pg_cron) is now the source of truth for prayer counts and karma.
+ * This composable:
+ * - Locally "fake counts" for smooth UI animation between server syncs
+ * - Snaps to the server's actual count every 15 seconds
+ * - No longer sends increments to the server
+ * - Detects sinner redemption for intercessory prayers
  *
  * @param {Object} prayer - Reactive prayer object with response_content, content, prayer_count, activated_at, last_counted_at, is_praying
  * @returns {Object} Counter state and methods
@@ -31,18 +31,18 @@ export function usePrayerCounter(prayer) {
   const displayedCount = ref(0)
   const isAnimating = ref(false)
   const cycleProgress = ref(0)
-  const karmaMilestoneEarned = ref(0) // Set to karma_change value when milestone is hit
-  const sinnerRedeemed = ref(false) // Set to true when sinner is redeemed via intercessory prayer
+  const karmaMilestoneEarned = ref(0)
+  const sinnerRedeemed = ref(false)
 
   let cycleTimer = null
   let syncTimer = null
   let progressRaf = null
-  let lastLocalCount = 0 // Tracks counts since last sync
-  let cycleStartTime = null // Timestamp when current cycle started
+  let cycleStartTime = null
+  let serverBaseCount = 0 // The last known server count
+  let localIncrement = 0  // Local fake increments since last server sync
 
   /**
    * Get the text used for cycle time calculation.
-   * Uses the monk's response_content (what the user sees) with fallback to user content.
    */
   function getCycleText() {
     if (!prayer.value) return ''
@@ -50,8 +50,7 @@ export function usePrayerCounter(prayer) {
   }
 
   /**
-   * Calculate the cycle time in ms for a prayer based on the monk's response length.
-   * Formula: response_length * TIME_PER_CHAR_MS, clamped between MIN and MAX.
+   * Calculate the cycle time in ms for a prayer.
    */
   function calculateCycleTimeMs(text) {
     if (!text) return DEFAULT_CYCLE_MS
@@ -69,7 +68,7 @@ export function usePrayerCounter(prayer) {
   }
 
   /**
-   * Animate the progress bar smoothly using requestAnimationFrame.
+   * Animate the progress bar smoothly.
    */
   function startProgressAnimation() {
     if (progressRaf) cancelAnimationFrame(progressRaf)
@@ -93,11 +92,17 @@ export function usePrayerCounter(prayer) {
 
   /**
    * Initialize the displayed count from prayer data.
-   * Called when a prayer becomes active or on mount if already active.
    */
   function initializeCount() {
-    if (!prayer.value || !prayer.value.is_praying) {
-      displayedCount.value = prayer.value?.prayer_count || 0
+    if (!prayer.value) {
+      displayedCount.value = 0
+      return
+    }
+    
+    if (!prayer.value.is_praying) {
+      displayedCount.value = prayer.value.prayer_count || 0
+      serverBaseCount = displayedCount.value
+      localIncrement = 0
       return
     }
 
@@ -108,8 +113,10 @@ export function usePrayerCounter(prayer) {
 
     // Calculate how many cycles have elapsed since last_counted_at
     const elapsedCycles = calculateElapsedCycles(lastCountedAt, new Date().toISOString(), cycleTimeMs)
+    
+    serverBaseCount = baseCount
+    localIncrement = elapsedCycles
     displayedCount.value = baseCount + elapsedCycles
-    lastLocalCount = elapsedCycles // Queue offline cycles for sync so karma milestones are awarded
 
     // Start progress bar from where we are in the current cycle
     const elapsedInCurrentCycle = lastCountedAt
@@ -120,41 +127,45 @@ export function usePrayerCounter(prayer) {
   }
 
   /**
-   * Sync accumulated counts to the backend (fire-and-forget).
-   * Used by beforeunload and visibilitychange handlers.
+   * Sync to backend - READ ONLY. Fetches server truth and snaps local count to it.
    */
   async function syncToBackend() {
-    if (!prayer.value?.is_praying || lastLocalCount === 0) return
+    if (!prayer.value?.is_praying) return
 
     try {
+      // NEW: sync_prayer_count is now read-only, no p_elapsed_counts parameter
       const { data, error } = await supabase.rpc('sync_prayer_count', {
         p_prayer_id: prayer.value.id,
-        p_elapsed_counts: lastLocalCount,
       })
 
       if (error) {
-        console.error('[usePrayerCounter] Background sync error:', error)
+        console.error('[usePrayerCounter] Sync error:', error)
         return
       }
 
-      // Recalibrate local count from server response
       if (data) {
+        // Snap to server truth
         const cycleText = getCycleText()
         const cycleTimeMs = calculateCycleTimeMs(cycleText)
         const lastCountedAt = data.last_counted_at || data.activated_at
         const baseCount = data.prayer_count || 0
+        
+        // Recalculate local elapsed since server's last_counted_at
         const elapsedCycles = calculateElapsedCycles(lastCountedAt, new Date().toISOString(), cycleTimeMs)
-
+        
+        serverBaseCount = baseCount
+        localIncrement = elapsedCycles
         displayedCount.value = baseCount + elapsedCycles
-        lastLocalCount = 0
 
-        // Check for karma milestone earned
-        if (data.karma_change && data.karma_change > 0) {
-          karmaMilestoneEarned.value = data.karma_change
+        // Check if sinner was redeemed (intercessory prayer)
+        if (data.sinner_redeemed) {
+          sinnerRedeemed.value = true
+          stopCounting()
+          if (prayer.value) prayer.value.is_praying = false
         }
       }
     } catch (err) {
-      console.error('[usePrayerCounter] Background sync failed:', err)
+      console.error('[usePrayerCounter] Sync failed:', err)
     }
   }
 
@@ -162,7 +173,7 @@ export function usePrayerCounter(prayer) {
    * Start the counting cycle and sync timers.
    */
   function startCounting() {
-    stopCounting() // Clear any existing timers
+    stopCounting()
 
     if (!prayer.value || !prayer.value.is_praying) return
 
@@ -171,63 +182,23 @@ export function usePrayerCounter(prayer) {
     // Initialize count from server data
     initializeCount()
 
-    // Cycle timer: increment displayed count each cycle
+    // Cycle timer: increment displayed count each cycle (LOCAL ONLY - for smooth UI)
     cycleTimer = setInterval(() => {
       if (!prayer.value?.is_praying) {
         stopCounting()
         return
       }
       displayedCount.value++
-      lastLocalCount++
+      localIncrement++
       isAnimating.value = true
-      // Reset animation flag after a short delay
       setTimeout(() => { isAnimating.value = false }, 200)
-      // Reset progress bar for new cycle
       cycleStartTime = Date.now()
       startProgressAnimation()
     }, cycleTimeMs)
 
-    // Sync timer: push accumulated counts to backend periodically
-    syncTimer = setInterval(async () => {
-      if (!prayer.value?.is_praying || lastLocalCount === 0) return
-
-      try {
-        const { data, error } = await supabase.rpc('sync_prayer_count', {
-          p_prayer_id: prayer.value.id,
-          p_elapsed_counts: lastLocalCount,
-        })
-
-        if (error) {
-          console.error('[usePrayerCounter] Sync error:', error)
-          return
-        }
-
-        // Recalibrate local count from server response
-        if (data) {
-          const cycleText = getCycleText()
-          const cycleTimeMs = calculateCycleTimeMs(cycleText)
-          const lastCountedAt = data.last_counted_at || data.activated_at
-          const baseCount = data.prayer_count || 0
-          const elapsedCycles = calculateElapsedCycles(lastCountedAt, new Date().toISOString(), cycleTimeMs)
-
-          displayedCount.value = baseCount + elapsedCycles
-          lastLocalCount = 0
-
-          // Check for karma milestone earned
-          if (data.karma_change && data.karma_change > 0) {
-            karmaMilestoneEarned.value = data.karma_change
-          }
-
-          // Check if sinner was redeemed (intercessory prayer)
-          if (data.sinner_redeemed) {
-            sinnerRedeemed.value = true
-            stopCounting()
-            prayer.value.is_praying = false
-          }
-        }
-      } catch (err) {
-        console.error('[usePrayerCounter] Sync failed:', err)
-      }
+    // Sync timer: periodically snap to server truth (no longer sends increments)
+    syncTimer = setInterval(() => {
+      syncToBackend()
     }, SYNC_INTERVAL_MS)
   }
 
@@ -253,20 +224,18 @@ export function usePrayerCounter(prayer) {
 
   /**
    * Final sync before deactivating a prayer.
-   * Pushes remaining accumulated counts to backend.
-   * @returns {Object} Updated prayer data from server
+   * Just calls deactivate_prayer - server handles final count.
    */
   async function finalSync() {
     stopCounting()
 
     if (!prayer.value) return null
 
-    // Always call deactivate_prayer even if lastLocalCount is 0,
-    // to ensure the prayer is properly deactivated in the DB
     try {
+      // Server calculates final count based on time elapsed
       const { data, error } = await supabase.rpc('deactivate_prayer', {
         p_prayer_id: prayer.value.id,
-        p_elapsed_counts: lastLocalCount,
+        p_elapsed_counts: localIncrement, // Still pass local increment as hint
       })
 
       if (error) {
@@ -274,7 +243,7 @@ export function usePrayerCounter(prayer) {
         return null
       }
 
-      lastLocalCount = 0
+      localIncrement = 0
       return data
     } catch (err) {
       console.error('[usePrayerCounter] Final sync failed:', err)
@@ -283,10 +252,7 @@ export function usePrayerCounter(prayer) {
   }
 
   /**
-   * Activate a prayer (re-activate an inactive one).
-   * Calls the activate_prayer RPC which deactivates current active first.
-   * @param {string} prayerId - The prayer to activate
-   * @returns {Object} Result with activated and deactivated prayer data
+   * Activate a prayer.
    */
   async function activatePrayer(prayerId) {
     stopCounting()
@@ -308,61 +274,41 @@ export function usePrayerCounter(prayer) {
     }
   }
 
-  // Handler: sync before page unload (tab close, navigation)
-  // Uses fetch with keepalive for reliable delivery during page unload
+  // Handler: sync before page unload
   function handleBeforeUnload() {
-    if (!prayer.value?.is_praying || lastLocalCount === 0) return
-    try {
-      // Fire-and-forget sync using fetch with keepalive
-      // This ensures the request is sent even if the page is unloading
-      supabase.rpc('sync_prayer_count', {
-        p_prayer_id: prayer.value.id,
-        p_elapsed_counts: lastLocalCount,
-      }).then(({ data }) => {
-        if (data) {
-          lastLocalCount = 0
-        }
-      }).catch(() => {
-        // Best effort — visibilitychange handler is the primary fallback
-      })
-    } catch {
-      // Best effort — periodic syncs every 10s ensure data isn't lost
-    }
+    if (!prayer.value?.is_praying) return
+    // Fire-and-forget sync
+    syncToBackend()
   }
 
-  // Handler: sync when tab becomes hidden (user switches tabs)
+  // Handler: sync when tab becomes hidden
   function handleVisibilityChange() {
     if (document.hidden && prayer.value?.is_praying) {
       syncToBackend()
     }
   }
 
-  // Watch for prayer deactivation (is_praying changes to false)
+  // Watch for prayer deactivation
   watch(
     () => prayer.value?.is_praying,
     (newValue, oldValue) => {
       if (newValue && !oldValue) {
-        // Prayer was activated — start counting
         startCounting()
       } else if (!newValue && oldValue) {
-        // Prayer was deactivated — stop counting
         stopCounting()
         displayedCount.value = prayer.value?.prayer_count || 0
       }
     }
   )
 
-  // Watch for prayer ID changes (user switches between active prayers)
-  // When switching from one active prayer to another, sync the old one and start counting the new one
+  // Watch for prayer ID changes
   watch(
     () => prayer.value?.id,
     (newId, oldId) => {
       if (newId !== oldId && newId) {
-        // Sync the old prayer's counts before switching
-        if (oldId && lastLocalCount > 0) {
+        if (oldId) {
           syncToBackend()
         }
-        // Re-initialize and start counting for the new prayer
         stopCounting()
         if (prayer.value?.is_praying) {
           startCounting()
@@ -384,34 +330,20 @@ export function usePrayerCounter(prayer) {
   window.addEventListener('beforeunload', handleBeforeUnload)
   document.addEventListener('visibilitychange', handleVisibilityChange)
 
-  // Clean up timers and event listeners on unmount
-  // Fire-and-forget sync to prevent data loss when switching tabs
+  // Clean up on unmount
   onUnmounted(() => {
-    if (prayer.value?.is_praying && lastLocalCount > 0) {
-      supabase.rpc('sync_prayer_count', {
-        p_prayer_id: prayer.value.id,
-        p_elapsed_counts: lastLocalCount,
-      }).catch(() => {
-        // Best effort — periodic syncs ensure data isn't lost
-      })
+    if (prayer.value?.is_praying) {
+      syncToBackend()
     }
     stopCounting()
     window.removeEventListener('beforeunload', handleBeforeUnload)
     document.removeEventListener('visibilitychange', handleVisibilityChange)
   })
 
-  /**
-   * Reset the karma milestone value after it has been consumed
-   * (e.g., after showing a toast notification).
-   */
   function resetKarmaMilestone() {
     karmaMilestoneEarned.value = 0
   }
 
-  /**
-   * Reset the sinner redeemed flag after it has been consumed
-   * (e.g., after showing a toast notification).
-   */
   function resetSinnerRedeemed() {
     sinnerRedeemed.value = false
   }

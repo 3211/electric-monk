@@ -1,13 +1,15 @@
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, onUnmounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 
 /**
- * useAkashicRecords Composable
+ * useAkashicRecords Composable - WITH REALTIME UPDATES
  *
  * Manages the Akashic Records feature:
  * - Fetches public prayers with pagination and sorting (newest / most prayed)
  * - Fetches sinners (users currently in purgatory)
  * - Provides methods to start altruistic and intercessory prayer sessions
+ * - REALTIME: Subscribes to sinner redemption events (ban_until changes)
+ * - REALTIME: Subscribes to intercessory prayer count updates
  *
  * Uses the same prayers table with prayer_type column to distinguish
  * between own, altruistic, and intercessory prayers.
@@ -26,6 +28,10 @@ export function useAkashicRecords() {
   // Active altruistic prayer state
   const activeAltruisticPrayer = ref(null)
   const altruisticLoading = ref(false)
+
+  // Realtime subscription channels
+  let sinnersChannel = null
+  let prayersChannel = null
 
   /**
    * Fetch public prayers for the Akashic Records feed.
@@ -243,6 +249,100 @@ export function useAkashicRecords() {
     activeAltruisticPrayer.value = null
   }
 
+  /**
+   * Subscribe to realtime updates for sinners (purgatory) and intercessory prayers.
+   * This allows live updates without manual refreshing.
+   */
+  function subscribeToRealtime() {
+    // Unsubscribe from existing channels first
+    unsubscribeFromRealtime()
+
+    // Subscribe to profiles table changes (for ban_until updates = sinner redemption)
+    sinnersChannel = supabase
+      .channel('akashic-sinners')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: 'ban_until=IS.NULL.*', // Catch when ban_until becomes NULL
+        },
+        (payload) => {
+          console.log('[Realtime] Sinner redeemed:', payload.new)
+          // Remove the redeemed sinner from the list
+          sinners.value = sinners.value.filter(s => s.id !== payload.new.id)
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+        },
+        (payload) => {
+          // Check if ban_until was cleared (redemption)
+          if (payload.old?.ban_until && !payload.new?.ban_until) {
+            console.log('[Realtime] Sinner redeemed (ban cleared):', payload.new.username)
+            sinners.value = sinners.value.filter(s => s.id !== payload.new.id)
+          }
+          // Update existing sinner data if they're still in the list
+          const existingIndex = sinners.value.findIndex(s => s.id === payload.new.id)
+          if (existingIndex !== -1) {
+            sinners.value[existingIndex] = { ...sinners.value[existingIndex], ...payload.new }
+          }
+        }
+      )
+      .subscribe()
+
+    // Subscribe to prayers table changes (for intercessory prayer updates)
+    prayersChannel = supabase
+      .channel('akashic-prayers')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'prayers',
+          filter: 'prayer_type=intercessory',
+        },
+        async (payload) => {
+          // When an intercessory prayer is updated, refresh sinners list
+          // to show updated prayer counts
+          if (payload.new.is_praying === false && payload.old?.is_praying) {
+            // Prayer just stopped - sinner might be redeemed
+            console.log('[Realtime] Intercessory prayer stopped:', payload.new)
+            // Refresh sinners to check if any were redeemed
+            await fetchSinners()
+          }
+        }
+      )
+      .subscribe()
+
+    console.log('[Realtime] Subscribed to akashic-sinners and akashic-prayers channels')
+  }
+
+  /**
+   * Unsubscribe from all realtime channels.
+   */
+  function unsubscribeFromRealtime() {
+    if (sinnersChannel) {
+      supabase.removeChannel(sinnersChannel)
+      sinnersChannel = null
+    }
+    if (prayersChannel) {
+      supabase.removeChannel(prayersChannel)
+      prayersChannel = null
+    }
+    console.log('[Realtime] Unsubscribed from all channels')
+  }
+
+  // Auto-subscribe on creation, cleanup on unmount
+  // Note: In Vue 3 composables, onUnmounted only works when used inside setup()
+  // For manual control, call subscribeToRealtime() and unsubscribeFromRealtime() explicitly
+  subscribeToRealtime()
+
   return reactive({
     // State
     publicPrayers,
@@ -264,5 +364,7 @@ export function useAkashicRecords() {
     stopAltruisticPrayer,
     generateSinnerPrayer,
     clearActiveAltruisticPrayer,
+    subscribeToRealtime,
+    unsubscribeFromRealtime,
   })
 }
