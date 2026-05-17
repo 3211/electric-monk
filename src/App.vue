@@ -5,6 +5,7 @@ import { useBanTimer } from './composables/useBanTimer'
 import { useEconomy } from './composables/useEconomy'
 import { usePrayers } from './composables/usePrayers'
 import { useOnboarding } from './composables/useOnboarding'
+import ShieldTimer from './components/molecules/ShieldTimer.vue'
 import LoginView from './views/LoginView.vue'
 import AltarView from './views/AltarView.vue'
 import PurgatoryView from './views/PurgatoryView.vue'
@@ -130,6 +131,9 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
                 &#x1F3DB; Rankings
               </button>
             </div>
+
+            <!-- Shield indicator (global, always visible when shield active) -->
+            <ShieldTimer v-if="economy.shieldActive" :shield-until="economy.divineShieldUntil" />
 
             <!-- Account cluster: change-username (icon) + logout (pill, matches nav buttons) -->
             <div class="global-nav-account segmented-shell flex items-center gap-1 flex-none ml-auto">

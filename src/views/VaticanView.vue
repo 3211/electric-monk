@@ -18,10 +18,8 @@
                 <span class="text-purple-500">✝</span>
                 <span>Heresy: <span class="font-semibold text-purple-500">{{ economy.heresy }}</span></span>
               </div>
-              <div v-if="vassalage.divineShieldRemaining" class="chip gap-2 px-4 py-2 text-sm shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-                <span class="text-amber-500">🛡</span>
-                <span class="font-semibold text-amber-600">Shield: {{ vassalage.divineShieldRemaining }}</span>
-              </div>
+              <ShieldTimer :shield-until="economy.divineShieldUntil" />
+              <MiracleBuffBar :miracles="economy.activeMiracles" />
             </template>
             <template v-else>
               <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
@@ -32,10 +30,8 @@
                 <span class="text-amber-400">💰</span>
                 <span>Gold: <span class="font-semibold text-amber-400">{{ catacombs.gold }}</span></span>
               </div>
-              <div v-if="vassalage.divineShieldRemaining" class="chip gap-2 px-4 py-2 text-sm shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-                <span class="text-amber-400">🛡</span>
-                <span class="font-semibold">Shield: {{ vassalage.divineShieldRemaining }}</span>
-              </div>
+              <ShieldTimer :shield-until="economy.divineShieldUntil" variant="dark" />
+              <MiracleBuffBar :miracles="economy.activeMiracles" />
             </template>
           </div>
         </div>
@@ -564,6 +560,8 @@ import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useVassalage } from '@/composables/useVassalage'
 import { useCatacombs } from '@/composables/useCatacombs'
 import { useEconomy } from '@/composables/useEconomy'
+import ShieldTimer from '@/components/molecules/ShieldTimer.vue'
+import MiracleBuffBar from '@/components/molecules/MiracleBuffBar.vue'
 
 const vassalage = useVassalage()
 const catacombs = useCatacombs()

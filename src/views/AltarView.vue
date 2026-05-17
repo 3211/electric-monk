@@ -45,6 +45,10 @@
               <span>🐂</span>
               <span class="font-semibold">Bull Active</span>
             </div>
+            <!-- Divine Shield (from Blessings or Schism) -->
+            <ShieldTimer :shield-until="economy.divineShieldUntil" />
+            <!-- Active Miracle Buffs -->
+            <MiracleBuffBar :miracles="economy.activeMiracles" />
           </div>
         </div>
       </div>
@@ -597,6 +601,8 @@ import { useBanTimer } from '@/composables/useBanTimer'
 import { useEconomy } from '@/composables/useEconomy'
 import { useSects } from '@/composables/useSects'
 import KarmaToast from '@/components/molecules/KarmaToast.vue'
+import ShieldTimer from '@/components/molecules/ShieldTimer.vue'
+import MiracleBuffBar from '@/components/molecules/MiracleBuffBar.vue'
 import PrayerHistoryModal from '@/components/organisms/PrayerHistoryModal.vue'
 
 // Environment variable for max prayer characters
