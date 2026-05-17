@@ -338,10 +338,9 @@ export function useAkashicRecords() {
     console.log('[Realtime] Unsubscribed from all channels')
   }
 
-  // Auto-subscribe on creation, cleanup on unmount
-  // Note: In Vue 3 composables, onUnmounted only works when used inside setup()
-  // For manual control, call subscribeToRealtime() and unsubscribeFromRealtime() explicitly
-  subscribeToRealtime()
+  // NOTE: Realtime subscription is now managed by the view component using onMounted/onUnmounted
+  // Call subscribeToRealtime() in the view's onMounted hook
+  // Call unsubscribeFromRealtime() in the view's onUnmounted hook
 
   return reactive({
     // State

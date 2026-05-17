@@ -373,18 +373,22 @@ watch(() => counter.sinnerRedeemed?.value, (val) => {
   }
 })
 
-// Load data on mount
+// Load data on mount and subscribe to realtime
 onMounted(async () => {
   await akashic.fetchPublicPrayers()
   await prayers.fetchProfile()
+  // Subscribe to realtime updates for sinners and intercessory prayers
+  akashic.subscribeToRealtime()
 })
 
-// Cleanup on unmount
+// Cleanup on unmount - stop counting and unsubscribe from realtime
 onUnmounted(() => {
   // Stop the counter if active
   if (akashic.activeAltruisticPrayer) {
     counter.stopCounting()
   }
+  // Unsubscribe from realtime channels to prevent memory leaks and conflicts
+  akashic.unsubscribeFromRealtime()
 })
 
 function karmaClass() {
