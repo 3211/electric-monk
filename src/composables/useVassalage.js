@@ -244,13 +244,11 @@ function createVassalageState() {
    */
   async function lookupPlayer(username) {
     try {
-      const { data, error: queryError } = await supabase
-        .from('profiles')
-        .select('id, username, faith')
-        .ilike('username', username)
-        .limit(5)
+      const { data, error: rpcError } = await supabase.rpc('lookup_player', {
+        p_search: username
+      })
 
-      if (queryError) throw queryError
+      if (rpcError) throw rpcError
       return data || []
     } catch (err) {
       console.error('[useVassalage] Lookup error:', err)

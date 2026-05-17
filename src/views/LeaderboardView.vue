@@ -73,6 +73,7 @@
               </td>
               <td class="py-3 pr-4">
                 <span class="text-sm font-semibold text-theme-text">{{ player.username || 'Anonymous' }}</span>
+                <span v-if="player.divine_shield_until && new Date(player.divine_shield_until) > new Date()" class="ml-1 text-amber-500" title="Divine Shield active">🛡</span>
               </td>
               <td class="py-3 pr-4 hidden sm:table-cell">
                 <span class="text-xs text-theme-text-muted">{{ player.faith || '--' }}</span>

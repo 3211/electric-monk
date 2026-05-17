@@ -47,8 +47,8 @@
             </div>
             <!-- Divine Shield (from Blessings or Schism) -->
             <ShieldTimer :shield-until="economy.divineShieldUntil" />
-            <!-- Active Miracle Buffs -->
-            <MiracleBuffBar :miracles="economy.activeMiracles" />
+            <!-- Active Miracle Buffs (excluding blessing_shield — ShieldTimer handles that) -->
+            <MiracleBuffBar :miracles="nonShieldMiracles" />
           </div>
         </div>
       </div>
@@ -621,6 +621,11 @@ const currentSectInfo = computed(() => {
   if (!economy.sectType) return null
   return sects.sectInfo[economy.sectType] || null
 })
+
+// Filter blessing_shield out of MiracleBuffBar — ShieldTimer handles that display
+const nonShieldMiracles = computed(() =>
+  economy.activeMiracles.filter(m => m.miracle_type !== 'blessing_shield')
+)
 
 const prayerContent = ref('')
 const counterAnimating = ref(false)

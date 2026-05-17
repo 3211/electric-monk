@@ -19,7 +19,7 @@
                 <span>Heresy: <span class="font-semibold text-purple-500">{{ economy.heresy }}</span></span>
               </div>
               <ShieldTimer :shield-until="economy.divineShieldUntil" />
-              <MiracleBuffBar :miracles="economy.activeMiracles" />
+              <MiracleBuffBar :miracles="nonShieldMiracles" />
             </template>
             <template v-else>
               <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
@@ -31,7 +31,7 @@
                 <span>Gold: <span class="font-semibold text-amber-400">{{ catacombs.gold }}</span></span>
               </div>
               <ShieldTimer :shield-until="economy.divineShieldUntil" variant="dark" />
-              <MiracleBuffBar :miracles="economy.activeMiracles" />
+              <MiracleBuffBar :miracles="nonShieldMiracles" />
             </template>
           </div>
         </div>
@@ -174,12 +174,15 @@
                 <div>
                   <p class="text-sm font-medium text-theme-text">{{ player.username }}</p>
                   <p v-if="player.faith" class="text-xs text-theme-text-muted">{{ player.faith }}</p>
+                  <p v-if="isPlayerShielded(player)" class="text-xs text-amber-500 mt-0.5">🛡 Divine Shield active</p>
                 </div>
                 <button
                   @click="selectTarget(player)"
+                  :disabled="isPlayerShielded(player)"
                   class="btn-danger px-4 py-2 text-xs"
+                  :class="{ 'opacity-50 cursor-not-allowed': isPlayerShielded(player) }"
                 >
-                  <span class="relative z-10 font-medium">Target</span>
+                  <span class="relative z-10 font-medium">{{ isPlayerShielded(player) ? '🛡 Shielded' : 'Target' }}</span>
                 </button>
               </div>
             </div>
@@ -243,7 +246,7 @@
                       {{ log.target_username }} broke free from their suzerain
                     </template>
                     <template v-else-if="log.action_type === 'plague'">
-                      Anonymous plague struck {{ log.target_username }} - {{ log.result_data?.food_destroyed || 0 }} food destroyed
+                      Anonymous curse struck {{ log.target_username }} - {{ log.result_data?.food_destroyed || 0 }} food destroyed
                     </template>
                   </p>
                 </div>
@@ -355,12 +358,12 @@
         <section class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
           <h2 class="text-lg font-semibold text-theme-text mb-3 flex items-center gap-2">
             <span>☠</span>
-            Cast Plague
+            Cast Curse
           </h2>
 
           <p class="text-xs text-theme-text-muted mb-4">
             Spend <span class="font-semibold text-theme-accent">{{ plagueCost }} heresy</span> to anonymously zero out a target's Food storage.
-            Bypasses all defenses. Your identity is hidden in the Akashic Records.
+            Cannot target players with an active Divine Shield. Your identity is hidden in the Akashic Records.
           </p>
 
           <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -393,20 +396,22 @@
                 <div>
                   <p class="text-sm font-medium text-theme-text">{{ player.username }}</p>
                   <p v-if="player.faith" class="text-xs text-theme-text-muted">{{ player.faith }}</p>
+                  <p v-if="isPlayerShielded(player)" class="text-xs text-amber-500 mt-0.5">🛡 Divine Shield active</p>
                 </div>
                 <button
                   @click="selectPlagueTarget(player)"
-                  :disabled="catacombs.heresy < plagueCost"
+                  :disabled="catacombs.heresy < plagueCost || isPlayerShielded(player)"
                   class="btn-secondary px-3 py-1.5 text-xs"
+                  :class="{ 'opacity-50 cursor-not-allowed': isPlayerShielded(player) }"
                 >
-                  <span class="relative z-10 font-medium">Target</span>
+                  <span class="relative z-10 font-medium">{{ isPlayerShielded(player) ? '🛡 Shielded' : 'Target' }}</span>
                 </button>
               </div>
             </div>
           </div>
 
           <div v-if="vassalage.combatResult && vassalage.combatResult.type === 'plague'" class="mt-4 rounded-[20px] border border-emerald-500/25 bg-emerald-500/10 p-4">
-            <p class="text-sm font-semibold text-emerald-400">Plague Cast Successfully!</p>
+            <p class="text-sm font-semibold text-emerald-400">Curse Cast Successfully!</p>
             <p class="text-xs text-theme-text-muted mt-1">{{ vassalage.combatResult.food_destroyed }} food destroyed. Your identity remains hidden.</p>
           </div>
 
@@ -478,6 +483,9 @@
     <div v-if="showCrusadeConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" @click.self="showCrusadeConfirm = false">
       <div class="glass-panel glass-panel-strong glass-gloss w-full max-w-md p-6 space-y-4">
         <h3 class="text-lg font-semibold text-theme-text">Confirm Crusade</h3>
+        <div v-if="selectedTarget && isPlayerShielded(selectedTarget)" class="rounded-[20px] border border-amber-500/25 bg-amber-500/10 p-3">
+          <p class="text-xs text-amber-600">🛡 This player is protected by Divine Shield and cannot be crusaded.</p>
+        </div>
         <p class="text-sm text-theme-text-muted">
           You are about to launch a crusade against <span class="font-semibold text-red-500">{{ selectedTarget?.username }}</span>.
           This will cost <span class="font-semibold text-blue-500">50 Mana</span> regardless of outcome.
@@ -486,8 +494,9 @@
         <div class="flex gap-3">
           <button
             @click="executeCrusade"
-            :disabled="vassalage.crusadeLoading"
+            :disabled="vassalage.crusadeLoading || (selectedTarget && isPlayerShielded(selectedTarget))"
             class="btn-danger flex-1 px-4 py-2 text-sm"
+            :class="{ 'opacity-50 cursor-not-allowed': selectedTarget && isPlayerShielded(selectedTarget) }"
           >
             <span class="relative z-10 font-medium">{{ vassalage.crusadeLoading ? 'Crusading...' : 'Launch Crusade' }}</span>
           </button>
@@ -503,19 +512,23 @@
 
     <div v-if="showPlagueConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="showPlagueConfirm = false">
       <div class="glass-panel glass-panel-strong glass-gloss w-full max-w-md p-6 space-y-4">
-        <h3 class="text-lg font-semibold text-theme-text">Confirm Plague</h3>
+        <h3 class="text-lg font-semibold text-theme-text">Confirm Curse</h3>
+        <div v-if="selectedPlagueTarget && isPlayerShielded(selectedPlagueTarget)" class="rounded-[20px] border border-amber-500/25 bg-amber-500/10 p-3">
+          <p class="text-xs text-amber-600">🛡 This player is protected by Divine Shield and cannot be cursed.</p>
+        </div>
         <p class="text-sm text-theme-text-muted">
-          Cast plague on <span class="font-semibold text-theme-text">{{ selectedPlagueTarget?.username }}</span>?
+          Cast a curse on <span class="font-semibold text-theme-text">{{ selectedPlagueTarget?.username }}</span>?
           This will cost <span class="font-semibold text-theme-accent">{{ plagueCost }} heresy</span> and destroy all their Food.
           Your identity will remain anonymous.
         </p>
         <div class="flex gap-3">
           <button
             @click="executePlague"
-            :disabled="vassalage.plagueLoading"
+            :disabled="vassalage.plagueLoading || (selectedPlagueTarget && isPlayerShielded(selectedPlagueTarget))"
             class="btn-primary flex-1 px-4 py-2 text-sm"
+            :class="{ 'opacity-50 cursor-not-allowed': selectedPlagueTarget && isPlayerShielded(selectedPlagueTarget) }"
           >
-            <span class="relative z-10 font-medium">{{ vassalage.plagueLoading ? 'Casting...' : 'Cast Plague' }}</span>
+            <span class="relative z-10 font-medium">{{ vassalage.plagueLoading ? 'Casting...' : 'Cast Curse' }}</span>
           </button>
           <button
             @click="showPlagueConfirm = false"
@@ -582,6 +595,11 @@ const searchingPlague = ref(false)
 const showPlagueConfirm = ref(false)
 const selectedPlagueTarget = ref(null)
 const showSchismConfirm = ref(false)
+
+// Filter blessing_shield out of MiracleBuffBar — ShieldTimer handles that display
+const nonShieldMiracles = computed(() =>
+  economy.activeMiracles.filter(m => m.miracle_type !== 'blessing_shield')
+)
 
 watch(activeTab, (tab) => {
   forceEvilTheme.value = (tab === 'dark')
@@ -670,7 +688,7 @@ function formatTime(timestamp) {
 const actionNames = {
   crusade: 'Crusade',
   schism: 'Schism',
-  plague: 'Plague',
+  plague: 'Curse',
 }
 
 const actionColors = {
@@ -688,6 +706,11 @@ const plagueCost = computed(() => {
   const config = economy.gameConfig?.['plague.heresy_cost'] || 75
   return config
 })
+
+function isPlayerShielded(player) {
+  if (!player || !player.divine_shield_until) return false
+  return new Date(player.divine_shield_until) > new Date()
+}
 
 function buildingProduction(buildingType, stat) {
   const key = `building.${buildingType}.${stat}`
