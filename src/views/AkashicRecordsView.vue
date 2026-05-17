@@ -74,6 +74,7 @@
             v-for="prayer in akashic.publicPrayers"
             :key="prayer.id"
             :prayer="prayer"
+            :blessings="getBlessingsForPrayer(prayer.id)"
             :is-active="isPrayerActive(prayer.id)"
             :displayed-count="getPrayerDisplayedCount(prayer.id)"
             :cycle-progress="getPrayerCycleProgress(prayer.id)"
@@ -81,6 +82,8 @@
             :disabled="akashic.altruisticLoading || !!akashic.activeAltruisticPrayer"
             @pray="handlePrayForPrayer"
             @stop="handleStopPraying"
+            @bless="handleBlessPrayer"
+            @show-blessing-detail="handleShowBlessingDetail"
           />
         </div>
 
@@ -178,6 +181,23 @@
       :label="karmaToastLabel"
       @dismiss="karmaToastAmount = 0"
     />
+
+    <!-- Blessing Picker Modal -->
+    <BlessingPicker
+      :visible="blessingPickerVisible"
+      :prayer-username="blessingTargetPrayer?.username || ''"
+      :user-karma="prayers.karma"
+      :existing-blessing-type-ids="existingBlessingTypeIds"
+      @close="blessingPickerVisible = false"
+      @select="handleBlessingSelect"
+    />
+
+    <!-- Blessing Detail Modal -->
+    <BlessingDetailModal
+      :visible="blessingDetailVisible"
+      :blessings="blessingDetailData"
+      @close="blessingDetailVisible = false"
+    />
   </div>
 </template>
 
@@ -186,12 +206,18 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { usePrayers } from '@/composables/usePrayers'
 import { useAkashicRecords } from '@/composables/useAkashicRecords'
 import { usePrayerCounter } from '@/composables/usePrayerCounter'
+import { useBlessings } from '@/composables/useBlessings'
+import { useKarmaShop } from '@/composables/useKarmaShop'
 import AkashicPrayerCard from '@/components/organisms/AkashicPrayerCard.vue'
 import SinnerCard from '@/components/organisms/SinnerCard.vue'
 import KarmaToast from '@/components/molecules/KarmaToast.vue'
+import BlessingPicker from '@/components/organisms/BlessingPicker.vue'
+import BlessingDetailModal from '@/components/organisms/BlessingDetailModal.vue'
 
 const prayers = usePrayers()
 const akashic = useAkashicRecords()
+const blessings = useBlessings()
+const shop = useKarmaShop()
 
 const activeSubTab = ref('prayers')
 const sinnerPrayerLoading = ref(null) // sinner ID being loaded
@@ -202,6 +228,19 @@ const counterAnimating = ref(false)
 const karmaToastAmount = ref(0)
 const karmaToastType = ref('positive')
 const karmaToastLabel = ref('')
+
+// Blessing state
+const blessingPickerVisible = ref(false)
+const blessingTargetPrayer = ref(null)
+const blessingDetailVisible = ref(false)
+const blessingDetailData = ref([])
+
+// Computed: existing blessing type IDs for the target prayer (to disable already-granted blessings)
+const existingBlessingTypeIds = computed(() => {
+  if (!blessingTargetPrayer.value) return []
+  const prayerBlessings = blessings.getBlessingsForPrayer(blessingTargetPrayer.value.id)
+  return prayerBlessings.map(b => b.blessing_type_id)
+})
 
 // Altruistic prayer counter - uses the same usePrayerCounter composable
 const activeAltruisticPrayerRef = computed(() => akashic.activeAltruisticPrayer)
@@ -269,6 +308,68 @@ function getSinnerCycleProgress(sinnerId) {
 async function switchToSinners() {
   activeSubTab.value = 'sinners'
   await akashic.fetchSinners()
+}
+
+// Get blessings for a specific prayer (from cached blessing data)
+function getBlessingsForPrayer(prayerId) {
+  // First check if blessings come embedded from the RPC (updated get_public_prayers)
+  const prayer = akashic.publicPrayers.find(p => p.id === prayerId)
+  if (prayer?.blessings && prayer.blessings.length > 0) {
+    return prayer.blessings
+  }
+  // Fallback to blessing composable cache
+  return blessings.getBlessingsForPrayer(prayerId)
+}
+
+// Handle "Bless" button click on prayer card — open BlessingPicker
+function handleBlessPrayer(prayer) {
+  blessingTargetPrayer.value = prayer
+  blessingPickerVisible.value = true
+}
+
+// Handle blessing selection from BlessingPicker
+async function handleBlessingSelect(blessingTypeId) {
+  if (!blessingTargetPrayer.value) return
+
+  try {
+    const result = await shop.purchaseBlessing(blessingTargetPrayer.value.id, blessingTypeId)
+
+    // Show success toast
+    const blessingDef = blessings.getBlessingById(blessingTypeId)
+    karmaToastAmount.value = result.karma_spent
+    karmaToastType.value = 'positive'
+    karmaToastLabel.value = `${blessingDef?.emoji || '✨'} ${blessingDef?.name || 'Blessing'} granted!`
+
+    // Close the picker
+    blessingPickerVisible.value = false
+    blessingTargetPrayer.value = null
+
+    // Refresh blessing data for all visible prayers
+    await refreshBlessingData()
+
+    // Refresh profile to get updated karma
+    await prayers.fetchProfile()
+  } catch (err) {
+    console.error('[AkashicRecordsView] Error granting blessing:', err)
+    // Show error toast
+    karmaToastAmount.value = 1
+    karmaToastType.value = 'negative'
+    karmaToastLabel.value = err.message || 'Failed to grant blessing'
+  }
+}
+
+// Handle "showBlessingDetail" event from AkashicPrayerCard
+function handleShowBlessingDetail(prayer) {
+  blessingDetailData.value = getBlessingsForPrayer(prayer.id)
+  blessingDetailVisible.value = true
+}
+
+// Refresh blessing data for all visible prayers
+async function refreshBlessingData() {
+  const prayerIds = akashic.publicPrayers.map(p => p.id)
+  if (prayerIds.length > 0) {
+    await blessings.fetchPrayerBlessings(prayerIds)
+  }
 }
 
 // Handle "Pray for this prayer" button click
@@ -377,6 +478,8 @@ watch(() => counter.sinnerRedeemed?.value, (val) => {
 onMounted(async () => {
   await akashic.fetchPublicPrayers()
   await prayers.fetchProfile()
+  // Fetch blessing data for loaded prayers
+  await refreshBlessingData()
   // Subscribe to realtime updates for sinners and intercessory prayers
   akashic.subscribeToRealtime()
 })

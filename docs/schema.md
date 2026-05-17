@@ -1,7 +1,7 @@
 # PRAYER APP - COMPLETE DATABASE SCHEMA
 
 **Authority Source:** `src/lib/supabase-schema.sql`
-**Last Updated:** 2026-05-15
+**Last Updated:** 2026-05-17
 
 This document serves as the primary reference for the database schema used in the Prayer App. It is designed for use by both human developers and AI agents.
 
@@ -520,3 +520,95 @@ Located at `supabase/functions/pray-for-sinner/index.ts`.
 | `src/components/organisms/SinnerCard.vue` | Sinner card with live countdown |
 | `src/components/molecules/KarmaToast.vue` | Toast notification for karma milestones |
 | `supabase/functions/pray-for-sinner/index.ts` | Edge function for AI-generated intercessory prayers |
+
+---
+
+## Karma Shop — Blessings (v4.0)
+
+**Migration:** `supabase/migrations/karma-shop-blessings.sql`
+**Config:** `src/config/blessings.json`
+
+### New Tables
+
+#### `blessing_types`
+
+Blessing definitions mirrored from the config file. Server-side source of truth for costs and karma values.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | TEXT PK | Slug identifier (e.g. `golden-light`) |
+| `emoji` | TEXT | Emoji displayed as badge |
+| `name` | TEXT | Human-readable name |
+| `description` | TEXT | Flavor text |
+| `karma_cost` | INT | Karma deducted from giver |
+| `karma_to_giver` | INT | Karma rebated to giver |
+| `karma_to_receiver` | INT | Karma awarded to prayer owner |
+| `sort_order` | INT | Display order in shop |
+| `is_active` | BOOLEAN | Whether available for purchase |
+| `created_at` | TIMESTAMPTZ | Creation timestamp |
+
+#### `prayer_blessings`
+
+Junction table tracking who blessed which prayer. UNIQUE constraint prevents duplicate blessings (same user + same type per prayer).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID PK | Auto-generated |
+| `prayer_id` | UUID FK → prayers | The blessed prayer |
+| `blessing_type_id` | TEXT FK → blessing_types | Which blessing |
+| `giver_id` | UUID FK → profiles | Who gave the blessing |
+| `receiver_id` | UUID FK → profiles | Prayer owner (denormalized for karma) |
+| `created_at` | TIMESTAMPTZ | When blessed |
+
+**UNIQUE constraint:** `(prayer_id, blessing_type_id, giver_id)` — one user can give each blessing type once per prayer.
+
+### New RPC Functions
+
+#### `grant_blessing(p_prayer_id UUID, p_blessing_type_id TEXT) → JSONB`
+
+Atomically:
+1. Validates blessing type is active
+2. Prevents self-blessing (cannot bless own prayer)
+3. Prevents duplicate blessings
+4. Checks giver has enough karma
+5. Deducts `karma_cost` from giver
+6. Awards `karma_to_giver` rebate to giver
+7. Awards `karma_to_receiver` to prayer owner
+8. Inserts `prayer_blessings` row
+
+Returns: `{ id, blessing_type_id, karma_spent, karma_to_giver, karma_to_receiver }`
+
+#### `get_prayer_blessings(p_prayer_ids UUID[]) → JSONB`
+
+Fetches aggregated blessing counts for a batch of prayers. Returns one row per `(prayer_id, blessing_type_id)` with count, emoji, and name.
+
+### Updated RPC: `get_public_prayers`
+
+Now includes a `blessings` JSONB array per prayer with aggregated blessing data (emoji, name, count), sorted by blessing sort_order.
+
+### RLS Policies
+
+- `blessing_types`: Publicly readable (SELECT for all)
+- `prayer_blessings`: Publicly readable (SELECT for all)
+- No direct INSERT policy — all inserts go through `grant_blessing` RPC (SECURITY DEFINER)
+
+### Blessing Economics
+
+| Blessing | Cost | Giver Gets | Receiver Gets | Net Cost |
+|----------|------|------------|---------------|----------|
+| ✨ Golden Light | 10 | 1 | 5 | 9 |
+| 🔥 Holy Flame | 25 | 2 | 10 | 23 |
+| 🕊️ Dove of Peace | 50 | 5 | 20 | 45 |
+| 👑 Divine Crown | 100 | 10 | 50 | 90 |
+
+### Frontend Components
+
+| File | Purpose |
+|------|---------|
+| `src/config/blessings.json` | Blessing definitions (source of truth for display) |
+| `src/composables/useBlessings.js` | Fetch blessing types & prayer blessing aggregates |
+| `src/composables/useKarmaShop.js` | Shop tab state & blessing purchase flow |
+| `src/views/KarmaShopView.vue` | Karma Shop page with Blessings tab |
+| `src/components/organisms/BlessingPicker.vue` | Modal to pick a blessing to grant |
+| `src/components/molecules/BlessingBadgeBar.vue` | Emoji badge bar with overflow handling |
+| `src/components/organisms/BlessingDetailModal.vue` | Full blessing breakdown popup |

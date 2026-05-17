@@ -6,20 +6,20 @@ import LoginView from './views/LoginView.vue'
 import AltarView from './views/AltarView.vue'
 import PurgatoryView from './views/PurgatoryView.vue'
 import AkashicRecordsView from './views/AkashicRecordsView.vue'
+import KarmaShopView from './views/KarmaShopView.vue'
 import iconUrl from './assets/icons/icon.png'
 
 const auth = useAuth()
 const banTimer = useBanTimer()
 
-// Tab navigation between Altar and Akashic Records
+// Tab navigation between Altar, Akashic Records, and Karma Shop
 const currentTab = ref('altar')
 
 // Determine which view to show
-// With reactive() wrapping, refs are auto-unwrapped — no .value needed
 const currentView = computed(() => {
   if (!auth.isAuthenticated) return 'login'
   if (banTimer.isBanned) return 'purgatory'
-  return currentTab.value // 'altar' or 'akashic'
+  return currentTab.value // 'altar', 'akashic', or 'shop'
 })
 
 // Dynamic copyright year and developer email
@@ -53,7 +53,13 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
               @click="currentTab = 'akashic'"
               :class="currentTab === 'akashic' ? 'nav-tab-active' : 'nav-tab-inactive'"
             >
-              📜 Akashic Records
+              📜 Akashic
+            </button>
+            <button
+              @click="currentTab = 'shop'"
+              :class="currentTab === 'shop' ? 'nav-tab-active' : 'nav-tab-inactive'"
+            >
+              🛒 Shop
             </button>
           </div>
         </div>
@@ -69,6 +75,7 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
         <PurgatoryView v-else-if="currentView === 'purgatory'" />
         <AltarView v-else-if="currentView === 'altar'" />
         <AkashicRecordsView v-else-if="currentView === 'akashic'" />
+        <KarmaShopView v-else-if="currentView === 'shop'" />
       </div>
     </div>
     

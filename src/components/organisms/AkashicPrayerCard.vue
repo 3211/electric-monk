@@ -34,6 +34,11 @@
       </span>
     </div>
 
+    <!-- Blessing Badges -->
+    <div v-if="blessings && blessings.length > 0" class="mb-4" @click="$emit('showBlessingDetail', prayer)">
+      <BlessingBadgeBar :blessings="blessings" :max-visible="5" @show-detail="$emit('showBlessingDetail', prayer)" />
+    </div>
+
     <!-- Pray Button or Active Counter -->
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div v-if="isActive" class="flex flex-1 items-center gap-4">
@@ -53,16 +58,25 @@
         </div>
       </div>
 
-      <button
-        v-else
-        @click="$emit('pray', prayer)"
-        :disabled="disabled"
-        class="btn-primary self-start px-4 py-2"
-      >
-        <span class="relative z-10 font-medium text-sm">
-          🙏 Pray for this
-        </span>
-      </button>
+      <div v-else class="flex items-center gap-2">
+        <button
+          @click="$emit('pray', prayer)"
+          :disabled="disabled"
+          class="btn-primary self-start px-4 py-2"
+        >
+          <span class="relative z-10 font-medium text-sm">
+            🙏 Pray for this
+          </span>
+        </button>
+        <button
+          @click="$emit('bless', prayer)"
+          :disabled="disabled"
+          class="btn-ghost self-start px-3 py-2 text-xs"
+          title="Grant a blessing to this prayer"
+        >
+          ✨ Bless
+        </button>
+      </div>
 
       <button
         v-if="isActive"
@@ -77,9 +91,11 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import BlessingBadgeBar from '@/components/molecules/BlessingBadgeBar.vue'
 
 const props = defineProps({
   prayer: { type: Object, required: true },
+  blessings: { type: Array, default: () => [] },
   isActive: { type: Boolean, default: false },
   displayedCount: { type: Number, default: 0 },
   cycleProgress: { type: Number, default: 0 },
@@ -87,7 +103,7 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
 })
 
-defineEmits(['pray', 'stop'])
+defineEmits(['pray', 'stop', 'bless', 'showBlessingDetail'])
 
 const expanded = ref(false)
 

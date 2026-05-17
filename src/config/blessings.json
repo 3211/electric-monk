@@ -1,0 +1,44 @@
+{
+  "blessings": [
+    {
+      "id": "golden-light",
+      "emoji": "✨",
+      "name": "Golden Light",
+      "description": "A radiant blessing that illuminates the prayer with divine light.",
+      "karma_cost": 10,
+      "karma_to_giver": 1,
+      "karma_to_receiver": 5,
+      "sort_order": 1
+    },
+    {
+      "id": "holy-flame",
+      "emoji": "🔥",
+      "name": "Holy Flame",
+      "description": "The sacred fire that purifies and elevates the spirit.",
+      "karma_cost": 25,
+      "karma_to_giver": 2,
+      "karma_to_receiver": 10,
+      "sort_order": 2
+    },
+    {
+      "id": "dove-of-peace",
+      "emoji": "🕊️",
+      "name": "Dove of Peace",
+      "description": "A gentle blessing that brings tranquility and grace.",
+      "karma_cost": 50,
+      "karma_to_giver": 5,
+      "karma_to_receiver": 20,
+      "sort_order": 3
+    },
+    {
+      "id": "divine-crown",
+      "emoji": "👑",
+      "name": "Divine Crown",
+      "description": "The highest honor — a crown of divine recognition.",
+      "karma_cost": 100,
+      "karma_to_giver": 10,
+      "karma_to_receiver": 50,
+      "sort_order": 4
+    }
+  ]
+}
