@@ -4,6 +4,8 @@ import { useAuth } from './composables/useAuth'
 import { useBanTimer } from './composables/useBanTimer'
 import { useEconomy } from './composables/useEconomy'
 import { useSects } from './composables/useSects'
+import { usePrayers } from './composables/usePrayers'
+import { supabase } from './lib/supabase'
 import LoginView from './views/LoginView.vue'
 import AltarView from './views/AltarView.vue'
 import PurgatoryView from './views/PurgatoryView.vue'
@@ -15,19 +17,26 @@ import LeaderboardView from './views/LeaderboardView.vue'
 import ScriptoriumView from './views/ScriptoriumView.vue'
 import SynodHallView from './views/SynodHallView.vue'
 import ReliquaryView from './views/ReliquaryView.vue'
-import SectSelectionModal from './components/organisms/SectSelectionModal.vue'
+import IdentityModal from './components/organisms/IdentityModal.vue'
+import UsernameChangeModal from './components/organisms/UsernameChangeModal.vue'
 import iconUrl from './assets/icons/icon.png'
 
 const auth = useAuth()
 const banTimer = useBanTimer()
 const economy = useEconomy()
 const sects = useSects()
+const prayers = usePrayers()
 
 // Tab navigation
 const currentTab = ref('altar')
 
-// Sect selection modal state
-const showSectModal = ref(false)
+// Unified identity modal state (combines username + sect selection)
+const showIdentityModal = ref(false)
+const identitySaving = ref(false)
+const identityError = ref(null)
+
+// Username change modal state
+const showUsernameChangeModal = ref(false)
 
 // Determine which view to show
 const currentView = computed(() => {
@@ -39,20 +48,61 @@ const currentView = computed(() => {
 const evilViews = new Set(['catacombs', 'purgatory'])
 const isEvilView = computed(() => evilViews.has(currentView.value))
 
-// Watch for authentication to trigger sect selection
+// Watch for authentication to trigger identity modal
 watch(() => auth.isAuthenticated, async (isAuth) => {
   if (isAuth) {
     // Fetch economy data which includes sect_type
     await economy.fetchEconomy()
-    // If no sect selected, show modal
-    if (!economy.sectType) {
-      showSectModal.value = true
+    // If no username or no sect selected, show unified identity modal
+    if (!prayers.username || !economy.sectType) {
+      showIdentityModal.value = true
     }
   }
 }, { immediate: true })
 
-function onSectChosen(sectType) {
-  showSectModal.value = false
+// Handle unified identity submission (username + sect)
+async function onIdentitySubmitted({ username, sectType }) {
+  identitySaving.value = true
+  identityError.value = null
+  try {
+    // Step 1: Upsert profile with username
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('No user logged in')
+
+    const { error: upsertError } = await supabase
+      .from('profiles')
+      .upsert({
+        id: user.id,
+        username: username,
+      }, { onConflict: 'id' })
+
+    if (upsertError) throw upsertError
+
+    // Step 2: Choose sect via RPC
+    const { data, error: sectError } = await supabase.rpc('choose_sect', {
+      p_sect_type: sectType,
+    })
+
+    if (sectError) throw sectError
+
+    // Step 3: Refresh state
+    await prayers.fetchProfile()
+    await economy.fetchEconomy()
+    await sects.fetchSectInfo()
+
+    showIdentityModal.value = false
+  } catch (err) {
+    identityError.value = err.message || 'Failed to save identity'
+    console.error('[App] Identity submission error:', err)
+  } finally {
+    identitySaving.value = false
+  }
+}
+
+// Handle username change
+function onUsernameChanged(newUsername, karmaRemaining) {
+  prayers.fetchProfile()
+  economy.fetchEconomy()
 }
 
 // Dynamic copyright year and developer email
@@ -159,10 +209,20 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
         <CatacombsView v-else-if="currentView === 'catacombs'" />
         <LeaderboardView v-else-if="currentView === 'rankings'" />
 
-        <!-- Sect Selection Modal (forced on first login) -->
-        <SectSelectionModal
-          :visible="showSectModal"
-          @chosen="onSectChosen"
+        <!-- Unified Identity Modal (username + sect on first login) -->
+        <IdentityModal
+          v-model="showIdentityModal"
+          :saving="identitySaving"
+          :error-message="identityError"
+          @submitted="onIdentitySubmitted"
+        />
+
+        <!-- Username Change Modal (accessible from settings) -->
+        <UsernameChangeModal
+          v-model="showUsernameChangeModal"
+          :current-username="prayers.username"
+          :karma-balance="prayers.karma"
+          @changed="onUsernameChanged"
         />
       </div>
     </div>

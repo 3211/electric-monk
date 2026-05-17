@@ -7,7 +7,13 @@ import { supabase } from '@/lib/supabase'
  * Manages sect selection and sect modifier state:
  * - Choose sect on first login (one-time, irreversible)
  * - Fetch sect info and modifiers
- * - Sect display names and icons
+ * - Sect display names and icons (updated nomenclature)
+ *
+ * Sect key mapping (Rapture Subsequent):
+ *   gilded_path    -> The Gilded Path
+ *   holy_way       -> The Holy Way
+ *   final_watch    -> The Final Watch
+ *   black_tribunal -> The Black Tribunal
  */
 
 let sharedState = null
@@ -20,30 +26,30 @@ function createSectsState() {
   const choosing = ref(false)
 
   const sectInfo = {
-    prosperity_gospel: {
-      name: 'The Prosperity Gospel',
-      icon: '💰',
+    gilded_path: {
+      name: 'The Gilded Path',
+      icon: '\u{1F4B0}',
       description: '+50% Gold generation, -20% Mana generation, +100% Cathedral upkeep',
       color: 'text-yellow-500',
       bg: 'bg-yellow-500/10 border-yellow-500/30',
     },
-    ascetic_order: {
-      name: 'The Ascetic Order',
-      icon: '🕊️',
+    holy_way: {
+      name: 'The Holy Way',
+      icon: '\u{1F54A}',
       description: '-50% Food consumption, +20% Mana generation, Cannot build Temple/Church/Cathedral',
       color: 'text-blue-400',
       bg: 'bg-blue-500/10 border-blue-500/30',
     },
-    doomsday_preppers: {
-      name: 'The Doomsday Preppers',
-      icon: '🛡️',
+    final_watch: {
+      name: 'The Final Watch',
+      icon: '\u{1F6E1}',
       description: '+50% Food generation, +50% Crusade defense, -25% Gold generation',
       color: 'text-green-500',
       bg: 'bg-green-500/10 border-green-500/30',
     },
-    inquisition: {
-      name: 'The Inquisition',
-      icon: '🔥',
+    black_tribunal: {
+      name: 'The Black Tribunal',
+      icon: '\u{2697}',
       description: '+100% Heresy generation, -30% Mana generation, Inquisitions cost 50% less Gold',
       color: 'text-red-400',
       bg: 'bg-red-500/10 border-red-500/30',
@@ -109,31 +115,23 @@ function createSectsState() {
       }
     } catch (err) {
       error.value = err.message
-      console.error('[useSects] Fetch error:', err)
+      console.error('[useSects] Fetch sect info error:', err)
     } finally {
       loading.value = false
     }
   }
 
-  /**
-   * Set sect type from economy data (no RPC call)
-   */
-  function setSectType(type) {
-    sectType.value = type
-  }
-
   return reactive({
     sectType,
+    sectList,
+    sectInfo,
+    currentSectInfo,
     modifiers,
     loading,
     error,
     choosing,
-    sectInfo,
-    sectList,
-    currentSectInfo,
     chooseSect,
     fetchSectInfo,
-    setSectType,
   })
 }
 

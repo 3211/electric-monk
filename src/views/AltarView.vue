@@ -55,6 +55,17 @@
               <span class="font-semibold text-theme-accent">{{ prayers.tokensRemaining }}</span>
               <span>Devotion remaining</span>
             </div>
+            <!-- Change Username Button -->
+            <button
+              v-if="prayers.isProfileComplete"
+              @click="showUsernameChangeModal = true"
+              class="tactile-icon-btn text-theme-text-dim"
+              title="Change Username (costs 1000 Karma)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </button>
             <!-- Settings Button (only when profile is complete) -->
             <button
               v-if="prayers.isProfileComplete"
@@ -513,6 +524,14 @@
       @submitted="handleProfileSubmit"
     />
 
+    <!-- Username Change Modal -->
+    <UsernameChangeModal
+      v-model="showUsernameChangeModal"
+      :current-username="prayers.username"
+      :karma-balance="prayers.karma"
+      @changed="onUsernameChanged"
+    />
+
     <!-- Aether Processing Modal -->
     <Teleport to="body">
       <Transition name="fade">
@@ -629,6 +648,7 @@ import { useBanTimer } from '@/composables/useBanTimer'
 import { useEconomy } from '@/composables/useEconomy'
 import KarmaToast from '@/components/molecules/KarmaToast.vue'
 import ProfileCompletionModal from '@/components/organisms/ProfileCompletionModal.vue'
+import UsernameChangeModal from '@/components/organisms/UsernameChangeModal.vue'
 import PrayerHistoryModal from '@/components/organisms/PrayerHistoryModal.vue'
 
 // Environment variable for max prayer characters
@@ -644,6 +664,7 @@ const prayerContent = ref('')
 const showProfileModal = ref(false)
 const profileSaving = ref(false)
 const profileError = ref(null)
+const showUsernameChangeModal = ref(false)
 const counterAnimating = ref(false)
 const showHistoryModal = ref(null) // null | 'inactive' | 'archived'
 const selectedPrayerId = ref(null) // Which active prayer card is selected
@@ -847,6 +868,12 @@ async function handleProfileSubmit({ username, faith }) {
   } finally {
     profileSaving.value = false
   }
+}
+
+function onUsernameChanged() {
+  // Refresh profile data after username change
+  prayers.fetchProfile()
+  economy.fetchEconomy()
 }
 
 async function handleLogout() {
