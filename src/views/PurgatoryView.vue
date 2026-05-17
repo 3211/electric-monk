@@ -1,19 +1,20 @@
 <template>
-  <div class="app-frame flex min-h-screen items-center justify-center px-4 py-10 sm:py-14">
-    <div class="purgatory-shell max-w-lg w-full text-center">
+  <div class="evil-shell min-h-screen">
+    <div class="app-frame flex min-h-screen items-center justify-center px-4 py-10 sm:py-14">
+      <div class="purgatory-shell evil-purgatory-shell max-w-xl w-full text-center">
       <!-- Header with Karma -->
-      <div class="mb-6">
-        <h1 class="ritual-heading text-5xl font-bold text-theme-purgatory sm:text-6xl">Purgatory</h1>
-        <p class="mx-auto mt-3 max-w-md text-theme-text-dim">Your soul has been tainted by malicious intent</p>
+      <div class="evil-purgatory-header mb-7">
+        <h1 class="ritual-heading text-5xl font-bold text-theme-accent sm:text-6xl">Purgatory</h1>
+        <p class="mx-auto mt-3 max-w-md text-theme-text-muted">Your soul has been tainted by malicious intent</p>
         <!-- Karma Display -->
-        <div class="chip mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
+        <div class="chip evil-metric-chip evil-purgatory-hero-chip mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm text-theme-text-dim">
           <span class="text-lg">{{ prayers.karmaEmoji }}</span>
           <span>Karma: <span :class="karmaClass" class="font-semibold">{{ prayers.karma }}</span></span>
         </div>
       </div>
 
       <!-- Intercessory Prayer Count -->
-      <div v-if="intercessoryCount > 0" class="glass-panel glass-panel-soft mb-5 rounded-[24px] border border-theme-accent/20 p-4 shadow-[0_18px_28px_rgba(48,38,21,0.08)]">
+      <div v-if="intercessoryCount > 0" class="glass-panel glass-panel-soft glass-gloss evil-purgatory-support mb-5 rounded-[24px] border border-theme-accent/20 p-4">
         <p class="text-sm font-medium text-theme-accent">
           🕯️ {{ intercessoryCount }} {{ intercessoryCount === 1 ? 'person is' : 'people are' }} praying for your redemption
         </p>
@@ -21,10 +22,10 @@
       </div>
 
       <!-- Ban Timer -->
-      <div class="purgatory-timer glass-panel glass-panel-strong glass-gloss mb-6 border-theme-purgatory/35 p-8 shadow-glow-purgatory sm:p-10">
+      <div class="purgatory-timer evil-purgatory-timer-panel glass-panel glass-panel-strong glass-gloss mb-6 border-theme-purgatory/35 p-8 sm:p-10">
         <div class="purgatory-timer-halo"></div>
         <div class="relative z-10">
-          <div class="purgatory-timer-value mb-4 text-6xl font-bold text-theme-purgatory sm:text-7xl">
+          <div class="purgatory-timer-value mb-4 text-6xl font-bold text-theme-purgatory-dark sm:text-7xl">
             {{ banTimer.formattedTimeRemaining || '0s' }}
           </div>
           <p class="text-sm text-theme-text-dim">
@@ -34,8 +35,8 @@
       </div>
 
       <!-- Indulgence Section -->
-      <div class="glass-panel glass-panel-strong glass-gloss mb-6 p-6 sm:p-7">
-        <h2 class="text-3xl font-semibold text-theme-accent">Watch an Indulgence</h2>
+      <div class="glass-panel glass-panel-strong glass-gloss evil-purgatory-indulgence mb-6 p-6 sm:p-7">
+        <h2 class="text-3xl font-semibold text-theme-accent-light">Watch an Indulgence</h2>
         <p class="mt-2 text-sm text-theme-text-dim">
           View a sacred advertisement to reduce your penance by 15 minutes
         </p>
@@ -53,7 +54,7 @@
 
         <!-- Ad Placeholder -->
         <div v-else class="mt-5 space-y-4">
-          <div class="glass-panel glass-panel-soft aspect-video rounded-[24px] border border-theme-border p-6">
+          <div class="glass-panel glass-panel-soft evil-purgatory-ad aspect-video rounded-[24px] border border-theme-border p-6">
             <div class="flex h-full flex-col items-center justify-center text-center">
               <div class="mb-2 animate-pulse text-theme-accent">
                 <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,12 +77,12 @@
       </div>
 
       <!-- Error Message -->
-      <div v-if="banTimer.error" class="mb-6 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
+      <div v-if="banTimer.error" class="evil-alert evil-alert--danger mb-6 p-3 text-sm text-theme-purgatory-dark">
         {{ banTimer.error }}
       </div>
 
       <!-- Reason for Ban (if available) -->
-      <div v-if="rejectionReason" class="glass-panel glass-panel-soft mt-6 border-theme-purgatory/25 p-5">
+      <div v-if="rejectionReason" class="glass-panel glass-panel-soft glass-gloss evil-purgatory-transgression mt-6 border-theme-purgatory/25 p-5">
         <p class="text-xs uppercase tracking-[0.18em] text-theme-text-muted">Last Transgression</p>
         <p class="mt-2 italic text-theme-purgatory-dark">"{{ rejectionReason }}"</p>
       </div>
@@ -90,13 +91,14 @@
       <div class="mt-6">
         <button
           @click="handleLogout"
-          class="btn-ghost px-4 py-2 text-sm"
+          class="btn-ghost evil-purgatory-logout px-4 py-2 text-sm"
         >
           Logout
         </button>
       </div>
     </div>
   </div>
+</div>
 </template>
 
 <script setup>
@@ -182,9 +184,77 @@ function karmaClass() {
   position: relative;
 }
 
+.evil-purgatory-shell {
+  padding-block: clamp(0.5rem, 2vw, 1.25rem);
+}
+
+.evil-purgatory-shell::before,
+.evil-purgatory-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.evil-purgatory-shell::before {
+  inset: -8% -10% auto;
+  height: 20rem;
+  background:
+    radial-gradient(circle at 50% 16%, rgba(177, 128, 255, 0.22) 0%, rgba(177, 128, 255, 0.08) 30%, transparent 58%),
+    radial-gradient(circle at 28% 26%, rgba(255, 107, 214, 0.14) 0%, transparent 28%),
+    radial-gradient(circle at 74% 28%, rgba(255, 138, 99, 0.12) 0%, transparent 24%);
+  filter: blur(22px);
+  opacity: 0.95;
+}
+
+.evil-purgatory-shell::after {
+  inset: 18% 6% auto;
+  height: 70%;
+  background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.04), transparent 58%);
+  opacity: 0.72;
+}
+
+.evil-purgatory-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.evil-purgatory-header {
+  position: relative;
+}
+
+.evil-purgatory-hero-chip {
+  border-color: rgba(206, 170, 255, 0.24);
+  background: linear-gradient(180deg, rgba(177, 128, 255, 0.12), rgba(255, 107, 214, 0.05));
+  box-shadow: 0 16px 28px rgba(3, 2, 10, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.evil-purgatory-support {
+  border-color: rgba(206, 170, 255, 0.22);
+  box-shadow: 0 24px 40px rgba(2, 1, 8, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
 .purgatory-timer {
   position: relative;
   overflow: hidden;
+}
+
+.evil-purgatory-timer-panel {
+  border-color: rgba(255, 138, 99, 0.22);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 138, 99, 0.08), transparent 42%),
+    linear-gradient(180deg, rgba(18, 11, 28, 0.94), rgba(9, 6, 15, 0.98));
+  box-shadow: 0 28px 60px rgba(2, 1, 8, 0.5), 0 0 44px rgba(255, 107, 214, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.purgatory-timer::before {
+  content: "";
+  position: absolute;
+  inset: 1rem;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.03), transparent 54%);
+  pointer-events: none;
 }
 
 .purgatory-timer::after {
@@ -192,15 +262,17 @@ function karmaClass() {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 30%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 28%),
+    radial-gradient(circle at 50% 100%, rgba(255, 138, 99, 0.08), transparent 44%);
 }
 
 .purgatory-timer-halo {
   position: absolute;
-  inset: 14% 18%;
+  inset: 12% 16%;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(201, 122, 79, 0.24), rgba(168, 93, 50, 0.12) 40%, transparent 72%);
-  filter: blur(18px);
+  background: radial-gradient(circle, rgba(255, 107, 214, 0.22), rgba(177, 128, 255, 0.16) 36%, rgba(255, 138, 99, 0.12) 58%, transparent 74%);
+  filter: blur(26px);
   animation: ritual-breathe 5.6s ease-in-out infinite;
 }
 
@@ -210,6 +282,32 @@ function karmaClass() {
   font-family: var(--font-mono);
   letter-spacing: -0.06em;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 20px rgba(168, 93, 50, 0.16);
+  text-shadow: 0 0 26px rgba(255, 138, 99, 0.24), 0 0 46px rgba(177, 128, 255, 0.12);
+}
+
+.evil-purgatory-indulgence {
+  border-color: rgba(206, 170, 255, 0.24);
+}
+
+.evil-purgatory-ad {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 24%),
+    linear-gradient(180deg, rgba(15, 10, 24, 0.92), rgba(23, 14, 36, 0.94));
+}
+
+.evil-purgatory-transgression {
+  border-color: rgba(255, 138, 99, 0.24);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 22%),
+    linear-gradient(180deg, rgba(27, 16, 24, 0.9), rgba(20, 12, 29, 0.94));
+}
+
+.evil-purgatory-logout {
+  min-width: 8rem;
+}
+
+.evil-purgatory-logout:hover {
+  border-color: rgba(255, 138, 99, 0.28);
+  box-shadow: 0 16px 28px rgba(2, 1, 8, 0.24), 0 0 22px rgba(255, 138, 99, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 </style>
