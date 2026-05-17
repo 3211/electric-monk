@@ -36,148 +36,175 @@
       </div>
 
       <!-- Relic Grid -->
-      <div v-else class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        <div
-          v-for="relic in relics.relics"
-          :key="relic.id"
-          class="glass-panel glass-panel-soft p-5 sm:p-6 transition-all duration-[var(--dur-standard)] hover:shadow-glow-gold"
-          :class="{ 'ring-1 ring-theme-accent/30': relic.holder_id === currentUserId }"
-        >
-          <!-- Relic Icon & Name -->
-          <div class="flex items-start gap-4 mb-4">
-            <div class="flex h-14 w-14 items-center justify-center rounded-[20px] border border-theme-border bg-theme-panel/60 text-3xl shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-              {{ relic.icon || '🏺' }}
-            </div>
-            <div class="flex-1 min-w-0">
-              <h3 class="ritual-heading text-lg font-bold text-theme-text truncate">{{ relic.name }}</h3>
-              <p class="text-xs text-theme-text-muted mt-0.5 line-clamp-2">{{ relic.description }}</p>
-            </div>
-          </div>
-
-          <!-- Relic Stats -->
-          <div class="grid grid-cols-2 gap-3 mb-4">
-            <div class="rounded-[14px] border border-theme-border/50 bg-theme-panel/30 p-2.5 text-center">
-              <div class="text-xs text-theme-text-muted">Power</div>
-              <div class="text-sm font-semibold text-theme-accent">{{ relic.power_level || 1 }}</div>
-            </div>
-            <div class="rounded-[14px] border border-theme-border/50 bg-theme-panel/30 p-2.5 text-center">
-              <div class="text-xs text-theme-text-muted">Steal Cost</div>
-              <div class="text-sm font-semibold text-yellow-500">{{ relic.steal_cost || 50 }} 💰</div>
-            </div>
-          </div>
-
-          <!-- Holder Info -->
-          <div class="rounded-[16px] border border-theme-border/50 bg-theme-panel/30 p-3 mb-4">
-            <div v-if="relic.holder_id" class="flex items-center gap-2">
-              <span class="text-lg">👑</span>
-              <div>
-                <div class="text-sm font-medium text-theme-text">{{ relic.holder_name || 'Unknown' }}</div>
-                <div class="text-xs text-theme-text-muted">
-                  Held since {{ formatDate(relic.captured_at) }}
-                </div>
+      <div v-else class="space-y-10">
+        <!-- Synod-wide relic buffs section -->
+        <div v-if="economy.synodId && economy.synodRelics && economy.synodRelics.length > 0" class="glass-panel glass-panel-soft p-6 sm:p-8">
+          <h2 class="ritual-heading text-xl font-bold text-theme-text mb-2">Synod Relic Buffs</h2>
+          <p class="text-sm text-theme-text-muted mb-4">Relics held by your Synod members benefit the entire Synod.</p>
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div
+              v-for="relic in economy.synodRelics"
+              :key="relic.id"
+              class="flex items-center gap-3 p-3 rounded-[16px] border border-theme-accent/20 bg-theme-accent/5"
+            >
+              <span class="text-2xl">🏺</span>
+              <div class="min-w-0 flex-1">
+                <div class="font-medium text-theme-text text-sm truncate">{{ relic.name }}</div>
+                <div class="text-xs text-theme-text-muted">held by {{ relic.holder_name || 'Unknown' }}</div>
               </div>
+              <span class="chip status-chip text-xs">Active</span>
             </div>
-            <div v-else class="text-center text-sm text-theme-text-muted py-1">
-              ✦ Unclaimed — Free for the taking
-            </div>
-          </div>
-
-          <!-- Steal Button -->
-          <button
-            v-if="relic.holder_id !== currentUserId"
-            @click="handleSteal(relic.id)"
-            :disabled="relics.stealing || !economy.synodId"
-            class="btn-secondary w-full py-2.5 text-sm"
-          >
-            <span class="relative z-10 font-medium">
-              {{ !economy.synodId ? 'Requires Synod' : (relics.stealing ? 'Stealing...' : '⚔️ Attempt Steal') }}
-            </span>
-          </button>
-          <div v-else class="text-center py-2">
-            <span class="chip status-chip text-xs">✓ In Your Possession</span>
           </div>
         </div>
-      </div>
 
-      <!-- Empty State -->
-      <div v-if="!relics.loading && !relics.error && relics.relics.length === 0" class="glass-panel glass-panel-soft p-12 text-center">
-        <div class="text-5xl mb-4">🏺</div>
-        <h3 class="mb-2 text-2xl font-medium text-theme-text">The Reliquary is Empty</h3>
-        <p class="text-theme-text-dim">The relics have not yet materialized. Check back soon.</p>
-      </div>
-
-      <!-- Indulgences Section -->
-      <div class="mt-10 glass-panel glass-panel-strong glass-gloss p-6 sm:p-8">
-        <h2 class="ritual-heading text-2xl font-bold text-theme-text mb-2">Indulgences</h2>
-        <p class="text-sm text-theme-text-muted mb-6">Premium blessings purchased with devotion.</p>
-
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <!-- Papal Bull -->
-          <div class="rounded-[20px] border border-theme-border bg-theme-panel/40 p-5">
-            <div class="flex items-center gap-3 mb-3">
-              <span class="text-3xl">🐂</span>
-              <div>
-                <h4 class="font-semibold text-theme-text">Papal Bull</h4>
-                <p class="text-xs text-theme-text-muted">12h Crusade Immunity</p>
+        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            v-for="relic in relics.relics"
+            :key="relic.id"
+            class="glass-panel glass-panel-soft p-5 sm:p-6 transition-all duration-[var(--dur-standard)] hover:shadow-glow-gold"
+            :class="{ 'ring-1 ring-theme-accent/30': relic.holder_id === currentUserId }"
+          >
+            <!-- Relic Icon & Name -->
+            <div class="flex items-start gap-4 mb-4">
+              <div class="flex h-14 w-14 items-center justify-center rounded-[20px] border border-theme-border bg-theme-panel/60 text-3xl shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
+                {{ relic.icon || '🏺' }}
+              </div>
+              <div class="flex-1 min-w-0">
+                <h3 class="ritual-heading text-lg font-bold text-theme-text truncate">{{ relic.name }}</h3>
+                <p class="text-xs text-theme-text-muted mt-0.5 line-clamp-2">{{ relic.description }}</p>
               </div>
             </div>
-            <div v-if="indulgences.hasPapalBull" class="mb-3">
-              <span class="chip status-chip text-xs">✓ Active — {{ indulgences.papalBullRemaining }} remaining</span>
-            </div>
-            <div v-else class="mb-3">
-              <p class="text-xs text-theme-text-muted">Cost: 1 Indulgence</p>
-            </div>
-            <button
-              v-if="!indulgences.hasPapalBull"
-              @click="handleActivatePapalBull"
-              :disabled="indulgences.activating || (economy.indulgences || 0) < 1"
-              class="btn-primary w-full py-2 text-sm"
-            >
-              <span class="relative z-10 font-medium">
-                {{ economy.indulgences < 1 ? 'No Indulgences' : (indulgences.activating ? 'Activating...' : 'Activate') }}
-              </span>
-            </button>
-            <div v-else class="text-center">
-              <span class="text-xs text-green-600 font-medium">🛡️ Protected</span>
-            </div>
-          </div>
 
-          <!-- Divine Architect -->
-          <div class="rounded-[20px] border border-theme-border bg-theme-panel/40 p-5">
-            <div class="flex items-center gap-3 mb-3">
-              <span class="text-3xl">🏗️</span>
-              <div>
-                <h4 class="font-semibold text-theme-text">Divine Architect</h4>
-                <p class="text-xs text-theme-text-muted">Instant Build Queue</p>
+            <!-- Relic Stats -->
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <div class="rounded-[14px] border border-theme-border/50 bg-theme-panel/30 p-2.5 text-center">
+                <div class="text-xs text-theme-text-muted">Power</div>
+                <div class="text-sm font-semibold text-theme-accent">{{ relic.power_level || 1 }}</div>
+              </div>
+              <div class="rounded-[14px] border border-theme-border/50 bg-theme-panel/30 p-2.5 text-center">
+                <div class="text-xs text-theme-text-muted">Steal Cost</div>
+                <div class="text-sm font-semibold text-yellow-500">{{ relic.steal_cost || 50 }} 💰</div>
               </div>
             </div>
-            <div v-if="indulgences.hasDivineArchitect" class="mb-3">
-              <span class="chip status-chip text-xs">✓ Active</span>
+
+            <!-- Holder Info -->
+            <div class="rounded-[16px] border border-theme-border/50 bg-theme-panel/30 p-3 mb-4">
+              <div v-if="relic.holder_id" class="flex items-center gap-2">
+                <span class="text-lg">👑</span>
+                <div>
+                  <div class="text-sm font-medium text-theme-text">{{ relic.holder_name || 'Unknown' }}</div>
+                  <div class="text-xs text-theme-text-muted">
+                    Held since {{ formatDate(relic.captured_at) }}
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-center text-sm text-theme-text-muted py-1">
+                ✦ Unclaimed — Free for the taking
+              </div>
             </div>
-            <div v-else class="mb-3">
-              <p class="text-xs text-theme-text-muted">Cost: 1 Indulgence</p>
+
+            <!-- Synod-wide buff indicator -->
+            <div v-if="relic.holder_id && relic.holder_id !== currentUserId && isRelicFromSynodMember(relic)" class="rounded-[14px] border border-theme-accent/30 bg-theme-accent/5 p-2 mb-4 text-center">
+              <span class="text-xs text-theme-accent font-medium">⚔️ Synod Buff Active</span>
             </div>
+
+            <!-- Steal Button -->
             <button
-              v-if="!indulgences.hasDivineArchitect"
-              @click="handleActivateDivineArchitect"
-              :disabled="indulgences.activating || (economy.indulgences || 0) < 1"
-              class="btn-primary w-full py-2 text-sm"
+              v-if="relic.holder_id !== currentUserId"
+              @click="handleSteal(relic.id)"
+              :disabled="relics.stealing || !economy.synodId"
+              class="btn-secondary w-full py-2.5 text-sm"
             >
               <span class="relative z-10 font-medium">
-                {{ economy.indulgences < 1 ? 'No Indulgences' : (indulgences.activating ? 'Activating...' : 'Activate') }}
+                {{ !economy.synodId ? 'Requires Synod' : (relics.stealing ? 'Stealing...' : '⚔️ Attempt Steal') }}
               </span>
             </button>
-            <div v-else class="text-center">
-              <span class="text-xs text-green-600 font-medium">⚡ Building</span>
+            <div v-else class="text-center py-2">
+              <span class="chip status-chip text-xs">✓ In Your Possession</span>
             </div>
           </div>
+        </div>
 
-          <!-- Indulgence Balance -->
-          <div class="rounded-[20px] border border-theme-accent/20 bg-theme-accent/5 p-5 text-center">
-            <div class="text-4xl mb-2">✨</div>
-            <h4 class="font-semibold text-theme-text mb-1">Indulgence Balance</h4>
-            <div class="text-3xl font-bold text-theme-accent">{{ economy.indulgences || 0 }}</div>
-            <p class="text-xs text-theme-text-muted mt-2">Purchase indulgences via the Karma Shop</p>
+        <!-- Empty State -->
+        <div v-if="!relics.loading && !relics.error && relics.relics.length === 0" class="glass-panel glass-panel-soft p-12 text-center">
+          <div class="text-5xl mb-4">🏺</div>
+          <h3 class="mb-2 text-2xl font-medium text-theme-text">The Reliquary is Empty</h3>
+          <p class="text-theme-text-dim">The relics have not yet materialized. Check back soon.</p>
+        </div>
+
+        <!-- Indulgences Section -->
+        <div class="glass-panel glass-panel-strong glass-gloss p-6 sm:p-8">
+          <h2 class="ritual-heading text-2xl font-bold text-theme-text mb-2">Indulgences</h2>
+          <p class="text-sm text-theme-text-muted mb-6">Premium blessings purchased with devotion.</p>
+
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <!-- Papal Bull -->
+            <div class="rounded-[20px] border border-theme-border bg-theme-panel/40 p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="text-3xl">🐂</span>
+                <div>
+                  <h4 class="font-semibold text-theme-text">Papal Bull</h4>
+                  <p class="text-xs text-theme-text-muted">12h Crusade Immunity</p>
+                </div>
+              </div>
+              <div v-if="indulgences.hasPapalBull" class="mb-3">
+                <span class="chip status-chip text-xs">✓ Active — {{ indulgences.papalBullRemaining }} remaining</span>
+              </div>
+              <div v-else class="mb-3">
+                <p class="text-xs text-theme-text-muted">Cost: 1 Indulgence</p>
+              </div>
+              <button
+                v-if="!indulgences.hasPapalBull"
+                @click="handleActivatePapalBull"
+                :disabled="indulgences.activating || (economy.indulgences || 0) < 1"
+                class="btn-primary w-full py-2 text-sm"
+              >
+                <span class="relative z-10 font-medium">
+                  {{ economy.indulgences < 1 ? 'No Indulgences' : (indulgences.activating ? 'Activating...' : 'Activate') }}
+                </span>
+              </button>
+              <div v-else class="text-center">
+                <span class="text-xs text-green-600 font-medium">🛡️ Protected</span>
+              </div>
+            </div>
+
+            <!-- Divine Architect -->
+            <div class="rounded-[20px] border border-theme-border bg-theme-panel/40 p-5">
+              <div class="flex items-center gap-3 mb-3">
+                <span class="text-3xl">🏗️</span>
+                <div>
+                  <h4 class="font-semibold text-theme-text">Divine Architect</h4>
+                  <p class="text-xs text-theme-text-muted">Instant Build Queue</p>
+                </div>
+              </div>
+              <div v-if="indulgences.hasDivineArchitect" class="mb-3">
+                <span class="chip status-chip text-xs">✓ Active</span>
+              </div>
+              <div v-else class="mb-3">
+                <p class="text-xs text-theme-text-muted">Cost: 1 Indulgence</p>
+              </div>
+              <button
+                v-if="!indulgences.hasDivineArchitect"
+                @click="handleActivateDivineArchitect"
+                :disabled="indulgences.activating || (economy.indulgences || 0) < 1"
+                class="btn-primary w-full py-2 text-sm"
+              >
+                <span class="relative z-10 font-medium">
+                  {{ economy.indulgences < 1 ? 'No Indulgences' : (indulgences.activating ? 'Activating...' : 'Activate') }}
+                </span>
+              </button>
+              <div v-else class="text-center">
+                <span class="text-xs text-green-600 font-medium">⚡ Building</span>
+              </div>
+            </div>
+
+            <!-- Indulgence Balance -->
+            <div class="rounded-[20px] border border-theme-accent/20 bg-theme-accent/5 p-5 text-center">
+              <div class="text-4xl mb-2">✨</div>
+              <h4 class="font-semibold text-theme-text mb-1">Indulgence Balance</h4>
+              <div class="text-3xl font-bold text-theme-accent">{{ economy.indulgences || 0 }}</div>
+              <p class="text-xs text-theme-text-muted mt-2">Purchase indulgences via the Karma Shop</p>
+            </div>
           </div>
         </div>
       </div>
@@ -199,6 +226,11 @@ const auth = useAuth()
 
 const currentUserId = computed(() => auth.user?.id)
 const myRelicCount = computed(() => relics.heldRelics(currentUserId.value)?.length || 0)
+
+function isRelicFromSynodMember(relic) {
+  if (!economy.synodRelics || !economy.synodId) return false
+  return economy.synodRelics.some(r => r.id === relic.id)
+}
 
 async function handleSteal(relicId) {
   try {

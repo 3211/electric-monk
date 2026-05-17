@@ -175,6 +175,27 @@
             </div>
           </div>
 
+          <!-- Synod Relic Buffs -->
+          <div v-if="synod.synodRelics && synod.synodRelics.length > 0" class="glass-panel glass-panel-soft p-6 sm:p-8">
+            <h3 class="ritual-heading text-xl font-bold text-theme-text mb-4">Synod Relic Buffs</h3>
+            <p class="text-sm text-theme-text-muted mb-4">Relics held by your Synod members benefit the entire Synod.</p>
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div
+                v-for="relic in synod.synodRelics"
+                :key="relic.id"
+                class="flex items-center gap-3 p-3 rounded-[16px] border border-theme-accent/20 bg-theme-accent/5"
+              >
+                <span class="text-2xl">🏺</span>
+                <div class="min-w-0 flex-1">
+                  <div class="font-medium text-theme-text text-sm truncate">{{ relic.name }}</div>
+                  <div class="text-xs text-theme-text-muted">held by {{ relic.holder_name || 'Unknown' }}</div>
+                </div>
+                <span class="chip status-chip text-xs">Active</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Members -->
           <div class="glass-panel glass-panel-soft p-6 sm:p-8">
             <h3 class="ritual-heading text-xl font-bold text-theme-text mb-4">Members</h3>
             <div v-if="synod.members.length === 0" class="text-center py-6 text-theme-text-muted text-sm">
@@ -182,24 +203,57 @@
             </div>
             <div v-else class="space-y-2">
               <div
-                v-for="member in synod.members"
+                v-for="member in sortedMembers"
                 :key="member.user_id"
                 class="flex items-center justify-between p-3 rounded-[16px] border border-theme-border/50 bg-theme-panel/30"
               >
                 <div class="flex items-center gap-3">
-                  <span class="text-lg">{{ member.role === 'leader' ? '👑' : '🕊️' }}</span>
+                  <span class="text-lg">{{ roleIcon(member.role) }}</span>
                   <div>
                     <div class="font-medium text-theme-text text-sm">{{ member.username || 'Unknown' }}</div>
-                    <div class="text-xs text-theme-text-muted">{{ member.role }}</div>
+                    <div class="text-xs text-theme-text-muted capitalize">{{ member.role || 'member' }}</div>
                   </div>
                 </div>
-                <div class="text-xs text-theme-text-muted">
-                  Joined {{ formatDate(member.joined_at) }}
+                <div class="flex items-center gap-2">
+                  <div class="text-xs text-theme-text-muted">
+                    Joined {{ formatDate(member.joined_at) }}
+                  </div>
+                  <!-- Management buttons (visible to leaders and officers) -->
+                  <template v-if="canManageMember(member)">
+                    <button
+                      v-if="member.role === 'member' && synod.isLeader"
+                      @click="handlePromote(member.user_id)"
+                      :disabled="synod.managing"
+                      class="btn-secondary px-2 py-1 text-xs"
+                      title="Promote to Officer"
+                    >
+                      ⬆️
+                    </button>
+                    <button
+                      v-if="member.role === 'officer' && synod.isLeader"
+                      @click="handleDemote(member.user_id)"
+                      :disabled="synod.managing"
+                      class="btn-secondary px-2 py-1 text-xs"
+                      title="Demote to Member"
+                    >
+                      ⬇️
+                    </button>
+                    <button
+                      v-if="member.user_id !== currentUserId"
+                      @click="handleKick(member.user_id, member.username)"
+                      :disabled="synod.managing"
+                      class="btn-danger px-2 py-1 text-xs"
+                      title="Kick Member"
+                    >
+                      �-boot
+                    </button>
+                  </template>
                 </div>
               </div>
             </div>
           </div>
 
+          <!-- Holy Wars -->
           <div class="glass-panel glass-panel-soft p-6 sm:p-8">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <h3 class="ritual-heading text-xl font-bold text-theme-text">Holy Wars</h3>
@@ -292,6 +346,11 @@
                 <div v-else class="text-center text-sm text-theme-text-muted py-1">
                   ✦ Unclaimed — Free for the taking
                 </div>
+              </div>
+
+              <!-- Show synod-wide buff indicator if holder is in your synod -->
+              <div v-if="relic.holder_id && relic.holder_id !== currentUserId && isRelicFromSynodMember(relic)" class="rounded-[14px] border border-theme-accent/30 bg-theme-accent/5 p-2 mb-4 text-center">
+                <span class="text-xs text-theme-accent font-medium">⚔️ Synod Buff Active</span>
               </div>
 
               <button
@@ -392,25 +451,66 @@
     </main>
 
     <Teleport to="body">
+      <!-- War Declaration Modal (search-based) -->
       <div v-if="showWarDeclaration" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="animation: overlay-fade var(--dur-standard) var(--ease-ritual-lift)">
         <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="showWarDeclaration = false"></div>
         <div class="relative z-10 w-full max-w-md glass-panel glass-panel-strong glass-gloss p-6" style="animation: modal-rise var(--dur-enter) var(--ease-ritual-lift)">
           <h3 class="ritual-heading text-xl font-bold text-theme-text mb-4">⚔️ Declare Holy War</h3>
-          <p class="text-sm text-theme-text-muted mb-4">Enter the Synod name you wish to declare war on. This costs 200 Gold from your Synod vault.</p>
-          <input
-            v-model="warTargetName"
-            type="text"
-            placeholder="Enemy Synod name..."
-            class="form-field px-4 py-3 w-full mb-4"
-          />
-          <div class="flex gap-3 justify-end">
-            <button @click="showWarDeclaration = false" class="btn-ghost px-4 py-2 text-sm">Cancel</button>
-            <button
-              @click="handleDeclareWar"
-              :disabled="!warTargetName.trim() || synod.declaring"
-              class="btn-danger px-5 py-2 text-sm"
+          <p class="text-sm text-theme-text-muted mb-4">Search for a Synod to declare war on. This costs 200 Gold from your Synod vault.</p>
+          <div class="flex flex-col gap-3 mb-4">
+            <input
+              v-model="warSearchQuery"
+              type="text"
+              placeholder="Search Synod name..."
+              class="form-field px-4 py-3"
+              @keyup.enter="handleSearchWarTargets"
+            />
+            <button @click="handleSearchWarTargets" :disabled="!warSearchQuery.trim()" class="btn-secondary px-6 py-2">
+              <span class="relative z-10 font-medium">Search</span>
+            </button>
+          </div>
+          <div v-if="warSearchResults.length > 0" class="space-y-2 mb-4">
+            <div
+              v-for="target in warSearchResults"
+              :key="target.id"
+              class="flex items-center justify-between p-3 rounded-[16px] border border-theme-border/50 bg-theme-panel/30"
             >
-              <span class="relative z-10 font-medium">{{ synod.declaring ? 'Declaring...' : 'Declare War' }}</span>
+              <div>
+                <div class="font-medium text-theme-text text-sm">{{ target.name }}</div>
+              </div>
+              <button
+                @click="handleDeclareWar(target.id)"
+                :disabled="synod.declaring"
+                class="btn-danger px-4 py-2 text-sm"
+              >
+                <span class="relative z-10 font-medium">{{ synod.declaring ? 'Declaring...' : 'Declare War' }}</span>
+              </button>
+            </div>
+          </div>
+          <div v-else-if="warSearchPerformed" class="text-center py-4 text-theme-text-muted text-sm">
+            No Synods found matching "{{ warSearchQuery }}"
+          </div>
+          <div class="flex justify-end">
+            <button @click="showWarDeclaration = false" class="btn-ghost px-4 py-2 text-sm">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Promote/Demote Confirmation Modal -->
+      <div v-if="confirmAction" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="animation: overlay-fade var(--dur-standard) var(--ease-ritual-lift)">
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="confirmAction = null"></div>
+        <div class="relative z-10 w-full max-w-sm glass-panel glass-panel-strong glass-gloss p-6" style="animation: modal-rise var(--dur-enter) var(--ease-ritual-lift)">
+          <h3 class="ritual-heading text-lg font-bold text-theme-text mb-3">{{ confirmAction.title }}</h3>
+          <p class="text-sm text-theme-text-muted mb-4">{{ confirmAction.message }}</p>
+          <div class="flex gap-3 justify-end">
+            <button @click="confirmAction = null" class="btn-ghost px-4 py-2 text-sm">Cancel</button>
+            <button
+              @click="confirmAction.handler(); confirmAction = null"
+              :disabled="synod.managing"
+              :class="confirmAction.danger ? 'btn-danger' : 'btn-primary'"
+              class="px-4 py-2 text-sm"
+            >
+              <span class="relative z-10 font-medium">{{ synod.managing ? 'Processing...' : confirmAction.buttonText }}</span>
             </button>
           </div>
         </div>
@@ -441,14 +541,50 @@ const searchQuery = ref('')
 const searchResults = ref([])
 const hasSearched = ref(false)
 const showWarDeclaration = ref(false)
-const warTargetName = ref('')
+const warSearchQuery = ref('')
+const warSearchResults = ref([])
+const warSearchPerformed = ref(false)
+const confirmAction = ref(null)
 
 const currentUserId = computed(() => auth.user?.id)
 const myRelicCount = computed(() => relics.heldRelics(currentUserId.value)?.length || 0)
 
+// Sort members: leader first, then officers, then members
+const sortedMembers = computed(() => {
+  const roleOrder = { leader: 0, officer: 1, member: 2 }
+  return [...(synod.members || [])].sort((a, b) => {
+    const aRole = roleOrder[a.role] ?? 99
+    const bRole = roleOrder[b.role] ?? 99
+    return aRole - bRole
+  })
+})
+
 watch(activeTab, (tab) => {
   forceEvilTheme.value = (tab === 'dark')
 }, { immediate: true })
+
+function roleIcon(role) {
+  switch (role) {
+    case 'leader': return '👑'
+    case 'officer': return '🛡️'
+    default: return '🕊️'
+  }
+}
+
+function canManageMember(member) {
+  if (!synod.currentUserRole) return false
+  if (member.user_id === currentUserId.value) return false
+  // Leaders can manage anyone
+  if (synod.currentUserRole === 'leader') return true
+  // Officers can manage members (not officers or leaders)
+  if (synod.currentUserRole === 'officer' && member.role === 'member') return true
+  return false
+}
+
+function isRelicFromSynodMember(relic) {
+  if (!synod.synodRelics || !economy.synodId) return false
+  return synod.synodRelics.some(r => r.id === relic.id)
+}
 
 async function handleCreateSynod() {
   if (!newSynodName.value.trim()) return
@@ -489,12 +625,55 @@ async function handleLeaveSynod() {
   }
 }
 
-async function handleDeclareWar() {
-  if (!warTargetName.value.trim()) return
+function handlePromote(userId) {
+  confirmAction.value = {
+    title: 'Promote Member',
+    message: 'Are you sure you want to promote this member? Officers can kick regular members.',
+    buttonText: 'Promote',
+    danger: false,
+    handler: () => synod.promoteMember(userId),
+  }
+}
+
+function handleDemote(userId) {
+  confirmAction.value = {
+    title: 'Demote Member',
+    message: 'Are you sure you want to demote this officer to member?',
+    buttonText: 'Demote',
+    danger: false,
+    handler: () => synod.demoteMember(userId),
+  }
+}
+
+function handleKick(userId, username) {
+  confirmAction.value = {
+    title: 'Kick Member',
+    message: `Are you sure you want to kick ${username || 'this member'} from the Synod?`,
+    buttonText: 'Kick',
+    danger: true,
+    handler: () => synod.kickMember(userId),
+  }
+}
+
+async function handleSearchWarTargets() {
+  if (!warSearchQuery.value.trim()) return
   try {
-    await synod.declareHolyWar(warTargetName.value.trim())
+    const results = await synod.searchSynods(warSearchQuery.value.trim())
+    warSearchResults.value = results || []
+    warSearchPerformed.value = true
+  } catch {
+    warSearchResults.value = []
+    warSearchPerformed.value = true
+  }
+}
+
+async function handleDeclareWar(targetSynodId) {
+  try {
+    await synod.declareHolyWar(targetSynodId)
     showWarDeclaration.value = false
-    warTargetName.value = ''
+    warSearchQuery.value = ''
+    warSearchResults.value = []
+    warSearchPerformed.value = false
   } catch {
     // Error captured in composable
   }

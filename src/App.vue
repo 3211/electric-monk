@@ -5,6 +5,7 @@ import { useBanTimer } from './composables/useBanTimer'
 import { useEconomy } from './composables/useEconomy'
 import { usePrayers } from './composables/usePrayers'
 import { useOnboarding } from './composables/useOnboarding'
+import { useSynod } from './composables/useSynod'
 import ShieldTimer from './components/molecules/ShieldTimer.vue'
 import LoginView from './views/LoginView.vue'
 import AltarView from './views/AltarView.vue'
@@ -22,6 +23,7 @@ const banTimer = useBanTimer()
 const economy = useEconomy()
 const prayers = usePrayers()
 const onboarding = useOnboarding()
+const synod = useSynod()
 
 // Tab navigation
 const currentTab = ref('altar')
@@ -53,17 +55,23 @@ watch(currentTab, (tab) => {
   }
 })
 
-// Watch for authentication to trigger onboarding
+// Watch for authentication to trigger onboarding and data fetch
 watch(() => auth.isAuthenticated, async (isAuth) => {
   if (isAuth) {
-    // Fetch economy and profile data
-    await economy.fetchEconomy()
-    await prayers.fetchProfile()
+    // Fetch economy, profile, and synod data
+    await Promise.all([
+      economy.fetchEconomy(),
+      prayers.fetchProfile(),
+      synod.fetchSynodInfo(),
+    ])
 
     // Check onboarding status — new users (or users missing identity) go through the wizard
     if (!prayers.onboardingComplete || !prayers.username) {
       onboarding.startOnboarding()
     }
+  } else {
+    // Clear synod state on sign-out so it doesn't persist stale data
+    synod.resetState()
   }
 }, { immediate: true })
 

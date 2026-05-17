@@ -66,6 +66,7 @@ function createEconomyState() {
   // Rapture Update: Research unlocks & held relics
   const researchUnlocks = ref([]) // array of { node_id, researched_at }
   const heldRelics = ref([]) // array of relic objects the player holds
+  const synodRelics = ref([]) // array of relic objects held by synod members (or just self if no synod)
 
   // Rapture Update: Profile customization
   const title = ref(null)
@@ -240,6 +241,7 @@ function createEconomyState() {
         // Rapture Update: Research & Relics
         researchUnlocks.value = data.research_unlocks || []
         heldRelics.value = data.held_relics || []
+        synodRelics.value = data.synod_relics || []
         // Rapture Update: Profile customization
         title.value = data.title || null
         avatarUrl.value = data.avatar_url || null
@@ -338,6 +340,7 @@ function createEconomyState() {
     // Rapture Update: Research & Relics
     researchUnlocks,
     heldRelics,
+    synodRelics,
     // Rapture Update: Profile
     title,
     avatarUrl,

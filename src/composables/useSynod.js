@@ -8,6 +8,7 @@ import { useEconomy } from './useEconomy'
  * Manages the Synod (Alliance) system:
  * - Create, join, leave synods
  * - View synod info, members, vault
+ * - Promote, demote, kick members
  * - Declare Holy Wars
  * - Synod tax management
  */
@@ -22,15 +23,23 @@ function createSynodState() {
   const members = ref([])
   const memberCount = ref(0)
   const wars = ref([])
+  const synodRelics = ref([])
   const loading = ref(false)
   const creating = ref(false)
   const joining = ref(false)
   const declaring = ref(false)
+  const managing = ref(false)
   const error = ref(null)
 
   const isLeader = computed(() => {
     if (!synodInfo.value || !economy.user) return false
     return synodInfo.value.leader_id === economy.user?.id
+  })
+
+  const currentUserRole = computed(() => {
+    if (!economy.user) return null
+    const member = members.value.find(m => m.user_id === economy.user.id)
+    return member?.role || null
   })
 
   /**
@@ -51,6 +60,7 @@ function createSynodState() {
         members.value = data.members || []
         memberCount.value = data.member_count || 0
         wars.value = data.wars || []
+        synodRelics.value = data.synod_relics || []
       }
     } catch (err) {
       error.value = err.message
@@ -146,7 +156,94 @@ function createSynodState() {
   }
 
   /**
-   * Declare Holy War on another Synod
+   * Promote a synod member (member -> officer, officer -> leader with transfer)
+   */
+  async function promoteMember(targetUserId) {
+    try {
+      managing.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('promote_synod_member', {
+        p_target_id: targetUserId,
+      })
+
+      if (rpcError) throw rpcError
+
+      await Promise.all([
+        fetchSynodInfo(),
+        economy.fetchEconomy(),
+      ])
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[useSynod] Promote error:', err)
+      throw err
+    } finally {
+      managing.value = false
+    }
+  }
+
+  /**
+   * Demote a synod member (officer -> member)
+   */
+  async function demoteMember(targetUserId) {
+    try {
+      managing.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('demote_synod_member', {
+        p_target_id: targetUserId,
+      })
+
+      if (rpcError) throw rpcError
+
+      await Promise.all([
+        fetchSynodInfo(),
+        economy.fetchEconomy(),
+      ])
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[useSynod] Demote error:', err)
+      throw err
+    } finally {
+      managing.value = false
+    }
+  }
+
+  /**
+   * Kick a synod member
+   */
+  async function kickMember(targetUserId) {
+    try {
+      managing.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('kick_synod_member', {
+        p_target_id: targetUserId,
+      })
+
+      if (rpcError) throw rpcError
+
+      await Promise.all([
+        fetchSynodInfo(),
+        economy.fetchEconomy(),
+      ])
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[useSynod] Kick error:', err)
+      throw err
+    } finally {
+      managing.value = false
+    }
+  }
+
+  /**
+   * Declare Holy War on another Synod (by UUID)
    */
   async function declareHolyWar(targetSynodId) {
     try {
@@ -189,24 +286,44 @@ function createSynodState() {
     }
   }
 
+  /**
+   * Reset all state (used on sign-out)
+   */
+  function resetState() {
+    inSynod.value = false
+    synodInfo.value = null
+    members.value = []
+    memberCount.value = 0
+    wars.value = []
+    synodRelics.value = []
+    error.value = null
+  }
+
   return reactive({
     inSynod,
     synodInfo,
     members,
     memberCount,
     wars,
+    synodRelics,
     loading,
     creating,
     joining,
     declaring,
+    managing,
     error,
     isLeader,
+    currentUserRole,
     fetchSynodInfo,
     createSynod,
     joinSynod,
     leaveSynod,
+    promoteMember,
+    demoteMember,
+    kickMember,
     declareHolyWar,
     searchSynods,
+    resetState,
   })
 }
 
