@@ -69,7 +69,7 @@ function createEconomyState() {
   const resourceEmojis = {
     karma: '\u2726',       // ✦
     mana: '\u{1F4A7}',    // 💧
-    gold: '\u{1FA99}',    // 🪙
+    gold: '\u{1F4B0}',    // 💰
     food: '\u{1F33E}',    // 🌾
   }
 
