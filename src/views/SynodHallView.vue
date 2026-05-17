@@ -73,7 +73,7 @@
         <div v-else-if="!synod.inSynod" class="space-y-8">
           <div class="glass-panel glass-panel-strong glass-gloss p-6 sm:p-8">
             <h2 class="ritual-heading text-2xl font-bold text-theme-text mb-4">Found a Synod</h2>
-            <p class="text-sm text-theme-text-muted mb-6">Create a new Synod for 100 Gold. You will become its leader.</p>
+            <p class="text-sm text-theme-text-muted mb-6">Create a new Synod for 500 Gold. You will become its leader.</p>
             <div class="flex flex-col sm:flex-row gap-3">
               <input
                 v-model="newSynodName"
