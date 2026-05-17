@@ -95,7 +95,7 @@ BEGIN
             (SELECT COALESCE(value, 0) FROM game_config WHERE key = 'building.' || ub.building_type || '.dogma_per_day') * ub.count
         ), 0)
     ), '{}'::jsonb) INTO v_production
-    FROM user_buildings;
+    FROM user_buildings ub;
 
     -- Calculate heresy cap
     SELECT value INTO v_heresy_base FROM game_config WHERE key = 'cap.heresy_base';
