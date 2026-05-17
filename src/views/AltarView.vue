@@ -640,7 +640,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 import { usePrayers } from '@/composables/usePrayers'
 import { usePrayerCounter } from '@/composables/usePrayerCounter'
 import { useAuth } from '@/composables/useAuth'
@@ -654,6 +654,9 @@ import PrayerHistoryModal from '@/components/organisms/PrayerHistoryModal.vue'
 // Environment variable for max prayer characters
 const maxPrayerChars = parseInt(import.meta.env.VITE_MAX_PRAYER_CHARS || '1500', 10)
 const manaRatio = parseInt(import.meta.env.VITE_PRAYER_TOKEN_RATIO || '5', 10)
+
+// Inject forceEvilTheme from App.vue for rejected prayer display
+const forceEvilTheme = inject('forceEvilTheme', ref(false))
 
 const prayers = usePrayers()
 const auth = useAuth()
@@ -775,6 +778,15 @@ watch(() => prayers.aetherResult, (result) => {
   }
   displayedResponse.value = ''
   typewriterFinished.value = false
+
+  // Toggle evil theme based on prayer judgment
+  if (result) {
+    if (result.success && result.judgment === 'rejected') {
+      forceEvilTheme.value = true
+    } else if (result.success && result.judgment === 'approved') {
+      forceEvilTheme.value = false
+    }
+  }
 
   if (result?.response) {
     let i = 0
@@ -933,6 +945,10 @@ function karmaClass() {
 async function handleAetherContinue() {
   // Clear the result to close the modal
   prayers.aetherResult = null
+
+  // Reset evil theme override when Aether modal closes
+  // (If going to Purgatory, evilViews will pick it up instead)
+  forceEvilTheme.value = false
 
   // Refresh profile data from server (karma, ban status, etc.)
   await prayers.fetchProfile()

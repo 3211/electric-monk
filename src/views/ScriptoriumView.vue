@@ -151,13 +151,21 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useResearch } from '@/composables/useResearch'
 import { useEconomy } from '@/composables/useEconomy'
 
 const research = useResearch()
 const economy = useEconomy()
 const activeTab = ref('light')
+
+// Inject forceEvilTheme from App.vue for Occult Library tab
+const forceEvilTheme = inject('forceEvilTheme', ref(false))
+
+// Toggle evil theme when viewing Occult Library tab
+watch(activeTab, (tab) => {
+  forceEvilTheme.value = (tab === 'dark')
+}, { immediate: true })
 
 function isUnlocked(nodeId) {
   return research.unlockedIds.has(nodeId)

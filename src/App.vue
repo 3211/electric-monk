@@ -1,10 +1,11 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, provide, ref, watch } from 'vue'
 import { useAuth } from './composables/useAuth'
 import { useBanTimer } from './composables/useBanTimer'
 import { useEconomy } from './composables/useEconomy'
 import { useSects } from './composables/useSects'
 import { usePrayers } from './composables/usePrayers'
+import { useOnboarding } from './composables/useOnboarding'
 import { supabase } from './lib/supabase'
 import LoginView from './views/LoginView.vue'
 import AltarView from './views/AltarView.vue'
@@ -18,6 +19,7 @@ import ScriptoriumView from './views/ScriptoriumView.vue'
 import SynodHallView from './views/SynodHallView.vue'
 import ReliquaryView from './views/ReliquaryView.vue'
 import IdentityModal from './components/organisms/IdentityModal.vue'
+import OnboardingWizard from './components/organisms/OnboardingWizard.vue'
 import UsernameChangeModal from './components/organisms/UsernameChangeModal.vue'
 import iconUrl from './assets/icons/icon.png'
 
@@ -26,11 +28,17 @@ const banTimer = useBanTimer()
 const economy = useEconomy()
 const sects = useSects()
 const prayers = usePrayers()
+const onboarding = useOnboarding()
 
 // Tab navigation
 const currentTab = ref('altar')
 
+// Force evil theme — injected by child views for conditional dark mode
+const forceEvilTheme = ref(false)
+provide('forceEvilTheme', forceEvilTheme)
+
 // Unified identity modal state (combines username + sect selection)
+// Only used as fallback for legacy users who lack identity data
 const showIdentityModal = ref(false)
 const identitySaving = ref(false)
 const identityError = ref(null)
@@ -46,15 +54,20 @@ const currentView = computed(() => {
 })
 
 const evilViews = new Set(['catacombs', 'purgatory'])
-const isEvilView = computed(() => evilViews.has(currentView.value))
+const isEvilView = computed(() => evilViews.has(currentView.value) || forceEvilTheme.value)
 
-// Watch for authentication to trigger identity modal
+// Watch for authentication to trigger onboarding or identity modal
 watch(() => auth.isAuthenticated, async (isAuth) => {
   if (isAuth) {
-    // Fetch economy data which includes sect_type
+    // Fetch economy and profile data
     await economy.fetchEconomy()
-    // If no username or no sect selected, show unified identity modal
-    if (!prayers.username || !economy.sectType) {
+    await prayers.fetchProfile()
+
+    // Check onboarding status — new users go through the wizard
+    if (!prayers.onboardingComplete) {
+      onboarding.startOnboarding()
+    } else if (!prayers.username || !economy.sectType) {
+      // Legacy fallback: show identity modal for users who somehow lack identity data
       showIdentityModal.value = true
     }
   }
@@ -216,6 +229,9 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
           :error-message="identityError"
           @submitted="onIdentitySubmitted"
         />
+
+        <!-- Onboarding Wizard (new user flow) -->
+        <OnboardingWizard />
 
         <!-- Username Change Modal (accessible from settings) -->
         <UsernameChangeModal

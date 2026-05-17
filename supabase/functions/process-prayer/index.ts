@@ -76,11 +76,15 @@ serve(async (req: Request) => {
     }
 
     // Parse request body
-    const { prayer_id, content, user_id } = await req.json()
+    const { prayer_id, content, user_id, is_onboarding } = await req.json()
 
     if (!prayer_id || !content || !user_id) {
       throw new Error('Missing required fields: prayer_id, content, user_id')
     }
+
+    // is_onboarding: when true, rejected prayers do NOT result in a ban or karma loss
+    // This allows new users to retry their first prayer without being sent to Purgatory
+    const isOnboarding = is_onboarding === true
 
     // Get Supabase client from environment
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
@@ -339,7 +343,8 @@ Do NOT include any other text. Do NOT output thinking tags.`
     // ==========================================
     // STEP 5: UPDATE KARMA
     // ==========================================
-    const karmaChange = isApproved ? 1 : -1
+    // Onboarding rejection: no karma penalty (0 instead of -1)
+    const karmaChange = isApproved ? 1 : (isOnboarding ? 0 : -1)
     const { error: karmaError } = await supabase.rpc('update_karma', {
       p_user_id: user_id,
       p_karma_change: karmaChange
@@ -357,11 +362,12 @@ Do NOT include any other text. Do NOT output thinking tags.`
     }
 
     // ==========================================
-    // STEP 5b: BAN USER IF PRAYER WAS REJECTED
+    // STEP 5b: BAN USER IF PRAYER WAS REJECTED (skip during onboarding)
     // ==========================================
-    if (isRejected) {
+    if (isRejected && !isOnboarding) {
       // Set ban_until to 2 hours from now — the client will detect this
       // via useBanTimer.checkBanStatus() and switch to PurgatoryView
+      // During onboarding, we skip the ban so new users can retry their first prayer
       const banUntil = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
       const { error: banError } = await supabase
         .from('profiles')

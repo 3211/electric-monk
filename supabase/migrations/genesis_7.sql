@@ -429,5 +429,17 @@ GRANT EXECUTE ON FUNCTION get_player_economy() TO authenticated;
 GRANT EXECUTE ON FUNCTION get_player_economy() TO service_role;
 
 -- ============================================
+-- PHASE 6: ONBOARDING TRACKING
+-- ============================================
+-- Tracks whether the user has completed the onboarding wizard.
+-- If FALSE or NULL, the user will be intercepted with the onboarding flow.
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS onboarding_complete BOOLEAN DEFAULT FALSE;
+
+COMMENT ON COLUMN public.profiles.onboarding_complete IS
+  'Whether the user has completed the onboarding wizard. FALSE = needs onboarding.';
+
+-- ============================================
 -- END OF GENESIS 7
 -- =====================================================

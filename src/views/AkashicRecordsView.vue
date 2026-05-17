@@ -203,7 +203,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, inject } from 'vue'
 import { usePrayers } from '@/composables/usePrayers'
 import { useAkashicRecords } from '@/composables/useAkashicRecords'
 import { usePrayerCounter } from '@/composables/usePrayerCounter'
@@ -216,6 +216,9 @@ import KarmaToast from '@/components/molecules/KarmaToast.vue'
 import BlessingPicker from '@/components/organisms/BlessingPicker.vue'
 import BlessingDetailModal from '@/components/organisms/BlessingDetailModal.vue'
 
+// Inject forceEvilTheme from App.vue for sinners tab
+const forceEvilTheme = inject('forceEvilTheme', ref(false))
+
 const prayers = usePrayers()
 const akashic = useAkashicRecords()
 const blessings = useBlessings()
@@ -224,6 +227,11 @@ const auth = useAuth()
 
 const activeSubTab = ref('prayers')
 const sinnerPrayerLoading = ref(null) // sinner ID being loaded
+
+// Toggle evil theme when viewing sinners tab
+watch(activeSubTab, (tab) => {
+  forceEvilTheme.value = (tab === 'sinners')
+}, { immediate: true })
 const showActiveOverlay = ref(true)
 const counterAnimating = ref(false)
 

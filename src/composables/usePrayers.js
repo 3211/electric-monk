@@ -39,6 +39,7 @@ function createPrayersState() {
   const faith = ref(null)
   const loading = ref(false)
   const error = ref(null)
+  const onboardingComplete = ref(false) // DB column: onboarding_complete
   
   // Aether Modal State
   const isAetherProcessing = ref(false)
@@ -100,7 +101,7 @@ function createPrayersState() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('karma, max_prayer_slots, username, faith, mana, gold, food')
+        .select('karma, max_prayer_slots, username, faith, mana, gold, food, onboarding_complete')
         .eq('id', user.id)
         .single()
 
@@ -112,6 +113,7 @@ function createPrayersState() {
         mana.value = profile.mana || 0
         gold.value = profile.gold || 0
         food.value = profile.food || 0
+        onboardingComplete.value = profile.onboarding_complete || false
       }
     } catch (err) {
       console.error('[usePrayers] Profile fetch error:', err)
@@ -229,7 +231,7 @@ function createPrayersState() {
    * @param {string} content - The prayer text
    * @returns {Object} Result containing prayer ID and Mana cost
    */
-  async function submitPrayer(content) {
+  async function submitPrayer(content, { isOnboarding } = {}) {
     try {
       loading.value = true
       error.value = null
@@ -274,6 +276,7 @@ function createPrayersState() {
           prayer_id: result.id,
           content: content,
           user_id: user.id,
+          is_onboarding: isOnboarding || false,
         },
       })
 
@@ -684,6 +687,25 @@ function createPrayersState() {
     }
   }
 
+  /**
+   * Mark onboarding as complete in the database
+   */
+  async function setOnboardingComplete() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      await supabase
+        .from('profiles')
+        .update({ onboarding_complete: true })
+        .eq('id', user.id)
+
+      onboardingComplete.value = true
+    } catch (err) {
+      console.error('[usePrayers] setOnboardingComplete error:', err)
+    }
+  }
+
   return reactive({
     // State
     prayers,
@@ -696,6 +718,7 @@ function createPrayersState() {
     maxPrayerSlots,
     username,
     faith,
+    onboardingComplete,
     loading,
     error,
     // Aether Modal State
@@ -726,6 +749,7 @@ function createPrayersState() {
     markPrayerApproved,
     archivePrayer,
     refillTokens,
+    setOnboardingComplete,
     // Prayer activation/counting
     activatePrayer,
     deactivatePrayer,
