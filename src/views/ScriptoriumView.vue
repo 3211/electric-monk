@@ -200,3 +200,31 @@ onMounted(() => {
   research.fetchResearchTree()
 })
 </script>
+
+<style scoped>
+.evil-shell .pill-tab-active {
+  color: #f2f5f7;
+  border-color: rgba(126, 255, 161, 0.24);
+  background:
+    linear-gradient(180deg, rgba(233, 241, 247, 0.16), rgba(233, 241, 247, 0.06)),
+    linear-gradient(180deg, rgba(38, 40, 48, 0.94), rgba(21, 24, 31, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 14px 28px rgba(0, 0, 0, 0.32),
+    0 0 22px rgba(126, 255, 161, 0.08);
+}
+
+.evil-shell .pill-tab-inactive {
+  color: #a9b6c4;
+  border-color: rgba(137, 108, 178, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+}
+
+.evil-shell .pill-tab-inactive:hover {
+  color: #d5ffe0;
+  border-color: rgba(126, 255, 161, 0.18);
+  background: rgba(126, 255, 161, 0.08);
+  transform: translateY(-1px);
+}
+</style>
