@@ -49,7 +49,7 @@
               class="btn-primary w-full mt-2"
             >
               <span class="relative z-10 font-medium">
-                {{ onboarding.typewriterFinished ? 'Choose Your Faction' : 'The Monk is speaking...' }}
+                {{ onboarding.typewriterFinished ? 'Choose Your Sect' : 'The Monk is speaking...' }}
               </span>
             </button>
           </div>
@@ -61,7 +61,7 @@
             <!-- Header -->
             <div class="mb-6 text-center">
               <h2 class="ritual-heading mb-2 text-3xl font-bold text-theme-accent">Identify Yourself</h2>
-              <p class="text-sm text-theme-text-dim">Choose your name and faction. This decision is permanent.</p>
+              <p class="text-sm text-theme-text-dim">Choose your name and sect. This decision is permanent.</p>
             </div>
 
             <!-- Error Message -->
@@ -103,7 +103,7 @@
 
             <!-- Sect Selection -->
             <div>
-              <h3 class="mb-3 text-center text-lg font-semibold text-theme-text">Choose Your Faction</h3>
+              <h3 class="mb-3 text-center text-lg font-semibold text-theme-text">Choose Your Sect</h3>
               <div class="grid gap-3 sm:grid-cols-2">
                 <button
                   v-for="sect in sects.sectList"
@@ -123,7 +123,7 @@
                 </button>
               </div>
               <p v-if="!localSect" class="mt-2 text-center text-xs text-theme-text-muted italic">
-                Select a faction above to continue
+                Select a sect above to continue
               </p>
             </div>
 

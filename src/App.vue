@@ -63,6 +63,14 @@ watch(currentTab, (tab) => {
   }
 })
 
+// Reset all theme overrides when navigating to login (e.g. after sign-out)
+watch(currentView, (view) => {
+  if (view === 'login') {
+    forceEvilTheme.value = false
+    forceWarTheme.value = false
+  }
+})
+
 // Watch for authentication to trigger onboarding and data fetch
 watch(() => auth.isAuthenticated, async (isAuth) => {
   if (isAuth) {
@@ -120,7 +128,7 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
                 @click="currentTab = 'factions'"
                 :class="currentTab === 'factions' ? 'nav-tab-active' : 'nav-tab-inactive'"
               >
-                &#x1F3DB; Factions
+                &#x1F3DB; Sects
               </button>
               <button
                 @click="currentTab = 'vatican'"

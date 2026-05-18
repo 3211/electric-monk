@@ -5,7 +5,7 @@
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="relative min-w-0">
             <div class="merged-header-glow" aria-hidden="true"></div>
-            <h1 class="faction-page-title ritual-heading relative text-4xl font-bold text-theme-accent sm:text-5xl">🏛️ The Four Factions</h1>
+            <h1 class="faction-page-title ritual-heading relative text-4xl font-bold text-theme-accent sm:text-5xl">🏛️ Sects</h1>
             <p class="faction-page-subtitle relative mt-1 text-sm text-theme-text-muted">Know thy allies. Fear thy enemies.</p>
           </div>
           <div v-if="playerSect && factionData[playerSect]" class="flex items-center gap-3">
@@ -74,7 +74,7 @@
                       <h3 :class="[pos.data ? FACTION_COLORS[pos.key]?.text : 'text-theme-text-muted', 'truncate text-sm font-semibold']">
                         {{ FACTION_NAMES[pos.key] }}
                       </h3>
-                      <span v-if="pos.key === playerSect" class="chip status-chip text-[0.65rem] px-2 py-0.5">Your Faction</span>
+                      <span v-if="pos.key === playerSect" class="chip status-chip text-[0.65rem] px-2 py-0.5">Your Sect</span>
                     </div>
                     <div class="mt-2 flex flex-wrap items-center gap-2">
                       <span v-if="pos.data" class="chip text-xs">
@@ -227,7 +227,7 @@
                       <span class="chip text-xs">
                         {{ factionData[selectedFaction].member_count || 0 }} members
                       </span>
-                      <div v-if="selectedFaction === playerSect" class="chip status-chip text-xs">Your Faction</div>
+                      <div v-if="selectedFaction === playerSect" class="chip status-chip text-xs">Your Sect</div>
                     </div>
                   </div>
                 </div>
@@ -301,7 +301,7 @@
           </div>
 
           <div v-else class="glass-panel glass-panel-soft faction-state-card p-8 text-center">
-            <p class="text-sm text-theme-text-muted">Click a faction above to see its details.</p>
+            <p class="text-sm text-theme-text-muted">Click a sect above to see its details.</p>
           </div>
         </div>
       </div>

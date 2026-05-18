@@ -1,84 +1,136 @@
-# Electric Monk - Setup Guide
+# Electric Monk — Setup Guide
+
+## Prerequisites
+- Node.js 18+
+- Supabase project
+- Venice AI API key
 
 ## 1. Environment Variables
 
-Create a `.env` file in the project root:
+Create `.env`:
 
 ```bash
-# Supabase Configuration
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key-here
-
-# Venice AI Configuration (for prayer validation)
 VITE_VENICE_API_KEY=your-venice-api-key-here
 ```
 
-## 2. Supabase Database Setup
+## 2. Database Setup
 
-1. Go to [Supabase Dashboard](https://app.supabase.com)
-2. Select your project
-3. Navigate to **SQL Editor**
-4. Copy and paste the contents of [`src/lib/supabase-schema.sql`](src/lib/supabase-schema.sql)
-5. Click **Run** to execute the migration
+Run all SQL migration files in **lexicographic order** from the Supabase SQL Editor:
 
-This will create:
-- `profiles` table (user metadata, ban timers, daily counts)
-- `prayers` table (prayer history and status)
-- `indulgences` table (ad view tracking)
-- RLS policies for security
-- Database functions for ban reduction and daily resets
+```
+genesis_1.sql   →  genesis_2.sql   →  genesis_3.sql   →  genesis_4.sql
+genesis_5.sql   →  genesis_6.sql   →  genesis_7.sql   →  genesis_8.sql
+genesis_9.sql   →  genesis_9_hotfix.sql   →  genesis_10.sql
+exodus_0.sql
+```
 
-## 3. Enable Google OAuth
+All files are idempotent (safe to re-run). This creates the full database: 18 tables, 40+ RPCs, RLS policies, seed data, triggers, cron job.
 
-1. In Supabase Dashboard, go to **Authentication** → **Providers**
-2. Enable **Google**
-3. You'll need:
-   - **Google Cloud Console** → Create a new project or select existing
-   - Enable **Google+ API**
-   - Create **OAuth 2.0 Credentials**
-   - Add authorized redirect URIs:
-     - `https://your-project.supabase.co/auth/v1/callback`
-     - `http://localhost:5173/auth/v1/callback` (for local dev)
-4. Copy the **Client ID** and **Client Secret** to Supabase
-5. Save the provider
+## 3. Supabase Auth
 
-## 4. Install Dependencies
+Enable **Google OAuth** in Authentication → Providers:
+- Google Cloud Console → OAuth 2.0 credentials
+- Redirect URIs: `https://your-project.supabase.co/auth/v1/callback` and `http://localhost:5173/auth/v1/callback`
+
+## 4. Deploy Edge Functions
+
+```bash
+cd supabase/functions
+supabase functions deploy process-prayer
+supabase functions deploy pray-for-sinner
+supabase functions deploy generate-onboarding-content
+```
+
+## 5. Install & Run
 
 ```bash
 npm install
-```
-
-## 5. Run Development Server
-
-```bash
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173`
-
-## 6. Test the App
-
-1. **Sign Up**: Create an account with email/password or Google OAuth
-2. **Submit a Prayer**: Use the altar to submit a prayer request
-3. **Test Ban System**: (Optional) Modify [`useBanTimer.js`](src/composables/useBanTimer.js) to test the Purgatory view
-4. **Watch Indulgence**: If banned, test the ad reduction feature
+App at `http://localhost:5173`.
 
 ---
 
-## File Structure Summary
+## Project Structure
 
 ```
 src/
-├── composables/
-│   ├── useAuth.js        # Authentication (Google + Email/Password)
-│   ├── useBanTimer.js    # Ban timer and indulgence logic
-│   └── usePrayers.js     # Prayer submission and history
-├── views/
-│   ├── LoginView.vue     # Login/Signup screen
-│   ├── AltarView.vue     # Main prayer interface
-│   └── PurgatoryView.vue # Ban timer + ad view screen
-├── lib/
-│   ├── supabase.js       # Supabase client initialization
-│   └── supabase-schema.sql # Database migration script
-└── App.vue               # Main app with view routing
+├── composables/           # State management + Supabase queries
+│   ├── useAuth.js         # Auth (Google + email/password)
+│   ├── usePrayers.js      # Prayer submit/sync/activate
+│   ├── usePrayerCounter.js # Client-side prayer counting
+│   ├── useAkashicRecords.js # Public feed + sinners
+│   ├── useEconomy.js      # 4-resource economy + buildings
+│   ├── useShop.js         # Karma Shop purchases
+│   ├── useKarmaShop.js    # Blessing purchases
+│   ├── useBlessings.js    # Blessing aggregates
+│   ├── useFactions.js     # Faction overview
+│   ├── useSects.js        # Sect selection + info
+│   ├── useSynod.js        # Guild management
+│   ├── useVassalage.js    # Vassalage + crusade/schism/plague
+│   ├── useCatacombs.js    # Heresy economy
+│   ├── useInquisition.js  # Inquisition launch
+│   ├── useResearch.js     # Tech tree
+│   ├── useRelics.js       # Global relics
+│   ├── useIndulgences.js  # Premium indulgences
+│   ├── useLeaderboard.js  # Rankings
+│   ├── useOnboarding.js   # New user flow
+│   └── useBanTimer.js     # Purgatory + indulgences
+├── views/                 # Page-level components
+│   ├── LoginView.vue
+│   ├── AltarView.vue      # Main prayer interface
+│   ├── AkashicRecordsView.vue
+│   ├── FactionsView.vue
+│   ├── VaticanView.vue    # Vassalage + combat
+│   ├── SynodHallView.vue
+│   ├── ScriptoriumView.vue # Tech tree
+│   ├── KarmaShopView.vue
+│   ├── ReliquaryView.vue
+│   ├── LeaderboardView.vue
+│   ├── CatacombsView.vue
+│   └── PurgatoryView.vue
+├── components/
+│   ├── molecules/         # Small reusable UI
+│   │   ├── BlessingBadgeBar.vue
+│   │   ├── KarmaToast.vue
+│   │   ├── MiracleBuffBar.vue
+│   │   └── ShieldTimer.vue
+│   └── organisms/         # Complex feature components
+│       ├── OnboardingWizard.vue
+│       ├── SectSelectionModal.vue
+│       ├── AkashicPrayerCard.vue
+│       ├── SinnerCard.vue
+│       ├── BlessingPicker.vue
+│       ├── BlessingDetailModal.vue
+│       ├── PrayerHistoryModal.vue
+│       └── UsernameChangeModal.vue
+├── config/
+│   └── blessings.json     # Blessing definitions (duplicated from DB for display)
+└── lib/
+    ├── supabase.js        # Supabase client init
+    └── supabase-schema.sql # Legacy schema (migrations are authoritative)
 ```
+
+```
+supabase/
+├── migrations/            # Authoritative SQL (run in order)
+│   ├── genesis_1.sql      # Tables, indexes, RLS, seed data, core functions
+│   ├── genesis_2.sql      # All game RPCs (except heartbeat)
+│   ├── genesis_3.sql      # calculate_automated_karma() heartbeat
+│   ├── genesis_4.sql      # Triggers, GRANTs, cron schedule
+│   ├── genesis_5.sql      # Permission + RLS fix patch
+│   ├── genesis_6.sql      # Sect rename, PFP, username change
+│   ├── genesis_7.sql      # Blessing shield buff system
+│   ├── genesis_8.sql      # Player lookup, shield fixes, newbie protection
+│   ├── genesis_9.sql      # Synod roles, relic buffs, member management
+│   ├── genesis_9_hotfix.sql # Resilient get_player_economy()
+│   ├── genesis_10.sql     # Faith-filtered leaderboard RPCs
+│   ├── exodus_0.sql       # Faction relationships + get_factions_overview()
+│   └── genesis.CLOSED.md  # Genesis series boundary marker
+└── functions/
+    ├── process-prayer/    # Venice AI prayer validation + response
+    ├── pray-for-sinner/   # AI intercessory prayer generator
+    └── generate-onboarding-content/ # AI welcome + faction intro

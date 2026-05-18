@@ -24,7 +24,7 @@ const SECT_FAITH_MAP = {
 }
 
 // Holy War Online fallback strings (used when AI generation fails)
-const FALLBACK_WELCOME = 'Welcome to Holy War Online. I am your Electric Monk — a digital devotional engine that prays on your behalf, dedicating computational thought energy to your intentions. Choose your faction and begin your holy war.'
+const FALLBACK_WELCOME = 'Welcome to Holy War Online. I am your Electric Monk — a digital devotional engine that prays on your behalf, dedicating computational thought energy to your intentions. Choose your sect and begin your holy war.'
 
 const FALLBACK_FACTION_INTROS = {
   gilded_path: 'Welcome to The Gilded Path, seeker of divine prosperity. I am your Electric Monk — I will pray on your behalf, channeling the wealth of the heavens toward your ambitions. Speak your first prayer and let golden destiny unfold.',

@@ -1,614 +1,484 @@
-# PRAYER APP - COMPLETE DATABASE SCHEMA
+# Electric Monk — Database Schema
 
-**Authority Source:** `src/lib/supabase-schema.sql`
-**Last Updated:** 2026-05-17
-
-This document serves as the primary reference for the database schema used in the Prayer App. It is designed for use by both human developers and AI agents.
-
-## SQL Schema
-
-```sql
--- =====================================================
--- PRAYER APP - COMPLETE DATABASE SCHEMA
--- =====================================================
--- For: Supabase/PostgreSQL
--- Purpose: User profiles, prayer tracking with counters, 
---          token economy, karma system, and indulgences
-
--- =====================================================
--- 1. TABLES
--- =====================================================
-
--- User profiles linked to Supabase Auth
-CREATE TABLE IF NOT EXISTS profiles (
-  id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
-  email TEXT,
-  username TEXT,
-  faith TEXT,
-  ban_until TIMESTAMPTZ,
-  tokens_spent_today INT DEFAULT 0,
-  daily_token_limit INT DEFAULT 1000,
-  last_prayer_date DATE,
-  karma INT DEFAULT 0,
-  max_prayer_slots INT DEFAULT 1,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Prayers created by users
-CREATE TABLE IF NOT EXISTS prayers (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-  content TEXT NOT NULL,
-  is_rejected BOOLEAN DEFAULT false,
-  rejection_reason TEXT,
-  is_praying BOOLEAN DEFAULT false,
-  is_archived BOOLEAN DEFAULT false,
-  response_content TEXT,
-  status TEXT DEFAULT 'pending',
-  prayer_count INT DEFAULT 0,
-  last_counted_at TIMESTAMPTZ,
-  activated_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Tracks ban time reductions (indulgences)
-CREATE TABLE IF NOT EXISTS indulgences (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
-  time_removed_seconds INT DEFAULT 900,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- =====================================================
--- 2. AUTO-PROFILE CREATION (Supabase Auth hook)
--- =====================================================
-
-CREATE OR REPLACE FUNCTION public.create_profile_on_signup()
-RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO public.profiles (id, email)
-    VALUES (NEW.id, NEW.email)
-    ON CONFLICT (id) DO NOTHING;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.create_profile_on_signup();
-
--- =====================================================
--- 3. PRAYER MANAGEMENT FUNCTIONS
--- =====================================================
-
--- Submit a new prayer (costs tokens, auto-activates, deactivates current)
-CREATE OR REPLACE FUNCTION submit_prayer(prayer_content TEXT)
-RETURNS JSONB AS $$
-DECLARE
-    v_user_id UUID := auth.uid();
-    v_char_limit INT := 1500;
-    v_token_ratio INT := 5;
-    v_cost INT;
-    v_spent INT;
-    v_limit INT;
-    v_new_prayer_id UUID;
-BEGIN
-    -- Load user's token stats
-    SELECT tokens_spent_today, daily_token_limit 
-    INTO v_spent, v_limit 
-    FROM profiles WHERE id = v_user_id;
-
-    -- Validate length
-    IF length(prayer_content) > v_char_limit THEN
-        RAISE EXCEPTION 'Prayer exceeds maximum length of % characters.', v_char_limit;
-    END IF;
-
-    -- Calculate token cost (5 chars = 1 token, rounded up)
-    v_cost := ceil(length(prayer_content)::float / v_token_ratio);
-
-    -- Check balance
-    IF (v_spent + v_cost) > v_limit THEN
-        RAISE EXCEPTION 'Insufficient Mana. This prayer costs % Mana, but you only have % remaining.', 
-            v_cost, (v_limit - v_spent);
-    END IF;
-
-    -- Deactivate any currently active prayer
-    UPDATE prayers
-    SET is_praying = false, activated_at = NULL
-    WHERE user_id = v_user_id AND is_praying = true;
-
-    -- Create new prayer (starts active)
-    INSERT INTO prayers (user_id, content, is_praying, activated_at, last_counted_at)
-    VALUES (v_user_id, prayer_content, true, now(), now())
-    RETURNING id INTO v_new_prayer_id;
-
-    -- Deduct tokens
-    UPDATE profiles 
-    SET tokens_spent_today = tokens_spent_today + v_cost,
-        last_prayer_date = CURRENT_DATE
-    WHERE id = v_user_id;
-
-    RETURN jsonb_build_object('id', v_new_prayer_id, 'cost', v_cost);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Activate a prayer (deactivates current one first, syncs final count)
-CREATE OR REPLACE FUNCTION activate_prayer(p_prayer_id UUID)
-RETURNS JSONB AS $$
-DECLARE
-    v_user_id UUID := auth.uid();
-    v_current RECORD;
-    v_elapsed INT;
-    v_cycle_ms INT;
-    v_result RECORD;
-BEGIN
-    -- Find currently active prayer (if different from target)
-    SELECT id, COALESCE(response_content, content) AS cycle_text, activated_at, last_counted_at, prayer_count
-    INTO v_current
-    FROM prayers
-    WHERE user_id = v_user_id AND is_praying = true AND id != p_prayer_id;
-
-    -- If there's an active prayer, calculate and save its final count
-    -- Cycle time based on monk's response length: ~200ms per char, clamped 15s–3min
-    IF FOUND THEN
-        v_cycle_ms := GREATEST(15000, LEAST(length(v_current.cycle_text) * 200, 180000));
-        v_elapsed := GREATEST(0, floor(
-            EXTRACT(EPOCH FROM (now() - COALESCE(v_current.last_counted_at, v_current.activated_at)))
-            * 1000.0 / v_cycle_ms
-        ));
-        
-        UPDATE prayers
-        SET prayer_count = prayer_count + v_elapsed,
-            last_counted_at = now(),
-            is_praying = false,
-            activated_at = NULL
-        WHERE id = v_current.id;
-    END IF;
-
-    -- Activate the target prayer
-    UPDATE prayers
-    SET is_praying = true, activated_at = now(), last_counted_at = now()
-    WHERE id = p_prayer_id AND user_id = v_user_id
-    RETURNING id, prayer_count, is_praying, activated_at, last_counted_at INTO v_result;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Prayer not found or not authorized';
-    END IF;
-
-    RETURN jsonb_build_object(
-        'activated', jsonb_build_object(
-            'id', v_result.id,
-            'prayer_count', v_result.prayer_count,
-            'is_praying', v_result.is_praying,
-            'activated_at', v_result.activated_at,
-            'last_counted_at', v_result.last_counted_at
-        ),
-        'deactivated_id', v_current.id
-    );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Sync prayer count (called every ~10s while prayer is active)
-CREATE OR REPLACE FUNCTION sync_prayer_count(p_prayer_id UUID, p_elapsed_counts INT)
-RETURNS JSONB AS $$
-DECLARE
-    v_prayer RECORD;
-BEGIN
-    SELECT user_id, is_praying INTO v_prayer
-    FROM prayers WHERE id = p_prayer_id;
-
-    IF NOT FOUND THEN RAISE EXCEPTION 'Prayer not found'; END IF;
-    IF v_prayer.user_id != auth.uid() THEN RAISE EXCEPTION 'Not authorized'; END IF;
-    IF NOT v_prayer.is_praying THEN RAISE EXCEPTION 'Prayer is not active'; END IF;
-
-    UPDATE prayers
-    SET prayer_count = prayer_count + p_elapsed_counts,
-        last_counted_at = now()
-    WHERE id = p_prayer_id
-    RETURNING prayer_count, last_counted_at, activated_at INTO v_prayer;
-
-    RETURN jsonb_build_object(
-        'prayer_count', v_prayer.prayer_count,
-        'last_counted_at', v_prayer.last_counted_at,
-        'activated_at', v_prayer.activated_at
-    );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Deactivate prayer (final sync, stops counting)
-CREATE OR REPLACE FUNCTION deactivate_prayer(p_prayer_id UUID, p_elapsed_counts INT)
-RETURNS JSONB AS $$
-DECLARE
-    v_prayer RECORD;
-BEGIN
-    SELECT user_id INTO v_prayer FROM prayers WHERE id = p_prayer_id;
-    
-    IF NOT FOUND THEN RAISE EXCEPTION 'Prayer not found'; END IF;
-    IF v_prayer.user_id != auth.uid() THEN RAISE EXCEPTION 'Not authorized'; END IF;
-
-    UPDATE prayers
-    SET prayer_count = prayer_count + p_elapsed_counts,
-        last_counted_at = now(),
-        is_praying = false,
-        activated_at = NULL
-    WHERE id = p_prayer_id
-    RETURNING id, prayer_count, is_praying, activated_at INTO v_prayer;
-
-    RETURN jsonb_build_object(
-        'id', v_prayer.id,
-        'prayer_count', v_prayer.prayer_count,
-        'is_praying', v_prayer.is_praying,
-        'activated_at', v_prayer.activated_at
-    );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- =====================================================
--- 4. INDULGENCE SYSTEM (Ban reduction)
--- =====================================================
-
--- Reduce ban time by 15 minutes
-CREATE OR REPLACE FUNCTION reduce_ban_time(p_user_id UUID)
-RETURNS INTERVAL AS $$
-DECLARE
-    current_ban TIMESTAMPTZ;
-    new_ban TIMESTAMPTZ;
-    reduction INTERVAL := INTERVAL '15 minutes';
-BEGIN
-    SELECT ban_until INTO current_ban FROM profiles WHERE id = p_user_id;
-    
-    IF current_ban IS NULL OR current_ban < now() THEN 
-        RETURN INTERVAL '0'; 
-    END IF;
-    
-    new_ban := GREATEST(now(), current_ban - reduction);
-    
-    UPDATE profiles SET ban_until = new_ban WHERE id = p_user_id;
-    INSERT INTO indulgences (user_id, time_removed_seconds) VALUES (p_user_id, 900);
-    
-    RETURN reduction;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- =====================================================
--- 5. TOKEN & KARMA FUNCTIONS
--- =====================================================
-
--- Refill spent tokens
-CREATE OR REPLACE FUNCTION refill_tokens(p_amount INT)
-RETURNS INT AS $$
-DECLARE
-    v_new_spent INT;
-BEGIN
-    UPDATE profiles 
-    SET tokens_spent_today = GREATEST(0, tokens_spent_today - p_amount)
-    WHERE id = auth.uid()
-    RETURNING tokens_spent_today INTO v_new_spent;
-    
-    RETURN v_new_spent;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Update karma (called by Edge Functions)
-CREATE OR REPLACE FUNCTION update_karma(p_user_id UUID, p_karma_change INT)
-RETURNS INT AS $$
-DECLARE
-    v_new_karma INT;
-BEGIN
-    UPDATE profiles 
-    SET karma = karma + p_karma_change
-    WHERE id = p_user_id
-    RETURNING karma INTO v_new_karma;
-    
-    RETURN v_new_karma;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- =====================================================
--- 6. SECURITY (RLS Policies)
--- =====================================================
-
--- Enable RLS (FORCE ensures service_role RLS bypass is still tracked)
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE profiles FORCE ROW LEVEL SECURITY;
-ALTER TABLE prayers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE indulgences ENABLE ROW LEVEL SECURITY;
-
--- Profile policies
-CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users can insert own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
-CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
-
--- Prayer policies
-CREATE POLICY "Users can view own prayers" ON prayers FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can insert own prayers" ON prayers FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can archive own prayers" ON prayers FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-
--- Indulgence policies
-CREATE POLICY "Users can view own indulgences" ON indulgences FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can insert own indulgences" ON indulgences FOR INSERT WITH CHECK (auth.uid() = user_id);
-
--- =====================================================
--- 7. PERMISSIONS
--- =====================================================
-
--- Schema access
-GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-
--- Table access — authenticated (frontend users)
-GRANT ALL ON TABLE prayers TO authenticated;
-GRANT ALL ON TABLE profiles TO authenticated;
-GRANT ALL ON TABLE indulgences TO authenticated;
-
--- Table access — service_role (Edge Functions)
-GRANT ALL ON TABLE prayers TO service_role;
-GRANT ALL ON TABLE profiles TO service_role;
-GRANT ALL ON TABLE indulgences TO service_role;
-
--- Sequence access (for UUIDs/IDs)
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
-
--- Anonymous can read profiles (for signup/login checks)
-GRANT SELECT ON TABLE profiles TO anon;
-
--- Function permissions — authenticated (frontend users)
-GRANT EXECUTE ON FUNCTION update_karma(UUID, INT) TO authenticated;
-GRANT EXECUTE ON FUNCTION sync_prayer_count(UUID, INT) TO authenticated;
-GRANT EXECUTE ON FUNCTION deactivate_prayer(UUID, INT) TO authenticated;
-GRANT EXECUTE ON FUNCTION activate_prayer(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION submit_prayer(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION refill_tokens(INT) TO authenticated;
-GRANT EXECUTE ON FUNCTION reset_daily_prayer_count(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION reduce_ban_time(UUID) TO authenticated;
-
--- Function permissions — service_role (Edge Functions)
-GRANT EXECUTE ON FUNCTION create_profile_on_signup() TO service_role;
-GRANT EXECUTE ON FUNCTION submit_prayer(TEXT) TO service_role;
-GRANT EXECUTE ON FUNCTION activate_prayer(UUID) TO service_role;
-GRANT EXECUTE ON FUNCTION sync_prayer_count(UUID, INT) TO service_role;
-GRANT EXECUTE ON FUNCTION deactivate_prayer(UUID, INT) TO service_role;
-GRANT EXECUTE ON FUNCTION reduce_ban_time(UUID) TO service_role;
-GRANT EXECUTE ON FUNCTION refill_tokens(INT) TO service_role;
-GRANT EXECUTE ON FUNCTION update_karma(UUID, INT) TO service_role;
-GRANT EXECUTE ON FUNCTION reset_daily_prayer_count(UUID) TO service_role;
-
--- =====================================================
--- 8. INDEXES
--- =====================================================
-
-CREATE INDEX IF NOT EXISTS idx_prayers_user_status ON prayers(user_id, status);
-```
+**Authority source:** Migration files in [`supabase/migrations/`](supabase/migrations/) (idempotent, run in lexicographic order to rebuild).  
+**Last updated:** 2026-05-18
 
 ---
 
-## 9. AKASHIC RECORDS EXTENSIONS (v3.0)
+## Migration History
 
-The Akashic Records feature adds a new tab showing all public prayers and users in purgatory, with the ability to pray altruistically for others.
+| Series | Files | Status |
+|--------|-------|--------|
+| Genesis | `genesis_1` through `genesis_10` + `genesis_9_hotfix` | **CLOSED** (foundation) |
+| Exodus | `exodus_0` | **ACTIVE** |
 
-### New Columns on `prayers` Table
-
-```sql
--- Track karma milestones already awarded (prevents double-awarding)
-karma_awarded INT DEFAULT 0
-
--- Link altruistic prayer back to the original prayer being prayed for
-source_prayer_id UUID REFERENCES prayers(id) ON DELETE SET NULL
-
--- Link intercessory prayer to the sinner being prayed for
-source_sinner_id UUID REFERENCES profiles(id) ON DELETE SET NULL
-
--- Distinguish prayer types: own, altruistic, intercessory
-prayer_type TEXT DEFAULT 'own' CHECK (prayer_type IN ('own', 'altruistic', 'intercessory'))
-```
-
-### Prayer Types
-
-| Type | Description | Karma Rate |
-|------|-------------|------------|
-| `own` | User's own prayer (default) | +1 karma per 100 prays |
-| `altruistic` | Praying for someone else's prayer | +2 karma per 100 prays |
-| `intercessory` | Praying for a sinner in purgatory | +1 karma per 100 prays |
-
-### New Indexes
-
-```sql
-CREATE INDEX idx_prayers_public_feed
-  ON prayers(is_rejected, is_archived, created_at DESC)
-  WHERE is_rejected = false AND is_archived = false;
-
-CREATE INDEX idx_prayers_type_active
-  ON prayers(user_id, prayer_type, is_praying)
-  WHERE is_praying = true;
-
-CREATE INDEX idx_prayers_most_prayed
-  ON prayers(prayer_count DESC)
-  WHERE is_rejected = false AND is_archived = false AND prayer_type = 'own';
-```
-
-### Updated RLS Policies
-
-```sql
--- Users can view approved prayers from others (Akashic Records feed)
--- AND their own prayers (including rejected/archived)
-CREATE POLICY "Users can view approved prayers"
-  ON prayers FOR SELECT
-  USING (
-    auth.uid() = user_id
-    OR (is_rejected = false AND is_archived = false AND status = 'completed')
-  );
-
--- Users can view purgatory users' basic info (Sinners list)
--- AND their own profile
-CREATE POLICY "Users can view profiles"
-  ON profiles FOR SELECT
-  USING (
-    auth.uid() = id
-    OR (ban_until IS NOT NULL AND ban_until > now())
-  );
-```
-
-### New RPC Functions
-
-#### `get_public_prayers(p_offset INT, p_limit INT, p_sort_by TEXT)`
-
-Fetches the Akashic Records prayer feed with author usernames.
-
-- `p_sort_by = 'newest'`: Orders by `created_at DESC`
-- `p_sort_by = 'most_prayed'`: Orders by `prayer_count DESC, created_at DESC`
-- Only returns `prayer_type = 'own'` (not altruistic/intercessory prayers)
-- Only returns approved, completed, non-archived prayers
-- Returns JSONB array with: `id, response_content, prayer_count, created_at, prayer_type, username, faith`
-
-#### `get_sinners()`
-
-Fetches users currently in purgatory with their most recent rejection reason.
-
-- Returns JSONB array with: `id, username, faith, ban_until, rejection_reason, rejected_content`
-- Only includes users where `ban_until > now()`
-
-#### `start_altruistic_prayer(p_target_prayer_id UUID, p_response_content TEXT)`
-
-Creates or resumes an altruistic prayer session for someone else's prayer.
-
-- Deactivates any currently active prayer for the user
-- If an existing altruistic prayer for the same target exists, reactivates it
-- Otherwise creates a new prayer row with `prayer_type = 'altruistic'`
-- Returns: `{ id, type, target_prayer_id }`
-
-#### `start_intercessory_prayer(p_target_sinner_id UUID, p_response_content TEXT)`
-
-Creates or resumes an intercessory prayer session for a sinner.
-
-- Deactivates any currently active prayer for the user
-- If an existing intercessory prayer for the same sinner exists, reactivates it
-- Otherwise creates a new prayer row with `prayer_type = 'intercessory'`
-- Returns: `{ id, type, target_sinner_id }`
-
-### Modified RPC Function: `sync_prayer_count`
-
-Now includes karma milestone checking. Every 100 prays triggers a karma award:
-
-- `prayer_type = 'own'`: +1 karma per milestone
-- `prayer_type = 'altruistic'`: +2 karma per milestone
-- `prayer_type = 'intercessory'`: +1 karma per milestone
-
-The `karma_awarded` column tracks how many milestones have been awarded to prevent double-awarding. The response now includes a `karma_change` field.
-
-### Modified RPC Function: `deactivate_prayer`
-
-Now includes karma milestone checking on final sync. When a prayer is deactivated, any milestone crossed during the final count sync triggers a karma award (same rates as `sync_prayer_count`). The response now includes a `karma_change` field, allowing the frontend to show a karma toast notification when stopping a prayer.
-
-### New Edge Function: `pray-for-sinner`
-
-Located at `supabase/functions/pray-for-sinner/index.ts`.
-
-- Receives `{ sinner_id, user_id }`
-- Fetches sinner's profile and most recent rejected prayer
-- Generates an intercessory prayer via Venice AI
-- Returns `{ success, response, sinner_username, faith, rejection_reason }`
-
-### Frontend Components
-
-| File | Purpose |
-|------|---------|
-| `src/views/AkashicRecordsView.vue` | Main view with Prayers/Sinners sub-tabs |
-| `src/composables/useAkashicRecords.js` | Fetch public prayers, sinners, manage altruistic sessions |
-| `src/components/organisms/AkashicPrayerCard.vue` | Prayer card for the public feed |
-| `src/components/organisms/SinnerCard.vue` | Sinner card with live countdown |
-| `src/components/molecules/KarmaToast.vue` | Toast notification for karma milestones |
-| `supabase/functions/pray-for-sinner/index.ts` | Edge function for AI-generated intercessory prayers |
+Run all `.sql` files in lexicographic order to rebuild the full database from scratch.
 
 ---
 
-## Karma Shop — Blessings (v4.0)
+## Tables (18)
 
-**Migration:** `supabase/migrations/karma-shop-blessings.sql`
-**Config:** `src/config/blessings.json`
+### `game_config`
+Central balance values. Key-value store read by all RPCs and the cron heartbeat.
 
-### New Tables
+| Column | Type | Notes |
+|--------|------|-------|
+| `key` | TEXT PK | Dot-notation: `building.temple.mana_per_day` |
+| `value` | NUMERIC | |
+| `description` | TEXT | |
+| `category` | TEXT DEFAULT 'production' | |
+| `updated_at` | TIMESTAMPTZ | |
 
-#### `blessing_types`
+RLS: SELECT public.
 
-Blessing definitions mirrored from the config file. Server-side source of truth for costs and karma values.
+---
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | TEXT PK | Slug identifier (e.g. `golden-light`) |
-| `emoji` | TEXT | Emoji displayed as badge |
-| `name` | TEXT | Human-readable name |
-| `description` | TEXT | Flavor text |
-| `karma_cost` | INT | Karma deducted from giver |
-| `karma_to_giver` | INT | Karma rebated to giver |
-| `karma_to_receiver` | INT | Karma awarded to prayer owner |
-| `sort_order` | INT | Display order in shop |
-| `is_active` | BOOLEAN | Whether available for purchase |
-| `created_at` | TIMESTAMPTZ | Creation timestamp |
+### `profiles`
+Player data. One row per auth user. Created by `create_profile_on_signup()` trigger on `auth.users` INSERT.
 
-#### `prayer_blessings`
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK → auth.users | |
+| `email` | TEXT | |
+| `username` | TEXT UNIQUE | Set via `change_username()` or onboarding |
+| `faith` | TEXT | Free-text faith label |
+| `ban_until` | TIMESTAMPTZ | Purgatory expiry (NULL = not banned) |
+| `tokens_spent_today` | INT DEFAULT 0 | Devotion consumed today |
+| `daily_token_limit` | INT DEFAULT 100 | Max devotion per day |
+| `last_prayer_date` | DATE | |
+| `karma` | INT DEFAULT 0 | Premium currency |
+| `max_prayer_slots` | INT DEFAULT 1 | Concurrent prayer slots |
+| `created_at` | TIMESTAMPTZ | |
+| `updated_at` | TIMESTAMPTZ | |
+| `mana` | INT DEFAULT 0 | Resource: buildings generate |
+| `gold` | INT DEFAULT 0 | Resource: workers generate |
+| `food` | INT DEFAULT 0 | Resource: food estates generate |
+| `suzerain_id` | UUID → profiles.id | Vassalage hierarchy |
+| `heresy` | INT DEFAULT 0 | Dark research/combat currency |
+| `schism_count` | INT DEFAULT 0 | Times declared schism |
+| `divine_shield_until` | TIMESTAMPTZ | Schism protection expiry |
+| `sect_type` | TEXT CHECK | `gilded_path`, `holy_way`, `final_watch`, `black_tribunal` |
+| `sacred_acres` | INT DEFAULT 25 CHECK >= 0 | Land for buildings |
+| `dogma` | INT DEFAULT 0 CHECK >= 0 | Light research currency |
+| `indulgences` | INT DEFAULT 0 CHECK >= 0 | Premium currency (Stripe) |
+| `synod_id` | UUID → synods.id | Alliance membership |
+| `synod_role` | TEXT CHECK | `leader`, `officer`, `member`, NULL |
+| `papal_bull_until` | TIMESTAMPTZ | 12h immunity |
+| `title` | TEXT | Custom leaderboard title |
+| `avatar_url` | TEXT | Custom avatar URL |
+| `onboarding_complete` | BOOLEAN DEFAULT false | |
+| `pfp_index` | INT DEFAULT 0 | Profile picture index |
 
-Junction table tracking who blessed which prayer. UNIQUE constraint prevents duplicate blessings (same user + same type per prayer).
+RLS: SELECT own + purgatory users. INSERT own. UPDATE own.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | UUID PK | Auto-generated |
-| `prayer_id` | UUID FK → prayers | The blessed prayer |
-| `blessing_type_id` | TEXT FK → blessing_types | Which blessing |
-| `giver_id` | UUID FK → profiles | Who gave the blessing |
-| `receiver_id` | UUID FK → profiles | Prayer owner (denormalized for karma) |
-| `created_at` | TIMESTAMPTZ | When blessed |
+---
 
-**UNIQUE constraint:** `(prayer_id, blessing_type_id, giver_id)` — one user can give each blessing type once per prayer.
+### `shop_items`
+Server-authoritative catalog. Seed data defines all purchasable items.
 
-### New RPC Functions
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT PK | e.g. `altar`, `prayer-slot-2` |
+| `category` | TEXT | `mana`, `food`, `workforce`, `infrastructure`, `catacombs`, `research` |
+| `name` | TEXT | |
+| `description` | TEXT | |
+| `emoji_icon` | TEXT | |
+| `karma_cost` | INT DEFAULT 0 | |
+| `gold_cost` | INT DEFAULT 0 | |
+| `heresy_cost` | INT DEFAULT 0 | |
+| `effect_type` | TEXT | `add_building`, `add_prayer_slot` |
+| `effect_data` | JSONB | e.g. `{"building_type": "altar"}` |
+| `purchase_limit` | INT | NULL = unlimited |
+| `requires_building` | TEXT | Prerequisite building type |
+| `sort_order` | INT | |
+| `is_active` | BOOLEAN DEFAULT true | |
+| `cost_scaling` | BOOLEAN DEFAULT false | 1.15^owned exponential scaling |
+| `acre_cost` | INT DEFAULT 0 CHECK >= 0 | Sacred acres consumed |
+| `sect_restriction` | TEXT CHECK | Only this sect can buy |
+| `sect_exclusion` | TEXT CHECK | This sect cannot buy |
+| `created_at` | TIMESTAMPTZ | |
 
-#### `grant_blessing(p_prayer_id UUID, p_blessing_type_id TEXT) → JSONB`
+RLS: SELECT public.
 
-Atomically:
-1. Validates blessing type is active
-2. Prevents self-blessing (cannot bless own prayer)
-3. Prevents duplicate blessings
-4. Checks giver has enough karma
-5. Deducts `karma_cost` from giver
-6. Awards `karma_to_giver` rebate to giver
-7. Awards `karma_to_receiver` to prayer owner
-8. Inserts `prayer_blessings` row
+---
 
-Returns: `{ id, blessing_type_id, karma_spent, karma_to_giver, karma_to_receiver }`
+### `prayers`
+Prayer requests, altruistic prayers, and intercessory prayers.
 
-#### `get_prayer_blessings(p_prayer_ids UUID[]) → JSONB`
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `user_id` | UUID → profiles.id | |
+| `content` | TEXT | Original prayer text |
+| `response_content` | TEXT | Monk's AI response |
+| `is_rejected` | BOOLEAN DEFAULT false | |
+| `rejection_reason` | TEXT | |
+| `is_praying` | BOOLEAN DEFAULT false | Currently active |
+| `is_archived` | BOOLEAN DEFAULT false | |
+| `status` | TEXT DEFAULT 'pending' | |
+| `prayer_count` | INT DEFAULT 0 | Cumulative pray cycles |
+| `last_counted_at` | TIMESTAMPTZ | |
+| `activated_at` | TIMESTAMPTZ | |
+| `created_at` | TIMESTAMPTZ | |
+| `karma_awarded` | INT DEFAULT 0 | Milestones already paid out |
+| `source_prayer_id` | UUID → prayers.id | For altruistic prayers |
+| `source_sinner_id` | UUID → profiles.id | For intercessory prayers |
+| `prayer_type` | TEXT DEFAULT 'own' CHECK | `own`, `altruistic`, `intercessory` |
 
-Fetches aggregated blessing counts for a batch of prayers. Returns one row per `(prayer_id, blessing_type_id)` with count, emoji, and name.
+RLS: SELECT own + approved completed. INSERT own. UPDATE own.
 
-### Updated RPC: `get_public_prayers`
+---
 
-Now includes a `blessings` JSONB array per prayer with aggregated blessing data (emoji, name, count), sorted by blessing sort_order.
+### `indulgences`
+Ad-view ban reduction records. 15 min per record.
 
-### RLS Policies
+| Column | Type |
+|--------|------|
+| `id` | UUID PK |
+| `user_id` | UUID → profiles.id |
+| `time_removed_seconds` | INT DEFAULT 900 |
+| `created_at` | TIMESTAMPTZ |
 
-- `blessing_types`: Publicly readable (SELECT for all)
-- `prayer_blessings`: Publicly readable (SELECT for all)
-- No direct INSERT policy — all inserts go through `grant_blessing` RPC (SECURITY DEFINER)
+RLS: INSERT own. SELECT own.
 
-### Blessing Economics
+---
 
-| Blessing | Cost | Giver Gets | Receiver Gets | Net Cost |
-|----------|------|------------|---------------|----------|
-| ✨ Golden Light | 10 | 1 | 5 | 9 |
-| 🔥 Holy Flame | 25 | 2 | 10 | 23 |
-| 🕊️ Dove of Peace | 50 | 5 | 20 | 45 |
-| 👑 Divine Crown | 100 | 10 | 50 | 90 |
+### `player_buildings`
+Building ownership per player. Production rates come from `game_config`.
 
-### Frontend Components
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `user_id` | UUID → profiles.id | |
+| `building_type` | TEXT | `altar`, `shrine`, `temple`, `church`, `cathedral`, `pot`, `patch`, `garden`, `field`, `farm`, `novice`, `monk`, `cleric`, `bishop`, `cardinal`, `cultist`, `coven`, `scriptorium` |
+| `is_active` | BOOLEAN DEFAULT true | False = ruined/disabled |
+| `purchased_with` | TEXT | shop_items.id or `starting-X` |
+| `purchased_at` | TIMESTAMPTZ | |
 
-| File | Purpose |
-|------|---------|
-| `src/config/blessings.json` | Blessing definitions (source of truth for display) |
-| `src/composables/useBlessings.js` | Fetch blessing types & prayer blessing aggregates |
-| `src/composables/useKarmaShop.js` | Shop tab state & blessing purchase flow |
-| `src/views/KarmaShopView.vue` | Karma Shop page with Blessings tab |
-| `src/components/organisms/BlessingPicker.vue` | Modal to pick a blessing to grant |
-| `src/components/molecules/BlessingBadgeBar.vue` | Emoji badge bar with overflow handling |
-| `src/components/organisms/BlessingDetailModal.vue` | Full blessing breakdown popup |
+RLS: SELECT own.
+
+---
+
+### `akashic_logs`
+Combat event history. Public read, insert via SECURITY DEFINER only.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `target_id` | UUID → profiles.id | |
+| `actor_id` | UUID → profiles.id | NULL for anonymous (plague) |
+| `action_type` | TEXT CHECK | `crusade`, `schism`, `plague`, `inquisition` |
+| `result_data` | JSONB | |
+| `created_at` | TIMESTAMPTZ | |
+
+RLS: SELECT public.
+
+---
+
+### `blessing_types`
+Blessing catalog for the Karma Shop.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT PK | `golden-light`, `holy-flame`, `dove-of-peace`, `divine-crown` |
+| `emoji` | TEXT | |
+| `name` | TEXT | |
+| `description` | TEXT | |
+| `karma_cost` | INT | |
+| `karma_to_giver` | INT | Rebate |
+| `karma_to_receiver` | INT | Awarded to prayer owner |
+| `sort_order` | INT | |
+| `is_active` | BOOLEAN DEFAULT true | |
+| `shield_minutes` | INT | Divine Shield duration on bless |
+| `created_at` | TIMESTAMPTZ | |
+
+RLS: SELECT public.
+
+---
+
+### `prayer_blessings`
+Junction: who blessed which prayer. UNIQUE(prayer_id, blessing_type_id, giver_id).
+
+| Column | Type |
+|--------|------|
+| `id` | UUID PK |
+| `prayer_id` | UUID → prayers.id |
+| `blessing_type_id` | TEXT → blessing_types.id |
+| `giver_id` | UUID → profiles.id |
+| `receiver_id` | UUID → profiles.id |
+| `created_at` | TIMESTAMPTZ |
+
+RLS: SELECT public.
+
+---
+
+### `synods`
+Player alliances (guilds).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `name` | TEXT UNIQUE | 3-30 chars |
+| `leader_id` | UUID → profiles.id | |
+| `tax_rate` | NUMERIC DEFAULT 0.05 | 0.01–0.15 |
+| `vault_gold` | INT DEFAULT 0 | |
+| `vault_mana` | INT DEFAULT 0 | |
+| `created_at` | TIMESTAMPTZ | |
+
+RLS: SELECT public. UPDATE leader only.
+
+---
+
+### `synod_wars`
+Holy War declarations between synods. 48h duration.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `attacker_synod_id` | UUID → synods.id | |
+| `defender_synod_id` | UUID → synods.id | |
+| `declared_at` | TIMESTAMPTZ | |
+| `expires_at` | TIMESTAMPTZ | |
+| `is_active` | BOOLEAN DEFAULT true | |
+
+RLS: SELECT public.
+
+---
+
+### `research_nodes`
+Tech tree definition. 5 light + 4 dark nodes.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT PK | e.g. `tax_evasion` |
+| `name` | TEXT | |
+| `description` | TEXT | |
+| `emoji_icon` | TEXT | |
+| `alignment` | TEXT CHECK | `light`, `dark` |
+| `cost` | INT CHECK > 0 | Dogma (light) or heresy (dark) |
+| `effect_type` | TEXT | e.g. `vassal_tithe_reduction` |
+| `effect_data` | JSONB | |
+| `requires_node` | TEXT → research_nodes.id | Prerequisite |
+| `sort_order` | INT | |
+| `is_active` | BOOLEAN DEFAULT true | |
+
+RLS: SELECT public.
+
+---
+
+### `player_research`
+Unlocked tech per player. UNIQUE(user_id, node_id).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `user_id` | UUID → profiles.id | |
+| `node_id` | TEXT → research_nodes.id | |
+| `unlocked_at` | TIMESTAMPTZ | |
+| `expires_at` | TIMESTAMPTZ | NULL = permanent |
+
+RLS: SELECT own.
+
+---
+
+### `relics`
+10 global unique items. Seeded once, holder changes via theft.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `name` | TEXT UNIQUE | |
+| `description` | TEXT | |
+| `emoji_icon` | TEXT | |
+| `effect_type` | TEXT | e.g. `mana_double` |
+| `effect_data` | JSONB | e.g. `{"mana_multiplier": 2.0}` |
+| `holder_id` | UUID → profiles.id | NULL = unclaimed |
+| `last_stolen_at` | TIMESTAMPTZ | |
+| `steal_progress` | INT DEFAULT 0 | |
+| `steal_window_start` | TIMESTAMPTZ | |
+| `is_active` | BOOLEAN DEFAULT true | |
+
+RLS: SELECT public.
+
+---
+
+### `active_miracles`
+Timed effect tracking (Papal Bull, Divine Architect, blessing shields).
+
+| Column | Type |
+|--------|------|
+| `id` | UUID PK |
+| `user_id` | UUID → profiles.id |
+| `miracle_type` | TEXT |
+| `effect_data` | JSONB |
+| `expires_at` | TIMESTAMPTZ |
+| `created_at` | TIMESTAMPTZ |
+
+RLS: SELECT public.
+
+---
+
+### `build_queue`
+Divine Architect auto-build queue. Max 5 pending per user.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `user_id` | UUID → profiles.id | |
+| `item_id` | TEXT → shop_items.id | |
+| `queued_at` | TIMESTAMPTZ | |
+| `auto_execute` | BOOLEAN DEFAULT true | |
+| `executed_at` | TIMESTAMPTZ | NULL = pending |
+
+RLS: SELECT own.
+
+---
+
+### `faction_relationships`
+Per-faction enemy/ally/neutral config. Created by [`exodus_0.sql`](supabase/migrations/exodus_0.sql).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `sect_key` | TEXT UNIQUE CHECK | `gilded_path`, `holy_way`, `final_watch`, `black_tribunal` |
+| `enemy_sect` | TEXT CHECK | |
+| `ally_sect` | TEXT CHECK | |
+| `neutral_sect` | TEXT CHECK | |
+| `rationale_enemy` | TEXT | |
+| `rationale_ally` | TEXT | |
+| `rationale_neutral` | TEXT | |
+
+RLS: SELECT public.
+
+---
+
+## RPC Functions
+
+### Prayer Management
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `submit_prayer(TEXT)` | JSONB | Slot-aware FIFO, deducts devotion |
+| `activate_prayer(UUID)` | JSONB | Slot-aware, deactivates oldest if full |
+| `deactivate_prayer(UUID, INT)` | JSONB | Final sync + karma milestone check |
+| `sync_prayer_count(UUID)` | JSONB | Read-only poll |
+| `sync_prayer_count(UUID, INT)` | JSONB | Full sync + ban reduction for intercessory |
+| `start_altruistic_prayer(UUID, TEXT)` | JSONB | Slot-aware |
+| `start_intercessory_prayer(UUID, TEXT)` | JSONB | Slot-aware |
+| `get_public_prayers(INT, INT, TEXT)` | JSONB | Paginated, sortable, includes blessings |
+| `get_sinners()` | JSONB | Users in purgatory |
+| `get_intercessory_prayer_count(UUID)` | INT | |
+
+### Economy & Shop
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `purchase_shop_item(TEXT)` | JSONB | v3: acre validation + sect restrictions + cost scaling |
+| `get_player_economy()` | JSONB | Full economy state + buildings + production + vassalage + synod + relics |
+| `get_leaderboard(INT, INT)` | JSONB | Top N by karma |
+| `get_leaderboard_by_faith(TEXT, INT, INT)` | JSONB | Faith-filtered rankings |
+| `get_user_ranks()` | JSONB | Current user's global + faith rank |
+| `purchase_prayer_slot()` | JSONB | Legacy slot purchase |
+| `refill_tokens(INT)` | INT | |
+
+### Sects
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `choose_sect(TEXT)` | JSONB | One-time, permanent |
+| `get_sect_info()` | JSONB | Sect modifiers from game_config |
+
+### Vassalage & Combat
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `get_vassalage_info()` | JSONB | Suzerain, vassals, tithes, chain depth |
+| `launch_crusade(UUID)` | JSONB | v2: acre theft, LIFO ruin, sect/relic/war bonuses |
+| `declare_schism()` | JSONB | Escalating heresy cost, 24h shield |
+| `cast_plague(UUID)` | JSONB | Zeroes target food |
+| `launch_inquisition(UUID)` | JSONB | Reveals heresy + miracles, assassinates worker |
+| `get_akashic_logs(INT, INT)` | JSONB | Paginated combat logs |
+| `lookup_player(TEXT)` | JSONB | Find user by username for targeting |
+
+### Synods
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `create_synod(TEXT)` | JSONB | Costs gold |
+| `join_synod(UUID)` | JSONB | |
+| `leave_synod()` | JSONB | Promotes oldest member if leader |
+| `declare_holy_war(UUID)` | JSONB | Leader only, 48h, +20% attack |
+| `get_synod_info()` | JSONB | Full synod state with members, roles, wars, relics |
+| `promote_member(UUID)` | JSONB | Leader → officer |
+| `demote_member(UUID)` | JSONB | Officer → member |
+| `kick_member(UUID)` | JSONB | Remove from synod |
+
+### Research
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `research_tech(TEXT)` | JSONB | Deducts dogma/heresy, applies immediate effects |
+| `get_research_tree()` | JSONB | All nodes + user unlocks |
+
+### Relics
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `get_relics()` | JSONB | All 10 relics with holder info |
+| `attempt_relic_steal(UUID)` | JSONB | Synod-coordinated theft |
+| `get_synod_relics()` | JSONB | Relics held by synod members |
+
+### Indulgences
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `consume_indulgence(TEXT)` | JSONB | `papal_bull` or `divine_architect` |
+
+### Blessings
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `grant_blessing(UUID, TEXT)` | JSONB | Atomic: deducts karma, awards rebate, gives shields |
+| `get_prayer_blessings(UUID[])` | JSONB | Batch blessing aggregates |
+
+### Identity
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `change_username(TEXT)` | JSONB | Username change with cooldown |
+
+### Factions
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `get_factions_overview()` | JSONB | All four factions with member counts, top-5, relationships, modifiers, missions |
+
+### Core Utilities
+| Function | Returns |
+|----------|---------|
+| `update_karma(UUID, INT)` | VOID |
+| `reset_daily_prayer_count(UUID)` | VOID |
+| `reduce_ban_time(UUID)` | INTERVAL |
+
+### Cron Heartbeat
+| Function | Returns | Schedule |
+|----------|---------|----------|
+| `calculate_automated_karma()` | VOID | Every minute (`prayer-heartbeat`) |
+
+5 phases: (1) karma milestones, (2) resource generation + sect modifiers + relic bonuses, (3) synod vault deposits, (4) expire timed effects, (5) process Divine Architect queue.
+
+---
+
+## Triggers
+
+| Trigger | On | Function |
+|---------|-----|----------|
+| `on_auth_user_created` | `auth.users` INSERT | `create_profile_on_signup()` — creates profile + starting buildings (altar, pot, novice) |
+
+---
+
+## Extensions
+
+| Extension | Purpose |
+|-----------|---------|
+| `pg_cron` | Schedules `calculate_automated_karma()` every minute |
+| `pg_net` | HTTP calls from Postgres (future use) |
+
+---
+
+## Edge Functions
+
+| Function | Purpose |
+|----------|---------|
+| `process-prayer` | Venice AI prayer validation + response generation |
+| `pray-for-sinner` | AI-generated intercessory prayer for purgatory users |
+| `generate-onboarding-content` | AI-generated welcome message + faction intro + first prayer prompt |
