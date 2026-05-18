@@ -30,7 +30,7 @@
         <div class="mb-3 text-4xl animate-pulse">Loading rankings...</div>
         <p>Summoning the divine ledger...</p>
       </div>
-
+ 
       <!-- Error State -->
       <div v-else-if="leaderboard.error" class="glass-panel glass-panel-soft p-8 text-center text-red-500">
         <p class="mb-2 font-semibold">Failed to load rankings</p>
