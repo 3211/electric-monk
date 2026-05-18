@@ -16,6 +16,7 @@ import VaticanView from './views/VaticanView.vue'
 import LeaderboardView from './views/LeaderboardView.vue'
 import ScriptoriumView from './views/ScriptoriumView.vue'
 import SynodHallView from './views/SynodHallView.vue'
+import FactionsView from './views/FactionsView.vue'
 import OnboardingWizard from './components/organisms/OnboardingWizard.vue'
 import UsernameChangeModal from './components/organisms/UsernameChangeModal.vue'
 const auth = useAuth()
@@ -103,22 +104,16 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
                 &#x269C; Altar
               </button>
               <button
-                @click="currentTab = 'scriptorium'"
-                :class="currentTab === 'scriptorium' ? 'nav-tab-active' : 'nav-tab-inactive'"
-              >
-                &#x1F4D1; Scriptorium
-              </button>
-              <button
                 @click="currentTab = 'akashic'"
                 :class="currentTab === 'akashic' ? 'nav-tab-active' : 'nav-tab-inactive'"
               >
                 &#x1F4DC; Records
               </button>
               <button
-                @click="currentTab = 'shop'"
-                :class="currentTab === 'shop' ? 'nav-tab-active' : 'nav-tab-inactive'"
+                @click="currentTab = 'factions'"
+                :class="currentTab === 'factions' ? 'nav-tab-active' : 'nav-tab-inactive'"
               >
-                &#x1F6D2; Shop
+                &#x1F3DB; Factions
               </button>
               <button
                 @click="currentTab = 'vatican'"
@@ -133,10 +128,22 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
                 &#x2694; Synod
               </button>
               <button
+                @click="currentTab = 'scriptorium'"
+                :class="currentTab === 'scriptorium' ? 'nav-tab-active' : 'nav-tab-inactive'"
+              >
+                &#x1F4D1; Scriptorium
+              </button>
+              <button
+                @click="currentTab = 'shop'"
+                :class="currentTab === 'shop' ? 'nav-tab-active' : 'nav-tab-inactive'"
+              >
+                &#x1F6D2; Shop
+              </button>
+              <button
                 @click="currentTab = 'rankings'"
                 :class="currentTab === 'rankings' ? 'nav-tab-active' : 'nav-tab-inactive'"
               >
-                &#x1F3DB; Rankings
+                &#x1F3C6; Rankings
               </button>
             </div>
 
@@ -190,6 +197,7 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
         <KarmaShopView v-else-if="currentView === 'shop'" />
         <VaticanView v-else-if="currentView === 'vatican'" />
         <SynodHallView v-else-if="currentView === 'synod'" />
+        <FactionsView v-else-if="currentView === 'factions'" />
         <LeaderboardView v-else-if="currentView === 'rankings'" />
 
         <!-- Onboarding Wizard (new user flow) -->
