@@ -182,15 +182,17 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
         <div aria-hidden="true" class="evil-layout-layer evil-layout-layer--glow"></div>
       </template>
       <div class="app-content-inner">
-        <LoginView v-if="currentView === 'login'" />
-        <PurgatoryView v-else-if="currentView === 'purgatory'" />
-        <AltarView v-else-if="currentView === 'altar'" />
-        <ScriptoriumView v-else-if="currentView === 'scriptorium'" />
-        <AkashicRecordsView v-else-if="currentView === 'akashic'" />
-        <KarmaShopView v-else-if="currentView === 'shop'" />
-        <VaticanView v-else-if="currentView === 'vatican'" />
-        <SynodHallView v-else-if="currentView === 'synod'" />
-        <FactionsView v-else-if="currentView === 'factions'" />
+        <section class="app-view-stage">
+          <LoginView v-if="currentView === 'login'" />
+          <PurgatoryView v-else-if="currentView === 'purgatory'" />
+          <AltarView v-else-if="currentView === 'altar'" />
+          <ScriptoriumView v-else-if="currentView === 'scriptorium'" />
+          <AkashicRecordsView v-else-if="currentView === 'akashic'" />
+          <KarmaShopView v-else-if="currentView === 'shop'" />
+          <VaticanView v-else-if="currentView === 'vatican'" />
+          <SynodHallView v-else-if="currentView === 'synod'" />
+          <FactionsView v-else-if="currentView === 'factions'" />
+        </section>
 
         <!-- Onboarding Wizard (new user flow) -->
         <OnboardingWizard />
@@ -206,7 +208,7 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
     </div>
 
     <!-- Global Footer -->
-    <footer class="global-footer mt-10 border-t backdrop-blur-[18px]">
+    <footer class="global-footer border-t backdrop-blur-[18px]">
       <div class="app-frame py-4 text-center text-xs text-theme-text-muted">
         <p>Copyright {{ currentYear }} Lake Boiler Labs. All rights reserved. Contact: <a :href="'mailto:' + devEmail" class="global-footer-link font-medium transition-colors duration-200 hover:underline">{{ devEmail }}</a></p>
       </div>
@@ -278,6 +280,18 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
 .global-nav-account {
   padding: 0.25rem;
   flex: 0 0 auto;
+}
+
+.app-view-stage {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.app-view-stage > :first-child {
+  flex: 1 1 auto;
+  min-height: 100%;
 }
 
 @media (max-width: 640px) {

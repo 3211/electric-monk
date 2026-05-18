@@ -140,6 +140,7 @@
   .app-shell {
     position: relative;
     isolation: isolate;
+    min-height: 100svh;
   }
 
   .app-shell::before {
@@ -159,6 +160,9 @@
   .app-content-region {
     position: relative;
     isolation: isolate;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     overflow: hidden;
     overflow: clip;
     z-index: 0;
@@ -167,7 +171,11 @@
   .app-content-inner {
     position: relative;
     z-index: 1;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
     min-height: 100%;
+    padding-block-end: clamp(2.5rem, 5vw, 3.75rem);
   }
 
   .holy-light-layer,
@@ -618,6 +626,9 @@
   .evil-shell {
     position: relative;
     isolation: isolate;
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
     overflow: hidden;
     overflow: clip;
     background: var(--theme-bg-wash);
