@@ -307,11 +307,13 @@
       </div>
 
       <div v-if="activeTab === 'rankings'">
-        <div v-if="leaderboard.loading && leaderboard.rankings.length === 0" class="glass-panel glass-panel-soft faction-state-card p-12 text-center text-theme-text-dim">
+        <!-- Loading State -->
+        <div v-if="leaderboard.globalLoading && leaderboard.globalTop5.length === 0" class="glass-panel glass-panel-soft faction-state-card p-12 text-center text-theme-text-dim">
           <div class="mb-3 text-4xl animate-pulse">Loading rankings...</div>
           <p>Summoning the divine ledger...</p>
         </div>
 
+        <!-- Error State -->
         <div v-else-if="leaderboard.error" class="glass-panel faction-state-card faction-state-card--error p-8 text-center border border-theme-purgatory/25">
           <div class="text-4xl mb-4">⚠️</div>
           <p class="font-semibold text-red-500 mb-2">Failed to load rankings</p>
@@ -319,88 +321,174 @@
           <button @click="handleRefreshRankings" class="btn-secondary faction-action-button mt-4 px-4 py-2 text-sm">Try Again</button>
         </div>
 
-        <div v-else-if="leaderboard.rankings.length === 0" class="glass-panel glass-panel-soft faction-state-card p-12 text-center text-theme-text-dim">
-          <p class="text-lg font-semibold text-theme-text mb-2">No rankings yet</p>
-          <p class="text-sm">The divine ledger is empty. Start praying to earn your place!</p>
-        </div>
-
-        <div v-else class="faction-rankings-shell glass-panel glass-panel-soft glass-gloss overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="faction-rankings-table w-full">
-              <thead>
-                <tr class="border-b border-theme-border/50 text-left text-xs font-medium uppercase tracking-wider text-theme-text-muted">
-                  <th class="pb-3 pl-4 pr-4 pt-4 w-16">Rank</th>
-                  <th class="pb-3 pr-4 pt-4">Name</th>
-                  <th class="pb-3 pr-4 pt-4 hidden sm:table-cell">Faith</th>
-                  <th class="pb-3 pr-4 pt-4 text-right">Karma</th>
-                  <th class="pb-3 pr-4 pt-4 text-right">Mana</th>
-                  <th class="pb-3 pr-4 pt-4 text-right hidden md:table-cell">Gold</th>
-                  <th class="pb-3 pr-4 pt-4 text-right hidden md:table-cell">Food</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="player in leaderboard.rankings"
-                  :key="player.id"
-                  class="faction-rank-row border-b border-theme-border/30 transition-colors duration-200 hover:bg-theme-accent/5"
-                  :class="{ 'faction-rank-row--current': isCurrentUser(player.id) }"
-                >
-                  <td class="py-3 pl-4 pr-4">
-                    <span v-if="player.rank === 1" class="text-lg font-bold text-amber-400">1st</span>
-                    <span v-else-if="player.rank === 2" class="text-lg font-bold text-gray-400">2nd</span>
-                    <span v-else-if="player.rank === 3" class="text-lg font-bold text-amber-700">3rd</span>
-                    <span v-else class="text-sm font-medium text-theme-text-dim">{{ player.rank }}</span>
-                  </td>
-                  <td class="py-3 pr-4">
-                    <span class="text-sm font-semibold text-theme-text">{{ player.username || 'Anonymous' }}</span>
-                    <span v-if="player.divine_shield_until && new Date(player.divine_shield_until) > new Date()" class="ml-1 text-amber-500" title="Divine Shield active">🛡</span>
-                  </td>
-                  <td class="py-3 pr-4 hidden sm:table-cell">
-                    <span class="text-xs text-theme-text-muted">{{ player.faith || '--' }}</span>
-                  </td>
-                  <td class="py-3 pr-4 text-right">
-                    <span class="text-sm font-semibold text-theme-accent">{{ formatNumber(player.karma) }}</span>
-                  </td>
-                  <td class="py-3 pr-4 text-right">
-                    <span class="text-sm font-semibold text-blue-500">{{ formatNumber(player.mana) }}</span>
-                  </td>
-                  <td class="py-3 pr-4 text-right hidden md:table-cell">
-                    <span class="text-sm text-amber-600">{{ formatNumber(player.gold) }}</span>
-                  </td>
-                  <td class="py-3 pr-4 text-right hidden md:table-cell">
-                    <span class="text-sm text-emerald-600">{{ formatNumber(player.food) }}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+        <template v-else>
+          <!-- ===== Global Top 5 Card ===== -->
+          <div class="glass-panel glass-panel-soft glass-gloss mb-8 p-5 sm:p-6">
+            <h2 class="ritual-heading text-xl font-bold text-theme-accent mb-4 text-center">🏆 Top 5 Overall</h2>
+            <div
+              ref="globalScrollRef"
+              @scroll="onGlobalScroll"
+              class="glass-bead-scroll max-h-[310px] overflow-y-auto pr-1"
+            >
+              <div
+                v-for="player in leaderboard.globalTop5"
+                :key="player.id"
+                class="flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors duration-200 hover:bg-white/5"
+                :class="{ 'bg-theme-accent/10 ring-1 ring-theme-accent/20': isCurrentUser(player.id) }"
+              >
+                <span class="faction-rank-badge" :class="rankBadgeClass(player.rank)">
+                  {{ player.rank }}
+                </span>
+                <span class="text-sm font-semibold text-theme-text flex-1 truncate">
+                  {{ isCurrentUser(player.id) ? 'You' : (player.username || 'Anonymous') }}
+                </span>
+                <span v-if="player.divine_shield_until && new Date(player.divine_shield_until) > new Date()" class="text-yellow-500 text-xs flex-shrink-0" title="Divine Shield active">🛡</span>
+                <span class="text-xs text-theme-text-muted flex-shrink-0">{{ player.faith || '--' }}</span>
+              </div>
+              <div v-if="leaderboard.globalLoading" class="text-center py-3 text-sm text-theme-text-muted">
+                <span class="animate-pulse">Loading more...</span>
+              </div>
+              <div v-if="!leaderboard.globalHasMore && leaderboard.globalTop5.length === 0" class="text-center py-6 text-sm text-theme-text-muted">
+                No rankings yet
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div v-if="currentUserRank" class="glass-panel glass-panel-soft glass-gloss faction-position-card mt-6 p-4 text-center">
-          <p class="text-sm text-theme-text-muted">
-            Your position: <span class="font-semibold text-theme-accent">Rank #{{ currentUserRank }}</span>
-          </p>
-        </div>
+          <!-- ===== Faith Columns Grid ===== -->
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+            <div
+              v-for="faith in leaderboard.FAITH_KEYS"
+              :key="faith"
+              class="glass-panel glass-panel-soft glass-gloss faction-faith-column p-4 sm:p-5"
+              :class="{ 'faction-faith-column--player': userFaith === faith }"
+            >
+              <!-- Column Header -->
+              <h3 class="ritual-heading text-base font-bold text-theme-accent mb-3 text-center flex items-center justify-center gap-2">
+                <span class="text-lg">{{ leaderboard.FAITH_ICONS[faith] }}</span>
+                <span class="truncate">{{ leaderboard.FAITH_NAMES[faith] }}</span>
+              </h3>
 
-        <div class="mt-6 flex justify-center">
-          <button
-            @click="handleRefreshRankings"
-            :disabled="leaderboard.loading"
-            class="btn-secondary faction-action-button flex items-center gap-2 px-4 py-2 text-sm"
+              <!-- Scrollable entries -->
+              <div
+                :ref="el => setFaithScrollRef(faith, el)"
+                @scroll="e => onFaithScroll(faith, e)"
+                class="glass-bead-scroll max-h-[340px] overflow-y-auto pr-1"
+              >
+                <div
+                  v-for="player in leaderboard.faithColumns[faith].entries"
+                  :key="player.id"
+                  class="flex items-center gap-2.5 py-2.5 px-3 rounded-xl transition-colors duration-200 hover:bg-white/5"
+                  :class="{ 'bg-theme-accent/10 ring-1 ring-theme-accent/20': isCurrentUser(player.id) }"
+                >
+                  <span class="faction-rank-badge faction-rank-badge--sm" :class="rankBadgeClass(player.faith_rank)">
+                    {{ player.faith_rank }}
+                  </span>
+                  <span class="text-sm font-semibold text-theme-text flex-1 truncate">
+                    {{ player.username || 'Anonymous' }}
+                  </span>
+                  <span class="text-xs text-theme-text-muted flex-shrink-0" :title="'Global rank ' + player.global_rank">
+                    🌐{{ player.global_rank }}
+                  </span>
+                  <span v-if="player.divine_shield_until && new Date(player.divine_shield_until) > new Date()" class="text-yellow-500 text-xs flex-shrink-0" title="Divine Shield active">🛡</span>
+                </div>
+
+                <div v-if="leaderboard.faithColumns[faith].loading" class="text-center py-3 text-sm text-theme-text-muted">
+                  <span class="animate-pulse">Loading more...</span>
+                </div>
+
+                <div
+                  v-if="leaderboard.faithColumns[faith].entries.length === 0 && !leaderboard.faithColumns[faith].loading"
+                  class="text-center py-6 text-sm text-theme-text-muted"
+                >
+                  No members yet
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== Your Position ===== -->
+          <div
+            v-if="leaderboard.userRanks || leaderboard.userRanksLoading"
+            class="glass-panel glass-panel-strong glass-gloss faction-your-position mt-6 p-6 sm:p-8 text-center"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" :class="{ 'animate-spin': leaderboard.loading }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            {{ leaderboard.loading ? 'Loading...' : 'Refresh' }}
-          </button>
-        </div>
+            <div v-if="leaderboard.userRanksLoading && !leaderboard.userRanks" class="text-theme-text-muted">
+              <span class="animate-pulse">Consulting the divine ledger...</span>
+            </div>
+
+            <div v-else-if="leaderboard.userRanksError" class="text-red-500 text-sm">
+              <p class="font-semibold mb-1">Could not determine your position</p>
+              <p class="text-xs text-theme-text-muted">{{ leaderboard.userRanksError }}</p>
+            </div>
+
+            <!-- Top 5 Podium -->
+            <div v-else-if="leaderboard.userIsTop5">
+              <p class="text-lg font-bold text-theme-accent ritual-heading mb-5">
+                🏆 Your Position: <span class="text-2xl">Top 5</span>
+              </p>
+              <div class="max-w-md mx-auto space-y-1">
+                <div
+                  v-for="player in leaderboard.globalTop5.slice(0, 5)"
+                  :key="player.id"
+                  class="flex items-center gap-3 py-2.5 px-4 rounded-xl transition-colors duration-200"
+                  :class="{ 'bg-theme-accent/15 ring-1 ring-theme-accent/35 scale-105': isCurrentUser(player.id) }"
+                >
+                  <span class="faction-rank-badge" :class="rankBadgeClass(player.rank)">
+                    {{ player.rank }}
+                  </span>
+                  <span class="text-sm font-semibold text-theme-text flex-1 text-left">
+                    {{ isCurrentUser(player.id) ? 'You' : (player.username || 'Anonymous') }}
+                  </span>
+                  <span v-if="player.divine_shield_until && new Date(player.divine_shield_until) > new Date()" class="text-yellow-500 text-xs flex-shrink-0" title="Divine Shield active">🛡</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Normal Position -->
+            <div v-else>
+              <p class="text-sm text-theme-text-muted uppercase tracking-wider mb-3">Your Position</p>
+              <p class="text-3xl font-bold text-theme-text ritual-heading mb-5">You</p>
+              <div class="flex items-center justify-center gap-8">
+                <div class="text-center">
+                  <p class="text-xs text-theme-text-muted uppercase tracking-wider mb-1">Faith Rank</p>
+                  <p class="text-2xl font-bold text-theme-accent ritual-heading">
+                    #{{ leaderboard.userRanks.faith_rank }}
+                  </p>
+                  <p class="text-xs text-theme-text-muted mt-1">
+                    <span class="mr-1">{{ leaderboard.FAITH_ICONS[leaderboard.userRanks.faith] || '' }}</span>
+                    {{ leaderboard.FAITH_NAMES[leaderboard.userRanks.faith] || leaderboard.userRanks.faith || '--' }}
+                  </p>
+                </div>
+                <div class="w-px h-14 bg-white/10"></div>
+                <div class="text-center">
+                  <p class="text-xs text-theme-text-muted uppercase tracking-wider mb-1">Global Rank</p>
+                  <p class="text-2xl font-bold text-theme-accent ritual-heading">
+                    #{{ leaderboard.userRanks.global_rank }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex justify-center">
+            <button
+              @click="handleRefreshRankings"
+              :disabled="leaderboard.globalLoading"
+              class="btn-secondary faction-action-button flex items-center gap-2 px-4 py-2 text-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" :class="{ 'animate-spin': leaderboard.globalLoading }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {{ leaderboard.globalLoading ? 'Loading...' : 'Refresh' }}
+            </button>
+          </div>
+        </template>
       </div>
     </main>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, inject, onMounted, toRefs } from 'vue'
+import { ref, reactive, computed, inject, onMounted, onBeforeUnmount, toRefs } from 'vue'
 import { useFactions, FACTION_ICONS, FACTION_NAMES, FACTION_COLORS, formatModifier, getModifierLabel } from '@/composables/useFactions'
 import { useLeaderboard } from '@/composables/useLeaderboard'
 import { useAuth } from '@/composables/useAuth'
@@ -425,9 +513,16 @@ const { fetchFactions, autoSelectPlayerFaction } = factions
 const activeTab = ref('overview')
 const currentUserId = ref(null)
 
-const currentUserRank = computed(() => {
-  if (!currentUserId.value) return null
-  return leaderboard.getUserRank(currentUserId.value)
+// Scroll refs for leaderboard lazy-load
+const globalScrollRef = ref(null)
+const faithScrollRefs = reactive({})
+
+function setFaithScrollRef(faith, el) {
+  faithScrollRefs[faith] = el
+}
+
+const userFaith = computed(() => {
+  return leaderboard.userRanks?.faith || null
 })
 
 const fallbackFactionOrder = ['gilded_path', 'holy_way', 'final_watch', 'black_tribunal']
@@ -493,8 +588,32 @@ function formatNumber(num) {
   return num.toLocaleString()
 }
 
+function rankBadgeClass(rank) {
+  if (rank === 1) return 'rank-gold'
+  if (rank === 2) return 'rank-silver'
+  if (rank === 3) return 'rank-bronze'
+  return 'rank-default'
+}
+
+// Leaderboard scroll handlers
+function onGlobalScroll() {
+  const el = globalScrollRef.value
+  if (!el) return
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 12) {
+    leaderboard.onGlobalScrollToBottom()
+  }
+}
+
+function onFaithScroll(faith, event) {
+  const el = event.target
+  if (!el) return
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 12) {
+    leaderboard.onFaithScrollToBottom(faith)
+  }
+}
+
 async function handleRefreshRankings() {
-  await leaderboard.fetchLeaderboard()
+  await leaderboard.initAll()
 }
 
 onMounted(async () => {
@@ -509,10 +628,17 @@ onMounted(async () => {
 
   await Promise.all([
     fetchFactions(),
-    leaderboard.fetchLeaderboard(),
+    leaderboard.initAll(),
   ])
 
   autoSelectPlayerFaction()
+})
+
+onBeforeUnmount(() => {
+  globalScrollRef.value = null
+  for (const key of Object.keys(faithScrollRefs)) {
+    delete faithScrollRefs[key]
+  }
 })
 
 </script>
@@ -1289,55 +1415,142 @@ onMounted(async () => {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 10px 18px rgba(0, 0, 0, 0.22);
 }
 
-.faction-rankings-shell {
-  border-radius: 1.75rem;
-  border: 1px solid rgba(170, 181, 191, 0.15);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018) 28%, rgba(255, 255, 255, 0.01) 100%),
-    linear-gradient(145deg, rgba(29, 36, 44, 0.95), rgba(19, 24, 30, 0.98) 58%, rgba(12, 16, 21, 1));
-  box-shadow: 0 20px 34px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.faction-rankings-table {
-  color: var(--war-text-soft);
-}
-
-.faction-rankings-table thead tr {
-  border-color: rgba(171, 181, 191, 0.12) !important;
-}
-
-.faction-rankings-table thead th {
-  background: rgba(255, 255, 255, 0.035);
+/* ===== Rank Badges (Metallic War Theme) ===== */
+.faction-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
   color: var(--war-muted);
+  background: rgba(169, 180, 190, 0.12);
+  border: 1px solid rgba(169, 180, 190, 0.16);
 }
 
-.faction-rank-row {
-  border-color: rgba(171, 181, 191, 0.1) !important;
+.faction-rank-badge--sm {
+  width: 1.85rem;
+  height: 1.85rem;
+  font-size: 0.72rem;
 }
 
-.faction-rank-row:hover {
-  background: rgba(185, 197, 207, 0.045) !important;
+.rank-gold {
+  color: #5c3d0a;
+  background: linear-gradient(145deg, rgba(212, 186, 142, 0.95), rgba(182, 144, 91, 0.88));
+  border-color: rgba(182, 144, 91, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 8px 16px rgba(182, 144, 91, 0.18);
 }
 
-.faction-rank-row--current {
-  background:
-    linear-gradient(90deg, rgba(182, 144, 91, 0.12), rgba(255, 255, 255, 0.02) 48%, rgba(255, 255, 255, 0.01) 100%) !important;
-  box-shadow: inset 3px 0 0 rgba(182, 144, 91, 0.42);
+.rank-silver {
+  color: #2d3239;
+  background: linear-gradient(145deg, rgba(185, 197, 207, 0.92), rgba(156, 168, 180, 0.84));
+  border-color: rgba(166, 178, 190, 0.36);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 16px rgba(166, 178, 190, 0.14);
 }
 
-.faction-position-card {
-  border-color: rgba(182, 144, 91, 0.18);
-  background:
-    linear-gradient(180deg, rgba(182, 144, 91, 0.08), rgba(255, 255, 255, 0.02) 32%, rgba(255, 255, 255, 0.01) 100%),
-    linear-gradient(145deg, rgba(34, 30, 25, 0.96), rgba(20, 18, 16, 0.98));
+.rank-bronze {
+  color: #3a2012;
+  background: linear-gradient(145deg, rgba(196, 138, 88, 0.9), rgba(168, 108, 58, 0.82));
+  border-color: rgba(168, 108, 58, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 8px 16px rgba(168, 108, 58, 0.12);
+}
+
+/* ===== Faith Column Panel ===== */
+.faction-faith-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 360px;
+}
+
+.faction-faith-column > :last-child {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.faction-faith-column--player {
+  border-color: rgba(182, 144, 91, 0.24) !important;
   box-shadow:
-    0 18px 30px rgba(0, 0, 0, 0.24),
+    0 22px 40px rgba(0, 0, 0, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 0 0 1px rgba(182, 144, 91, 0.06);
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03),
+    0 0 0 1px rgba(182, 144, 91, 0.08) !important;
 }
 
-.faction-rankings-table tbody tr:last-child {
-  border-bottom: none;
+/* ===== Your Position Card ===== */
+.faction-your-position {
+  border-color: rgba(182, 144, 91, 0.22) !important;
+  animation: position-card-rise 480ms var(--ease-silk-settle);
+}
+
+@keyframes position-card-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== Glass Bead Scrollbar (Metallic War Theme) ===== */
+.glass-bead-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 168, 180, 0.32) rgba(166, 178, 190, 0.06);
+}
+
+.glass-bead-scroll::-webkit-scrollbar {
+  width: 7px;
+}
+
+.glass-bead-scroll::-webkit-scrollbar-track {
+  background: rgba(166, 178, 190, 0.06);
+  border-radius: 999px;
+  margin: 4px 0;
+}
+
+.glass-bead-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(185, 197, 207, 0.38),
+    rgba(161, 173, 183, 0.28) 35%,
+    rgba(139, 125, 91, 0.24) 65%,
+    rgba(185, 197, 207, 0.34)
+  );
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+    0 1px 3px rgba(0, 0, 0, 0.08);
+  min-height: 28px;
+}
+
+.glass-bead-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(182, 144, 91, 0.28),
+    rgba(185, 197, 207, 0.38) 35%,
+    rgba(161, 173, 183, 0.32) 65%,
+    rgba(182, 144, 91, 0.24)
+  );
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+    0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.glass-bead-scroll::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(
+    180deg,
+    rgba(182, 144, 91, 0.36),
+    rgba(185, 197, 207, 0.45) 40%,
+    rgba(182, 144, 91, 0.32)
+  );
 }
 
 .factions-view .text-amber-400 {
@@ -1346,6 +1559,25 @@ onMounted(async () => {
 
 .factions-view .text-gray-400 {
   color: #b8c0c8 !important;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .faction-faith-column {
+    min-height: 280px;
+  }
+
+  .faction-rank-badge {
+    width: 2rem;
+    height: 2rem;
+    font-size: 0.75rem;
+  }
+
+  .faction-rank-badge--sm {
+    width: 1.7rem;
+    height: 1.7rem;
+    font-size: 0.68rem;
+  }
 }
 
 @keyframes detail-rise {
