@@ -32,6 +32,10 @@ const currentTab = ref('altar')
 const forceEvilTheme = ref(false)
 provide('forceEvilTheme', forceEvilTheme)
 
+// Force war theme — injected by FactionsView for steel-brass aesthetic
+const forceWarTheme = ref(false)
+provide('forceWarTheme', forceWarTheme)
+
 // Username change modal state
 const showUsernameChangeModal = ref(false)
 
@@ -47,11 +51,15 @@ const currentView = computed(() => {
 const toggleableViews = new Set(['scriptorium', 'akashic', 'vatican', 'synod'])
 const evilViews = new Set(['purgatory'])
 const isEvilView = computed(() => evilViews.has(currentView.value) || forceEvilTheme.value)
+const isWarView = computed(() => forceWarTheme.value)
 
-// Reset dark theme when navigating to a non-toggleable view (Altar, Shop, Synod, Reliquary, Rankings)
+// Reset theme overrides when navigating to a non-toggleable view
 watch(currentTab, (tab) => {
   if (!toggleableViews.has(tab)) {
     forceEvilTheme.value = false
+  }
+  if (tab !== 'factions') {
+    forceWarTheme.value = false
   }
 })
 
@@ -87,12 +95,12 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
 </script>
 
 <template>
-  <div :class="['app-shell min-h-screen flex flex-col', { 'app-shell--evil': isEvilView, 'app-shell--holy': !isEvilView }]">
+  <div :class="['app-shell min-h-screen flex flex-col', { 'app-shell--evil': isEvilView && !isWarView, 'app-shell--war': isWarView, 'app-shell--holy': !isEvilView && !isWarView }]">
     <!-- Tab Navigation (only when authenticated and not banned) -->
     <nav v-if="auth.isAuthenticated && !banTimer.isBanned" class="global-nav sticky top-0 z-40 border-b backdrop-blur-[18px]">
       <div class="app-frame">
         <div class="relative py-3 sm:py-4">
-          <div :class="['global-nav-veil', isEvilView ? 'global-nav-veil--evil' : 'global-nav-veil--holy']"></div>
+          <div :class="['global-nav-veil', isWarView ? 'global-nav-veil--war' : (isEvilView ? 'global-nav-veil--evil' : 'global-nav-veil--holy')]"></div>
           <div class="global-nav-row relative flex flex-wrap items-center gap-2 sm:gap-3">
             <!-- Primary tabs cluster (flex-grows to consume slack) -->
             <div class="global-nav-shell mobile-shell-safe segmented-shell flex-1 min-w-0 flex flex-wrap items-center justify-start gap-1">
@@ -171,15 +179,20 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
     </nav>
 
     <div class="app-content-region flex-1">
-      <template v-if="!isEvilView">
-        <div aria-hidden="true" class="holy-light-layer"></div>
-        <div aria-hidden="true" class="holy-cloud-layer"></div>
-        <div aria-hidden="true" class="holy-ripple-layer"></div>
+      <template v-if="isWarView">
+        <div aria-hidden="true" class="war-layout-layer war-layout-layer--mist"></div>
+        <div aria-hidden="true" class="war-layout-layer war-layout-layer--veil"></div>
+        <div aria-hidden="true" class="war-layout-layer war-layout-layer--glow"></div>
       </template>
-      <template v-else>
+      <template v-else-if="isEvilView">
         <div aria-hidden="true" class="evil-layout-layer evil-layout-layer--mist"></div>
         <div aria-hidden="true" class="evil-layout-layer evil-layout-layer--veil"></div>
         <div aria-hidden="true" class="evil-layout-layer evil-layout-layer--glow"></div>
+      </template>
+      <template v-else>
+        <div aria-hidden="true" class="holy-light-layer"></div>
+        <div aria-hidden="true" class="holy-cloud-layer"></div>
+        <div aria-hidden="true" class="holy-ripple-layer"></div>
       </template>
       <div class="app-content-inner">
         <section class="app-view-stage">
@@ -580,6 +593,166 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
   50% {
     opacity: 0.94;
     transform: scale(1.04);
+  }
+}
+
+/* ─── War theme (Factions / Rankings steel-brass aesthetic) ─── */
+
+.app-shell--war {
+  background:
+    radial-gradient(circle at 50% -12%, rgba(185, 197, 207, 0.12) 0%, rgba(185, 197, 207, 0.04) 24%, transparent 56%),
+    radial-gradient(circle at 14% 18%, rgba(182, 144, 91, 0.08) 0%, transparent 28%),
+    radial-gradient(circle at 88% 14%, rgba(108, 140, 131, 0.06) 0%, transparent 26%),
+    linear-gradient(180deg, #090c10 0%, #0f1318 48%, #080a0e 100%);
+}
+
+.app-shell--war .global-nav,
+.app-shell--war .global-footer {
+  border-color: rgba(164, 176, 189, 0.16);
+  background:
+    linear-gradient(180deg, rgba(14, 18, 23, 0.94), rgba(18, 23, 29, 0.92));
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.app-shell--war .global-nav::after,
+.app-shell--war .global-footer::after {
+  opacity: 1;
+  background:
+    linear-gradient(180deg, rgba(185, 197, 207, 0.08), transparent 18%, transparent 80%, rgba(182, 144, 91, 0.06)),
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 14px);
+}
+
+.global-nav-veil--war {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(182, 144, 91, 0.14), transparent 30%),
+    radial-gradient(circle at 82% 0%, rgba(108, 140, 131, 0.08), transparent 24%),
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.02), transparent);
+  opacity: 0.92;
+}
+
+.app-shell--war .global-nav-shell,
+.app-shell--war .global-nav-account {
+  border-color: rgba(164, 176, 189, 0.14);
+  background:
+    linear-gradient(180deg, rgba(22, 28, 34, 0.9), rgba(14, 18, 23, 0.88));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 16px 34px rgba(0, 0, 0, 0.28);
+}
+
+.app-shell--war .nav-tab-active {
+  color: #d7e0e8;
+  border-color: rgba(182, 144, 91, 0.24);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
+    linear-gradient(180deg, rgba(40, 48, 56, 0.94), rgba(24, 30, 37, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 14px 28px rgba(0, 0, 0, 0.32),
+    0 0 0 1px rgba(182, 144, 91, 0.06);
+}
+
+.app-shell--war .nav-tab-inactive {
+  color: #8291a0;
+  border-color: rgba(164, 176, 189, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+}
+
+.app-shell--war .nav-tab-inactive:hover {
+  color: #b9c5cf;
+  border-color: rgba(182, 144, 91, 0.18);
+  background: rgba(182, 144, 91, 0.06);
+  transform: translateY(-1px);
+}
+
+.app-shell--war .nav-account-btn {
+  color: #8291a0;
+  border-color: rgba(164, 176, 189, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.app-shell--war .nav-account-btn:hover {
+  color: #b9c5cf;
+  border-color: rgba(182, 144, 91, 0.18);
+  background: rgba(182, 144, 91, 0.06);
+}
+
+.app-shell--war .global-footer,
+.app-shell--war .global-footer .app-frame {
+  color: #8291a0;
+}
+
+.app-shell--war .global-footer-link {
+  color: #b9c5cf;
+}
+
+.app-shell--war .global-footer-link:hover {
+  color: #d4ba8e;
+}
+
+.app-shell--war .global-nav :is(.chip),
+.app-shell--war .global-footer :is(.chip) {
+  color: #b4c0cc;
+  border-color: rgba(164, 176, 189, 0.18);
+  background: rgba(185, 197, 207, 0.06);
+}
+
+.war-layout-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.war-layout-layer--mist {
+  background:
+    radial-gradient(circle at 50% 4%, rgba(185, 197, 207, 0.1), transparent 28%),
+    radial-gradient(circle at 18% 24%, rgba(182, 144, 91, 0.06), transparent 22%),
+    radial-gradient(circle at 82% 18%, rgba(108, 140, 131, 0.06), transparent 18%);
+  filter: blur(34px);
+  opacity: 0.84;
+  animation: war-layout-drift 28s ease-in-out infinite alternate;
+}
+
+.war-layout-layer--veil {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 12%, transparent 84%, rgba(255, 255, 255, 0.018)),
+    radial-gradient(circle at 50% 108%, rgba(182, 144, 91, 0.06), transparent 28%);
+  opacity: 0.74;
+}
+
+.war-layout-layer--glow {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(185, 197, 207, 0.08), transparent 34%),
+    radial-gradient(circle at 50% 82%, rgba(182, 144, 91, 0.04), transparent 24%);
+  opacity: 0.78;
+  animation: war-layout-pulse 16s ease-in-out infinite;
+}
+
+@keyframes war-layout-drift {
+  0% {
+    transform: translate3d(-1.2%, -0.8%, 0) scale(1.02);
+  }
+  50% {
+    transform: translate3d(1%, 1.2%, 0) scale(1.06);
+  }
+  100% {
+    transform: translate3d(1.8%, 1.6%, 0) scale(1.08);
+  }
+}
+
+@keyframes war-layout-pulse {
+  0%,
+  100% {
+    opacity: 0.68;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.88;
+    transform: scale(1.03);
   }
 }
 </style>

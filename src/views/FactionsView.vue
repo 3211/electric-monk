@@ -400,10 +400,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, toRefs } from 'vue'
+import { ref, computed, inject, onMounted, onUnmounted, toRefs } from 'vue'
 import { useFactions, FACTION_ICONS, FACTION_NAMES, FACTION_COLORS, formatModifier, getModifierLabel } from '@/composables/useFactions'
 import { useLeaderboard } from '@/composables/useLeaderboard'
 import { useAuth } from '@/composables/useAuth'
+
+// Activate war theme on the global nav/footer
+const forceWarTheme = inject('forceWarTheme')
 
 const factions = useFactions()
 const leaderboard = useLeaderboard()
@@ -495,6 +498,8 @@ async function handleRefreshRankings() {
 }
 
 onMounted(async () => {
+  if (forceWarTheme) forceWarTheme.value = true
+
   const { data: { user } } = await auth.session
     ? { data: { user: auth.user } }
     : import('@/lib/supabase').then(m => m.supabase.auth.getUser())
@@ -508,6 +513,10 @@ onMounted(async () => {
   ])
 
   autoSelectPlayerFaction()
+})
+
+onUnmounted(() => {
+  if (forceWarTheme) forceWarTheme.value = false
 })
 </script>
 
