@@ -1,5 +1,5 @@
 <template>
-  <div :class="[activeTab === 'dark' ? 'evil-shell' : '', 'min-h-screen']">
+  <div :class="[activeTab === 'dark' ? 'evil-shell' : 'war-shell', 'min-h-screen']">
     <header class="border-b surface-divider bg-theme-panel/50 backdrop-blur-sm">
       <div class="app-frame py-5">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -534,6 +534,7 @@ const indulgences = useIndulgences()
 const auth = useAuth()
 
 const forceEvilTheme = inject('forceEvilTheme', ref(false))
+const forceWarTheme = inject('forceWarTheme', ref(false))
 const activeTab = ref('light')
 
 const newSynodName = ref('')
@@ -561,6 +562,7 @@ const sortedMembers = computed(() => {
 
 watch(activeTab, (tab) => {
   forceEvilTheme.value = (tab === 'dark')
+  forceWarTheme.value = (tab === 'light')
 }, { immediate: true })
 
 function roleIcon(role) {
@@ -768,8 +770,39 @@ onMounted(() => {
   pointer-events: none;
 }
 
+.war-shell .merged-header-glow {
+  background: radial-gradient(circle, rgba(187, 198, 209, 0.16) 0%, rgba(135, 147, 159, 0.08) 42%, transparent 74%);
+}
+
 .evil-shell .merged-header-glow {
   background: radial-gradient(circle, rgba(177, 128, 255, 0.24) 0%, rgba(177, 128, 255, 0.1) 42%, transparent 74%);
+}
+
+.war-shell .nav-tab-active {
+  color: #d7e0e8;
+  border-color: rgba(182, 144, 91, 0.24);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
+    linear-gradient(145deg, rgba(62, 72, 82, 0.92), rgba(35, 43, 51, 0.96));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03),
+    0 14px 28px rgba(0, 0, 0, 0.32),
+    0 0 0 1px rgba(182, 144, 91, 0.06);
+}
+
+.war-shell .nav-tab-inactive {
+  color: #8291a0;
+  border-color: rgba(164, 176, 189, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+}
+
+.war-shell .nav-tab-inactive:hover {
+  color: #b9c5cf;
+  border-color: rgba(182, 144, 91, 0.18);
+  background: rgba(182, 144, 91, 0.06);
+  transform: translateY(-1px);
 }
 
 @media (max-width: 640px) {

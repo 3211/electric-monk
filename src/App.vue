@@ -58,7 +58,7 @@ watch(currentTab, (tab) => {
   if (!toggleableViews.has(tab)) {
     forceEvilTheme.value = false
   }
-  if (tab !== 'factions') {
+  if (tab !== 'factions' && tab !== 'vatican' && tab !== 'synod') {
     forceWarTheme.value = false
   }
 })
