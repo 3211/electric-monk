@@ -53,7 +53,7 @@
             <div class="factions-stage-grid">
               <div class="factions-roster">
                 <button
-                  v-for="pos in diamondPositions"
+                  v-for="pos in displayPositions"
                   :key="`${pos.key}-summary`"
                   type="button"
                   class="faction-roster-card"
@@ -61,11 +61,12 @@
                     selectedFaction === pos.key ? 'faction-roster-card--selected' : '',
                     pos.key === playerSect ? 'faction-roster-card--player' : '',
                   ]"
+                  :aria-pressed="selectedFaction === pos.key ? 'true' : 'false'"
                   @mouseenter="hoveredFaction = pos.key"
                   @mouseleave="hoveredFaction = null"
-                  @click="selectedFaction = pos.key"
+                  @click="selectFaction(pos.key)"
                 >
-                  <div class="faction-roster-orb" :class="pos.data ? FACTION_COLORS[pos.key]?.bg : ''">
+                  <div class="faction-roster-orb">
                     <span class="text-2xl">{{ FACTION_ICONS[pos.key] }}</span>
                   </div>
                   <div class="min-w-0 flex-1 text-left">
@@ -89,9 +90,9 @@
                 <div class="faction-diamond-shell">
                   <div class="faction-diamond-aura" aria-hidden="true"></div>
                   <div class="faction-core-seal" aria-hidden="true">
-                    <span class="faction-core-seal-icon">{{ FACTION_ICONS[selectedFaction || hoveredFaction || playerSect] || '🏛️' }}</span>
-                    <span v-if="selectedFaction && factionData[selectedFaction]" class="chip text-[0.65rem] px-2 py-0.5">
-                      {{ factionData[selectedFaction].member_count || 0 }} members
+                    <span class="faction-core-seal-icon">{{ FACTION_ICONS[focusFactionKey] || '🏛️' }}</span>
+                    <span v-if="focusFactionKey && factionData[focusFactionKey]" class="chip text-[0.65rem] px-2 py-0.5">
+                      {{ factionData[focusFactionKey].member_count || 0 }} members
                     </span>
                   </div>
 
@@ -102,31 +103,31 @@
                         y1="40"
                         x2="200"
                         y2="360"
-                        :stroke="lineStyles.topBottom.color"
-                        :stroke-width="lineStyles.topBottom.opacity > 0.5 ? 2.5 : 1"
-                        :stroke-opacity="lineStyles.topBottom.opacity"
+                        :stroke="mapLineStyles.topBottom.color"
+                        :stroke-width="mapLineStyles.topBottom.opacity > 0.5 ? 2.5 : 1"
+                        :stroke-opacity="mapLineStyles.topBottom.opacity"
                         stroke-linecap="round"
-                        :stroke-dasharray="lineStyles.topBottom.opacity < 0.3 ? '8 8' : 'none'"
+                        :stroke-dasharray="mapLineStyles.topBottom.opacity < 0.3 ? '8 8' : 'none'"
                       />
                       <line
                         x1="200"
                         y1="40"
                         x2="360"
                         y2="200"
-                        :stroke="lineStyles.topRight.color"
-                        :stroke-width="lineStyles.topRight.opacity > 0.5 ? 2.5 : 1"
-                        :stroke-opacity="lineStyles.topRight.opacity"
+                        :stroke="mapLineStyles.topRight.color"
+                        :stroke-width="mapLineStyles.topRight.opacity > 0.5 ? 2.5 : 1"
+                        :stroke-opacity="mapLineStyles.topRight.opacity"
                         stroke-linecap="round"
-                        :stroke-dasharray="lineStyles.topRight.opacity < 0.3 ? '8 8' : 'none'"
+                        :stroke-dasharray="mapLineStyles.topRight.opacity < 0.3 ? '8 8' : 'none'"
                       />
                       <line
                         x1="200"
                         y1="40"
                         x2="40"
                         y2="200"
-                        :stroke="lineStyles.topLeft.color"
+                        :stroke="mapLineStyles.topLeft.color"
                         :stroke-width="1.5"
-                        :stroke-opacity="lineStyles.topLeft.opacity"
+                        :stroke-opacity="mapLineStyles.topLeft.opacity"
                         stroke-linecap="round"
                         stroke-dasharray="6 6"
                       />
@@ -137,7 +138,7 @@
                         y2="200"
                         stroke="#4a4a5a"
                         stroke-width="1"
-                        :stroke-opacity="lineStyles.cross.opacity"
+                        :stroke-opacity="mapLineStyles.cross.opacity"
                         stroke-dasharray="4 8"
                       />
                       <line
@@ -147,7 +148,7 @@
                         y2="200"
                         stroke="#4a4a5a"
                         stroke-width="1"
-                        :stroke-opacity="lineStyles.cross.opacity"
+                        :stroke-opacity="mapLineStyles.cross.opacity"
                         stroke-dasharray="4 8"
                       />
                       <line
@@ -157,25 +158,23 @@
                         y2="200"
                         stroke="#4a4a5a"
                         stroke-width="1"
-                        :stroke-opacity="lineStyles.cross.opacity"
+                        :stroke-opacity="mapLineStyles.cross.opacity"
                         stroke-dasharray="4 8"
                       />
                     </svg>
 
                     <div
-                      v-for="pos in diamondPositions"
+                      v-for="pos in displayPositions"
                       :key="pos.key"
                       class="faction-node"
                       :class="`faction-node--${pos.slot}`"
                       @mouseenter="hoveredFaction = pos.key"
                       @mouseleave="hoveredFaction = null"
-                      @click="selectedFaction = pos.key"
+                      @click="selectFaction(pos.key)"
                     >
                       <div
-                        class="faction-node-card glass-panel glass-panel-soft cursor-pointer p-3 sm:p-4"
+                        class="faction-node-card cursor-pointer p-3 sm:p-4"
                         :class="[
-                          pos.data ? FACTION_COLORS[pos.key]?.bg : '',
-                          pos.data ? FACTION_COLORS[pos.key]?.border : '',
                           pos.key === playerSect ? 'ring-2 ring-theme-accent/35 shadow-glow-gold' : '',
                           selectedFaction === pos.key ? 'faction-node-card--selected ring-2 ring-theme-accent/60 shadow-lg' : '',
                         ]"
@@ -210,7 +209,7 @@
             </div>
           </section>
 
-          <div v-if="selectedFaction && factionData[selectedFaction]" class="faction-detail glass-panel glass-panel-strong glass-gloss p-6 sm:p-8">
+          <div :key="selectedFaction" v-if="selectedFaction && factionData[selectedFaction]" class="faction-detail glass-panel glass-panel-strong glass-gloss p-6 sm:p-8">
             <div class="faction-detail-grid">
               <div class="space-y-6">
                 <div class="faction-detail-header">
@@ -417,8 +416,6 @@ const {
   hoveredFaction,
   selectedFaction,
   playerSect,
-  diamondPositions,
-  lineStyles,
   fetchFactions,
   autoSelectPlayerFaction,
 } = factions
@@ -431,8 +428,62 @@ const currentUserRank = computed(() => {
   return leaderboard.getUserRank(currentUserId.value)
 })
 
+const fallbackFactionOrder = ['gilded_path', 'holy_way', 'final_watch', 'black_tribunal']
+
+const focusFactionKey = computed(() => {
+  if (selectedFaction.value && factionData.value[selectedFaction.value]) return selectedFaction.value
+  if (playerSect.value && factionData.value[playerSect.value]) return playerSect.value
+  return fallbackFactionOrder.find(key => factionData.value[key]) || fallbackFactionOrder[0]
+})
+
+const displayPositions = computed(() => {
+  const focus = focusFactionKey.value
+  const data = factionData.value
+
+  if (focus && data[focus]) {
+    const faction = data[focus]
+    return [
+      { slot: 'top', key: focus, data: faction },
+      { slot: 'right', key: faction.ally, data: data[faction.ally] || null },
+      { slot: 'bottom', key: faction.enemy, data: data[faction.enemy] || null },
+      { slot: 'left', key: faction.neutral, data: data[faction.neutral] || null },
+    ]
+  }
+
+  return fallbackFactionOrder.map((key, index) => ({
+    slot: ['top', 'right', 'bottom', 'left'][index],
+    key,
+    data: data[key] || null,
+  }))
+})
+
+const mapLineStyles = computed(() => {
+  const focus = focusFactionKey.value
+  const data = factionData.value
+
+  if (!focus || !data[focus]) {
+    return {
+      topBottom: { color: '#ef4444', opacity: 0.85 },
+      topRight: { color: '#22c55e', opacity: 0.85 },
+      topLeft: { color: '#eab308', opacity: 0.4 },
+      cross: { color: '#4a4a5a', opacity: 0.06 },
+    }
+  }
+
+  return {
+    topBottom: { color: '#ef4444', opacity: 0.85 },
+    topRight: { color: '#22c55e', opacity: 0.85 },
+    topLeft: { color: '#eab308', opacity: 0.4 },
+    cross: { color: '#4a4a5a', opacity: 0.06 },
+  }
+})
+
 function isCurrentUser(playerId) {
   return currentUserId.value && playerId === currentUserId.value
+}
+
+function selectFaction(factionKey) {
+  selectedFaction.value = factionKey
 }
 
 function formatNumber(num) {
@@ -482,27 +533,28 @@ onMounted(async () => {
 
 .factions-stage-grid {
   display: grid;
-  gap: 2rem;
+  gap: 1.35rem;
   align-items: center;
 }
 
 .factions-roster {
   display: grid;
-  gap: 0.9rem;
+  gap: 0.7rem;
+  align-content: start;
 }
 
 .faction-roster-card {
   display: flex;
   align-items: center;
-  gap: 0.95rem;
+  gap: 0.8rem;
   width: 100%;
-  padding: 0.95rem 1rem;
-  border-radius: 22px;
-  border: 1px solid rgba(213, 154, 23, 0.12);
+  padding: 0.72rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(73, 60, 98, 0.22);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 42%),
-    rgba(255, 251, 243, 0.56);
-  box-shadow: 0 16px 32px rgba(48, 38, 21, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 42%),
+    linear-gradient(180deg, rgba(27, 21, 39, 0.94), rgba(17, 13, 26, 0.96));
+  box-shadow: 0 16px 30px rgba(15, 11, 22, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   text-align: left;
   transition:
     transform 280ms var(--ease-ritual-lift, cubic-bezier(0.4, 0, 0.2, 1)),
@@ -512,60 +564,63 @@ onMounted(async () => {
 }
 
 .faction-roster-card:hover {
-  transform: translateY(-3px);
-  border-color: rgba(213, 154, 23, 0.24);
-  box-shadow: 0 22px 42px rgba(48, 38, 21, 0.12), 0 0 26px rgba(240, 182, 59, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transform: translateY(-2px);
+  border-color: rgba(177, 128, 255, 0.28);
+  box-shadow: 0 20px 34px rgba(15, 11, 22, 0.32), 0 0 22px rgba(177, 128, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .faction-roster-card--selected {
-  border-color: rgba(213, 154, 23, 0.34);
+  border-color: rgba(255, 223, 147, 0.26);
   background:
-    linear-gradient(180deg, rgba(255, 250, 232, 0.72), rgba(255, 255, 255, 0) 36%),
-    rgba(255, 248, 236, 0.76);
-  box-shadow: 0 24px 46px rgba(48, 38, 21, 0.14), 0 0 34px rgba(240, 182, 59, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    linear-gradient(180deg, rgba(255, 223, 147, 0.18), rgba(255, 255, 255, 0) 38%),
+    linear-gradient(180deg, rgba(31, 23, 44, 0.96), rgba(17, 12, 27, 0.98));
+  box-shadow: 0 22px 38px rgba(15, 11, 22, 0.34), 0 0 30px rgba(255, 223, 147, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 .faction-roster-card--player {
-  border-color: rgba(213, 154, 23, 0.26);
+  border-color: rgba(255, 223, 147, 0.18);
 }
 
 .faction-roster-orb {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 3.35rem;
-  height: 3.35rem;
-  flex: 0 0 3.35rem;
-  border-radius: 18px;
-  border: 1px solid rgba(213, 154, 23, 0.18);
-  background: linear-gradient(180deg, rgba(255, 249, 232, 0.92), rgba(255, 242, 217, 0.72));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76), 0 12px 22px rgba(48, 38, 21, 0.08);
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 2.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(177, 128, 255, 0.18);
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04) 42%, rgba(177, 128, 255, 0.16) 100%),
+    linear-gradient(180deg, rgba(30, 22, 43, 0.98), rgba(18, 13, 28, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 10px 20px rgba(4, 2, 10, 0.22);
 }
 
 .faction-diamond-wrapper {
-  max-width: 620px;
+  max-width: 540px;
   margin: 0 auto;
   width: 100%;
 }
 
 .faction-diamond-shell {
   position: relative;
-  padding: clamp(1rem, 3vw, 1.65rem);
-  border-radius: 32px;
+  padding: clamp(0.8rem, 2.4vw, 1.2rem);
+  border-radius: 36px;
   background:
-    radial-gradient(circle at 50% 48%, rgba(255, 223, 147, 0.12), transparent 42%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 26%);
-  border: 1px solid rgba(213, 154, 23, 0.12);
+    radial-gradient(circle at 50% 50%, rgba(177, 128, 255, 0.12), transparent 46%),
+    linear-gradient(180deg, rgba(31, 23, 44, 0.96), rgba(14, 10, 22, 0.98));
+  border: 1px solid rgba(73, 60, 98, 0.22);
+  box-shadow: 0 28px 48px rgba(10, 8, 16, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   overflow: hidden;
 }
 
 .faction-diamond-aura {
   position: absolute;
-  inset: 8% 10%;
+  inset: 16% 18%;
   border-radius: 50%;
   background:
-    radial-gradient(circle, rgba(255, 223, 147, 0.2) 0%, rgba(255, 223, 147, 0.08) 34%, transparent 68%);
-  filter: blur(22px);
+    radial-gradient(circle, rgba(177, 128, 255, 0.24) 0%, rgba(177, 128, 255, 0.08) 36%, transparent 66%);
+  filter: blur(26px);
   pointer-events: none;
 }
 
@@ -591,14 +646,15 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: clamp(4rem, 9vw, 5.5rem);
-  height: clamp(4rem, 9vw, 5.5rem);
+  width: clamp(3.4rem, 7.5vw, 4.5rem);
+  height: clamp(3.4rem, 7.5vw, 4.5rem);
   border-radius: 999px;
-  border: 1px solid rgba(213, 154, 23, 0.2);
+  border: 1px solid rgba(177, 128, 255, 0.22);
   background:
-    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.8), rgba(255, 247, 226, 0.68) 46%, rgba(255, 239, 199, 0.42) 72%, rgba(255, 255, 255, 0.08) 100%);
-  box-shadow: 0 22px 44px rgba(48, 38, 21, 0.14), 0 0 34px rgba(240, 182, 59, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.84);
-  font-size: clamp(1.7rem, 3vw, 2.15rem);
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04) 44%, rgba(177, 128, 255, 0.16) 100%),
+    linear-gradient(180deg, rgba(33, 24, 47, 0.96), rgba(18, 13, 28, 0.98));
+  box-shadow: 0 20px 34px rgba(4, 2, 10, 0.26), 0 0 30px rgba(177, 128, 255, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  font-size: clamp(1.45rem, 2.7vw, 1.85rem);
 }
 
 .relationship-svg {
@@ -613,41 +669,50 @@ onMounted(async () => {
 
 .faction-node {
   position: absolute;
-  width: 36%;
+  width: 29%;
   transform: translate(-50%, -50%);
   z-index: 1;
-  transition: transform 280ms var(--ease-ritual-lift, cubic-bezier(0.4, 0, 0.2, 1));
+  transition:
+    top 320ms var(--ease-ritual-lift, cubic-bezier(0.4, 0, 0.2, 1)),
+    left 320ms var(--ease-ritual-lift, cubic-bezier(0.4, 0, 0.2, 1)),
+    transform 280ms var(--ease-ritual-lift, cubic-bezier(0.4, 0, 0.2, 1));
 }
 
 .faction-node:hover {
-  transform: translate(-50%, -50%) scale(1.065);
+  transform: translate(-50%, -50%) scale(1.05);
   z-index: 3;
 }
 
 .faction-node--top {
-  top: 6%;
+  top: 14%;
   left: 50%;
 }
 
 .faction-node--right {
   top: 50%;
-  left: 94%;
+  left: 86%;
 }
 
 .faction-node--bottom {
-  top: 94%;
+  top: 86%;
   left: 50%;
 }
 
 .faction-node--left {
   top: 50%;
-  left: 6%;
+  left: 14%;
 }
 
 .faction-node-card {
   position: relative;
+  min-height: 6.15rem;
   overflow: hidden;
-  border-radius: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(73, 60, 98, 0.28);
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 52%),
+    linear-gradient(180deg, rgba(29, 22, 41, 0.97), rgba(16, 12, 25, 0.98));
+  box-shadow: 0 18px 30px rgba(5, 3, 12, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   transition:
     transform 280ms var(--ease-ritual-lift, cubic-bezier(0.4, 0, 0.2, 1)),
     box-shadow 280ms var(--ease-ritual-lift, cubic-bezier(0.4, 0, 0.2, 1)),
@@ -658,24 +723,25 @@ onMounted(async () => {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(140deg, rgba(255, 255, 255, 0.28), transparent 36%, transparent 70%, rgba(255, 223, 147, 0.14));
-  opacity: 0.85;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.1), transparent 36%, transparent 74%, rgba(177, 128, 255, 0.14));
+  opacity: 0.92;
   pointer-events: none;
 }
 
 .faction-node-card--selected {
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 22px 36px rgba(5, 3, 12, 0.34), 0 0 28px rgba(177, 128, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 .faction-node-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 3rem;
-  height: 3rem;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.24);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 .relationship-legend {
@@ -847,7 +913,7 @@ onMounted(async () => {
 
 @media (min-width: 960px) {
   .factions-stage-grid {
-    grid-template-columns: minmax(17rem, 22rem) minmax(0, 1fr);
+    grid-template-columns: minmax(15.5rem, 18.5rem) minmax(0, 1fr);
   }
 
   .faction-detail-grid {
@@ -858,41 +924,42 @@ onMounted(async () => {
 
 @media (max-width: 640px) {
   .faction-diamond-wrapper {
-    max-width: 360px;
+    max-width: 320px;
   }
 
   .faction-diamond-shell {
-    padding: 0.9rem;
-    border-radius: 26px;
+    padding: 0.7rem;
+    border-radius: 28px;
   }
 
   .faction-node {
-    width: 42%;
+    width: 34%;
   }
 
   .faction-node--top {
-    top: 5%;
+    top: 14%;
   }
 
   .faction-node--bottom {
-    top: 95%;
+    top: 86%;
   }
 
   .faction-node--left {
-    left: 5%;
+    left: 14%;
   }
 
   .faction-node--right {
-    left: 95%;
+    left: 86%;
   }
 
   .faction-node-card {
-    border-radius: 20px;
+    min-height: 5.35rem;
+    padding-inline: 0.45rem;
   }
 
   .faction-node-icon {
-    width: 2.6rem;
-    height: 2.6rem;
+    width: 2.15rem;
+    height: 2.15rem;
   }
 
   .faction-detail-header,
@@ -913,13 +980,14 @@ onMounted(async () => {
 
 @media (max-width: 420px) {
   .faction-roster-card {
-    padding-inline: 0.9rem;
+    gap: 0.7rem;
+    padding-inline: 0.8rem;
   }
 
   .faction-roster-orb {
-    width: 3rem;
-    height: 3rem;
-    flex-basis: 3rem;
+    width: 2.45rem;
+    height: 2.45rem;
+    flex-basis: 2.45rem;
   }
 
   .faction-member-row {
