@@ -15,6 +15,7 @@ import KarmaShopView from './views/KarmaShopView.vue'
 import VaticanView from './views/VaticanView.vue'
 import ScriptoriumView from './views/ScriptoriumView.vue'
 import SynodHallView from './views/SynodHallView.vue'
+import HolyWarView from './views/HolyWarView.vue'
 import FactionsView from './views/FactionsView.vue'
 import OnboardingWizard from './components/organisms/OnboardingWizard.vue'
 import UsernameChangeModal from './components/organisms/UsernameChangeModal.vue'
@@ -58,7 +59,7 @@ watch(currentTab, (tab) => {
   if (!toggleableViews.has(tab)) {
     forceEvilTheme.value = false
   }
-  if (tab !== 'factions' && tab !== 'vatican' && tab !== 'synod') {
+  if (tab !== 'factions' && tab !== 'vatican' && tab !== 'synod' && tab !== 'holywar') {
     forceWarTheme.value = false
   }
 })
@@ -143,6 +144,12 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
                 &#x2694; Synod
               </button>
               <button
+                @click="currentTab = 'holywar'"
+                :class="currentTab === 'holywar' ? 'nav-tab-active' : 'nav-tab-inactive'"
+              >
+                &#x2694;&#xFE0F; War
+              </button>
+              <button
                 @click="currentTab = 'scriptorium'"
                 :class="currentTab === 'scriptorium' ? 'nav-tab-active' : 'nav-tab-inactive'"
               >
@@ -212,6 +219,7 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
           <KarmaShopView v-else-if="currentView === 'shop'" />
           <VaticanView v-else-if="currentView === 'vatican'" />
           <SynodHallView v-else-if="currentView === 'synod'" />
+          <HolyWarView v-else-if="currentView === 'holywar'" />
           <FactionsView v-else-if="currentView === 'factions'" />
         </section>
 

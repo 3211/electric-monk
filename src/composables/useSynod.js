@@ -1,6 +1,7 @@
 import { ref, computed, reactive } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useEconomy } from './useEconomy'
+import { useAuth } from './useAuth'
 
 /**
  * useSynod Composable (Exodus 2 — petition tracking + applicant polling)
@@ -10,6 +11,7 @@ let sharedState = null
 
 function createSynodState() {
   const economy = useEconomy()
+  const auth = useAuth()
 
   const inSynod = ref(false)
   const synodInfo = ref(null)
@@ -33,13 +35,13 @@ function createSynodState() {
   let applicantPollInterval = null
 
   const isLeader = computed(() => {
-    if (!synodInfo.value || !economy.user) return false
-    return synodInfo.value.leader_id === economy.user?.id
+    if (!synodInfo.value || !auth.user) return false
+    return synodInfo.value.leader_id === auth.user?.id
   })
 
   const currentUserRole = computed(() => {
-    if (!economy.user) return null
-    const member = members.value.find(m => m.user_id === economy.user.id)
+    if (!auth.user) return null
+    const member = members.value.find(m => m.user_id === auth.user.id)
     return member?.role || null
   })
 
