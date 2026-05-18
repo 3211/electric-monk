@@ -4,6 +4,13 @@
       <div v-if="onboarding.isActive" class="aether-modal-overlay">
         <div class="onboarding-modal-container glass-panel glass-panel-strong glass-gloss">
 
+          <!-- Fallback indicator (shown when AI generation fails) -->
+          <div v-if="onboarding.usedFallback && onboarding.step !== 'loading'" class="mb-3 text-center">
+            <span class="inline-flex items-center gap-1 rounded-full bg-theme-purgatory/10 border border-theme-purgatory/20 px-3 py-1 text-xs text-theme-purgatory-dark">
+              ⚠️ AI generation unavailable — using fallback text
+            </span>
+          </div>
+
           <!-- ============================================ -->
           <!-- STEP: Loading (fetching AI content) -->
           <!-- ============================================ -->
@@ -14,7 +21,7 @@
               </svg>
             </div>
             <h3 class="aether-title text-theme-accent">Awakening the Monk...</h3>
-            <p class="aether-description text-theme-text-dim">The Electric Monk is preparing your welcome.</p>
+            <p class="aether-description text-theme-text-dim">Preparing your welcome to Holy War Online.</p>
             <div class="aether-loader">
               <div class="aether-loader-bar"></div>
             </div>
@@ -27,10 +34,10 @@
             <div class="mb-6">
               <div class="submission-logo-shell mb-2 mx-auto">
                 <div class="submission-logo-halo"></div>
-                <img src="@/assets/icons/icon.png" alt="Electric Monk" class="relative z-10 h-[120px] w-[120px] drop-shadow-[0_10px_24px_rgba(213,154,23,0.18)]" />
+                <img src="@/assets/icons/icon.png" alt="Holy War Online" class="relative z-10 h-[120px] w-[120px] drop-shadow-[0_10px_24px_rgba(213,154,23,0.18)]" />
               </div>
             </div>
-            <h2 class="ritual-heading mb-4 text-3xl font-bold text-theme-accent sm:text-4xl">The Electric Monk</h2>
+            <h2 class="ritual-heading mb-4 text-3xl font-bold text-theme-accent sm:text-4xl">Holy War Online</h2>
             <div class="onboarding-typewriter-panel glass-panel glass-gloss p-5 my-6 text-left">
               <p class="text-theme-text font-semibold leading-relaxed text-base sm:text-lg">
                 {{ onboarding.displayedText }}<span v-if="!onboarding.typewriterFinished" class="typewriter-cursor">▊</span>
@@ -42,7 +49,7 @@
               class="btn-primary w-full mt-2"
             >
               <span class="relative z-10 font-medium">
-                {{ onboarding.typewriterFinished ? 'Continue' : 'The Monk is speaking...' }}
+                {{ onboarding.typewriterFinished ? 'Choose Your Faction' : 'The Monk is speaking...' }}
               </span>
             </button>
           </div>
@@ -54,7 +61,7 @@
             <!-- Header -->
             <div class="mb-6 text-center">
               <h2 class="ritual-heading mb-2 text-3xl font-bold text-theme-accent">Identify Yourself</h2>
-              <p class="text-sm text-theme-text-dim">Choose your name and sect. This decision is permanent.</p>
+              <p class="text-sm text-theme-text-dim">Choose your name and faction. This decision is permanent.</p>
             </div>
 
             <!-- Error Message -->
@@ -96,7 +103,7 @@
 
             <!-- Sect Selection -->
             <div>
-              <h3 class="mb-3 text-center text-lg font-semibold text-theme-text">Choose Your Sect</h3>
+              <h3 class="mb-3 text-center text-lg font-semibold text-theme-text">Choose Your Faction</h3>
               <div class="grid gap-3 sm:grid-cols-2">
                 <button
                   v-for="sect in sects.sectList"
@@ -116,7 +123,7 @@
                 </button>
               </div>
               <p v-if="!localSect" class="mt-2 text-center text-xs text-theme-text-muted italic">
-                Select a sect above to continue
+                Select a faction above to continue
               </p>
             </div>
 
@@ -132,6 +139,31 @@
                 </span>
               </button>
             </div>
+          </div>
+
+          <!-- ============================================ -->
+          <!-- STEP: Faction Intro (typewriter AI faction welcome) -->
+          <!-- ============================================ -->
+          <div v-else-if="onboarding.step === 'faction_intro'" class="text-center">
+            <div class="mb-4">
+              <div class="text-4xl mb-3">{{ selectedSectIcon }}</div>
+              <h2 class="ritual-heading mb-2 text-2xl font-bold text-theme-accent sm:text-3xl">{{ selectedSectName }}</h2>
+              <p class="text-sm text-theme-text-dim">Your Electric Monk awaits.</p>
+            </div>
+            <div class="onboarding-typewriter-panel glass-panel glass-gloss p-5 my-6 text-left">
+              <p class="text-theme-text font-semibold leading-relaxed">
+                {{ onboarding.displayedText }}<span v-if="!onboarding.typewriterFinished" class="typewriter-cursor">▊</span>
+              </p>
+            </div>
+            <button
+              @click="onboarding.continueToPrayerPrompt()"
+              :disabled="!onboarding.typewriterFinished"
+              class="btn-primary w-full mt-2"
+            >
+              <span class="relative z-10 font-medium">
+                {{ onboarding.typewriterFinished ? 'Offer Your First Prayer' : 'The Monk is speaking...' }}
+              </span>
+            </button>
           </div>
 
           <!-- ============================================ -->
@@ -239,7 +271,7 @@
               class="btn-primary w-full mt-2"
             >
               <span class="relative z-10 font-medium">
-                {{ onboarding.typewriterFinished ? 'Enter the Monastery' : 'The Monk is speaking...' }}
+                {{ onboarding.typewriterFinished ? 'Enter Holy War Online' : 'The Monk is speaking...' }}
               </span>
             </button>
           </div>
@@ -308,6 +340,19 @@ const forceEvilTheme = inject('forceEvilTheme', ref(false))
 const localUsername = ref('')
 const localSect = ref(null)
 const prayerContent = ref('')
+
+// Computed properties for the faction intro step
+const selectedSectName = computed(() => {
+  if (!localSect.value) return ''
+  const sect = sects.sectList.find(s => s.key === localSect.value)
+  return sect ? sect.name : ''
+})
+
+const selectedSectIcon = computed(() => {
+  if (!localSect.value) return '⚔️'
+  const sect = sects.sectList.find(s => s.key === localSect.value)
+  return sect ? sect.icon : '⚔️'
+})
 
 const showUsernameCount = computed(() => {
   return localUsername.value.length >= MAX_USERNAME_CHARS * COUNT_VISIBLE_THRESHOLD

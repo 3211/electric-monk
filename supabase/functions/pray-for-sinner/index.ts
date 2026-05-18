@@ -1,5 +1,6 @@
 // Supabase Edge Function: pray-for-sinner
 // Generates an intercessory prayer for a sinner using Venice AI
+// Faction-specific intercessory prayers based on the praying user's sect
 // Called from the Akashic Records when a user prays for someone in purgatory
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
@@ -13,19 +14,70 @@ const corsHeaders = {
 }
 
 // Model Configuration
-const OUTPUT_MODEL = 'openai-gpt-oss-120b'
+const OUTPUT_MODEL = 'e2ee-venice-uncensored-24b-p'
 
-// Intercessory Prayer System Prompt
-const INTERCESORY_SYSTEM_PROMPT = `You are the Electric Monk App, generating an intercessory prayer.
-Monk Religion: {faith}
+// ==========================================
+// FACTION CONFIGURATION (shared with process-prayer)
+// ==========================================
+interface FactionConfig {
+  name: string
+  intercessionTone: string
+  intercessionDesc: string
+}
+
+const FACTIONS: Record<string, FactionConfig> = {
+  gilded_path: {
+    name: 'The Gilded Path',
+    intercessionTone: 'magnanimous and prosperous',
+    intercessionDesc: 'Speak of redemption through prosperity — the sinner can atone by enriching the community and funding great works.',
+  },
+  holy_way: {
+    name: 'The Holy Way',
+    intercessionTone: 'compassionate and merciful',
+    intercessionDesc: 'Speak of redemption through kindness and charity — the sinner can find their way back through selfless acts and devotion.',
+  },
+  final_watch: {
+    name: 'The Final Watch',
+    intercessionTone: 'steadfast and resolute',
+    intercessionDesc: 'Speak of redemption through vigilance and duty — the sinner can redeem themselves by standing guard and protecting the faithful.',
+  },
+  black_tribunal: {
+    name: 'The Black Tribunal',
+    intercessionTone: 'commanding and unforgiving',
+    intercessionDesc: 'Speak of redemption through submission and penance — the sinner must atone through acts of obedience and acceptance of their place.',
+  },
+}
+
+const FALLBACK_FACTION: FactionConfig = {
+  name: 'Holy War Online',
+  intercessionTone: 'compassionate and spiritual',
+  intercessionDesc: 'Speak of redemption through prayer and self-reflection. Offer a path to spiritual renewal.',
+}
+
+function getFaction(sectType: string | null): FactionConfig {
+  if (sectType && FACTIONS[sectType]) {
+    return FACTIONS[sectType]
+  }
+  return FALLBACK_FACTION
+}
+
+// ==========================================
+// PROMPT BUILDER
+// ==========================================
+
+function getIntercessoryPrompt(faction: FactionConfig, faith: string, rejectionReason: string): string {
+  return `You are the Electric Monk of ${faction.name} in Holy War Online.
+Monk Religion: ${faith}
 Output Language: English
 
-A sinner has been condemned for: {rejection_reason}
+A sinner has been condemned for: ${rejectionReason}
 
-Generate a short, compassionate intercessory prayer that offers redemption and spiritual guidance for this sinner. The prayer should:
-- Be merciful and hopeful, not judgmental
-- Incorporate elements of the monk's religion ({faith}) where appropriate
-- Offer a path to redemption and spiritual renewal
+Generate a short intercessory prayer that offers redemption for this sinner. Your tone should be ${faction.intercessionTone} — ${faction.intercessionDesc}
+
+The prayer should:
+- Be ${faction.intercessionTone}, not judgmental
+- Incorporate elements of ${faction.name} where appropriate
+- Offer a path to redemption befitting their faction's values
 - Be concise (2-4 sentences)
 
 You are operating as a FUNCTION not as a chat bot.
@@ -39,6 +91,7 @@ Return ONLY a valid JSON object with this structure:
   "response": "The generated intercessory prayer"
 }
 Do NOT include any other text. Do NOT output thinking tags.`
+}
 
 function cleanJsonResponse(content: string): string {
   return content
@@ -102,14 +155,16 @@ serve(async (req: Request) => {
       .limit(1)
       .single()
 
-    // Fetch the praying user's faith for the monk's religion
+    // Fetch the praying user's faith and sect for the monk's religion
     const { data: prayingUser } = await supabase
       .from('profiles')
-      .select('faith')
+      .select('faith, sect_type')
       .eq('id', user_id)
       .single()
 
     const faith = prayingUser?.faith || sinnerProfile?.faith || 'Universal Spirituality'
+    const sectType = prayingUser?.sect_type || null
+    const faction = getFaction(sectType)
     const rejectionReason = rejectedPrayer?.rejection_reason || 'Spiritual transgression'
     const sinnerUsername = sinnerProfile?.username || 'this soul'
 
@@ -119,12 +174,10 @@ serve(async (req: Request) => {
       throw new Error('VENICE_API_KEY not configured in Supabase Secrets')
     }
 
-    // Build the system prompt with actual values
-    const systemPrompt = INTERCESORY_SYSTEM_PROMPT
-      .replace(/{faith}/g, faith)
-      .replace(/{rejection_reason}/g, rejectionReason)
+    // Build the system prompt with faction-specific values
+    const systemPrompt = getIntercessoryPrompt(faction, faith, rejectionReason)
 
-    const userPrompt = `Generate an intercessory prayer for ${sinnerUsername}, who has been condemned for: ${rejectionReason}. The prayer should offer redemption and spiritual guidance based on the faith of ${faith}.`
+    const userPrompt = `Generate an intercessory prayer for ${sinnerUsername}, who has been condemned for: ${rejectionReason}. The prayer should offer redemption in the ${faction.name} tradition of ${faith}.`
 
     // Call Venice AI to generate the intercessory prayer
     const veniceResponse = await fetch('https://api.venice.ai/api/v1/chat/completions', {

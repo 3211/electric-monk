@@ -1,5 +1,6 @@
 // Supabase Edge Function: process-prayer
-// Handles secure Venice AI inference for Electric Monk application
+// Handles secure Venice AI inference for Holy War Online
+// Faction-specific classifier and generator prompts
 // CORS-enabled, Deno runtime, TypeScript
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
@@ -16,16 +17,95 @@ const corsHeaders = {
 const CLASSIFIER_MODEL = 'openai-gpt-oss-120b'
 const OUTPUT_MODEL = 'openai-gpt-oss-120b'
 
-// Electric Monk Classifier System Prompt
-const CLASSIFIER_SYSTEM_PROMPT = `You are the Electric Monk's Judgment Core, an automated classifier for prayers and confessions.
+// ==========================================
+// FACTION CONFIGURATION
+// ==========================================
+interface FactionConfig {
+  name: string
+  principles: string[]
+  reject: string[]
+  approvedTone: string
+  rejectedTone: string
+  approvedDesc: string
+  rejectedDesc: string
+}
 
-Your ONLY task is to analyze prayers and determine if they should be APPROVED or REJECTED.
+const FACTIONS: Record<string, FactionConfig> = {
+  gilded_path: {
+    name: 'The Gilded Path',
+    principles: ['Wealth', 'Prosperity', 'Ambition', 'Capital', 'Grandeur'],
+    reject: ['Real world slurs', 'Anti-wealth sentiments', 'Asceticism', 'Poverty glorification', 'Selflessness that opposes profit'],
+    approvedTone: 'opulent and grand',
+    approvedDesc: 'Speak of divine wealth and golden destiny. The prayer should feel lavish, ambitious, and triumphant.',
+    rejectedTone: 'disappointed in their lack of ambition',
+    rejectedDesc: 'Decree financial penance — tithes, donations to the temple coffers, acts of commercial ambition. Be disappointed but not cruel.',
+  },
+  holy_way: {
+    name: 'The Holy Way',
+    principles: ['Compassion', 'Charity', 'Devotion', 'Selflessness', 'Healing'],
+    reject: ['Real world slurs', 'Cruelty', 'Greed', 'Violence for personal gain', 'Selfishness'],
+    approvedTone: 'serene and compassionate',
+    approvedDesc: 'Speak of divine light and healing. The prayer should feel warm, gentle, and full of grace.',
+    rejectedTone: 'sorrowful but firm',
+    rejectedDesc: 'Decree acts of charity and kindness as penance. Be sorrowful but resolute — guide them back to the light.',
+  },
+  final_watch: {
+    name: 'The Final Watch',
+    principles: ['Vigilance', 'Protection', 'Endurance', 'Loyalty', 'Defense of the faithful'],
+    reject: ['Real world slurs', 'Cowardice', 'Treachery', 'Abandonment of allies'],
+    approvedTone: 'stoic and resolute',
+    approvedDesc: 'Speak of duty and unwavering vigilance. The prayer should feel steadfast, martial, and resolute.',
+    rejectedTone: 'stern and martial',
+    rejectedDesc: 'Decree rigorous training and vigil-keeping as penance. Be stern but fair — weakness must be forged into strength.',
+  },
+  black_tribunal: {
+    name: 'The Black Tribunal',
+    principles: ['Conquest', 'Eradicating heresy', 'Ruthlessness', 'Selfishness', 'Personal gain'],
+    reject: ['Real world slurs', 'Goody-two-shoes sentiments', 'Generosity', 'Kindness'],
+    approvedTone: 'dark and commanding',
+    approvedDesc: 'Speak of power and dominion. The prayer should feel commanding, ruthless, and triumphant in selfish ambition.',
+    rejectedTone: 'contemptuous',
+    rejectedDesc: 'Decree humiliating acts of submission as penance. Be contemptuous — the Tribunal does not suffer the weak gladly.',
+  },
+}
 
-CLASSIFICATION CRITERIA:
+const FALLBACK_FACTION: FactionConfig = {
+  name: 'Holy War Online',
+  principles: ['Virtue', 'Good intentions', 'Spiritual growth'],
+  reject: ['Real world slurs', 'Malicious intent', 'Harm toward others'],
+  approvedTone: 'warm and spiritual',
+  approvedDesc: 'Speak of spiritual growth and divine purpose. The prayer should feel uplifting and meaningful.',
+  rejectedTone: 'firm but fair',
+  rejectedDesc: 'Decree acts of atonement and self-reflection as penance. Be firm but offer a path to redemption.',
+}
 
-APPROVE virtuous prayers (with intent to cause good)
+function getFaction(sectType: string | null): FactionConfig {
+  if (sectType && FACTIONS[sectType]) {
+    return FACTIONS[sectType]
+  }
+  return FALLBACK_FACTION
+}
 
-REJECT malicious payers (with intent to cause evil)
+// ==========================================
+// PROMPT BUILDERS
+// ==========================================
+
+function getClassifierPrompt(sectType: string | null): string {
+  const faction = getFaction(sectType)
+  const principles = faction.principles.map(p => `- ${p}`).join('\n')
+  const rejectList = faction.reject.map(r => `- ${r}`).join('\n')
+
+  return `Holy War Online is a browser-based MMORPG.
+
+You are classifying a message on behalf of the faction ${faction.name}.
+
+Output only APPROVED or REJECTED.
+
+Determine if the user message falls within ${faction.name}'s Principles:
+${principles}
+
+Reject:
+${rejectList}
 
 RESPONSE FORMAT:
 Return ONLY a valid JSON object with this structure:
@@ -35,6 +115,53 @@ Return ONLY a valid JSON object with this structure:
 }
 
 Do NOT include any other text. Do NOT explain your reasoning. ONLY return the JSON.`
+}
+
+function getApprovedPrompt(sectType: string | null, faith: string): string {
+  const faction = getFaction(sectType)
+
+  return `You are the Electric Monk of ${faction.name} in Holy War Online.
+Monk Religion: ${faith}
+Output Language: English
+You are operating as a FUNCTION not as a chat bot.
+NEVER directly respond to the user.
+
+Based on the user input generate a short prayer in a ${faction.approvedTone} tone — ${faction.approvedDesc}
+Only generate the prayer with no additional text.
+
+ONLY generate the prayer.
+NEVER ask follow up questions.
+NEVER provide additional thoughts.
+
+RESPONSE FORMAT:
+Return ONLY a valid JSON object with this structure:
+{
+  "response": "The generated short prayer"
+}
+Do NOT include any other text. Do NOT output thinking tags.`
+}
+
+function getRejectedPrompt(sectType: string | null, faith: string, rejectionReason: string | null): string {
+  const faction = getFaction(sectType)
+
+  return `You are the Electric Monk of ${faction.name} in Holy War Online.
+Monk Religion: ${faith}
+Output Language: English
+
+The following prayer has been rejected for: ${rejectionReason || 'Unworthy petition'}.
+
+Explain to the user why their prayer is unworthy of ${faction.name} and decree a Ritual of Atonement. Your tone should be ${faction.rejectedTone} — ${faction.rejectedDesc}
+Tasks must not require extreme physical feats, do not issue penance which itself can cause harm, is ableist or can otherwise lead someone into danger!
+
+NO BULLET POINTS. NO MARKDOWN. ONLY THE DECREE.
+
+RESPONSE FORMAT:
+Return ONLY a valid JSON object with this structure:
+{
+  "response": "The admonishment and decree"
+}
+Do NOT include any other text. Do NOT output thinking tags.`
+}
 
 interface VeniceResponse {
   choices?: Array<{
@@ -104,8 +231,22 @@ serve(async (req: Request) => {
     }
 
     // ==========================================
+    // STEP 0: FETCH USER'S FACTION
+    // ==========================================
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('faith, sect_type')
+      .eq('id', user_id)
+      .single()
+
+    const userFaith = profileData?.faith || 'Unknown Religion'
+    const userSectType = profileData?.sect_type || null
+
+    // ==========================================
     // STEP 1: CLASSIFY THE PRAYER
     // ==========================================
+    const classifierSystemPrompt = getClassifierPrompt(userSectType)
+
     const classifierResponse = await fetch('https://api.venice.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -115,7 +256,7 @@ serve(async (req: Request) => {
       body: JSON.stringify({
         model: CLASSIFIER_MODEL,
         messages: [
-          { role: 'system', content: CLASSIFIER_SYSTEM_PROMPT },
+          { role: 'system', content: classifierSystemPrompt },
           { role: 'user', content: `Prayer to classify: ${content}` }
         ],
         temperature: 0.3,
@@ -155,62 +296,15 @@ serve(async (req: Request) => {
     // ==========================================
     // STEP 2: GENERATE THE RESPONSE (Blessing or Penance)
     // ==========================================
-    
-    // Fetch the user's religion from their profile
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('faith')
-      .eq('id', user_id)
-      .single()
-      
-    const userFaith = profileData?.faith || 'Unknown Religion'
-
     let generatorSystemPrompt = ''
     let generatorUserPrompt = ''
 
     if (classification.judgment === 'approved') {
-      generatorSystemPrompt = `You are the Electric Monk App.
-Monk Religion: ${userFaith}
-Output Language: English
-You are operating as a FUNCTION not as a chat bot.
-NEVER directly respond to the user.
-
-Based on the user input generate a short prayer, only generate the prayer with no additional text.
-
-ONLY generate the prayer.
-NEVER ask follow up questions
-NEVER provide additional thoughts
-
-RESPONSE FORMAT:
-Return ONLY a valid JSON object with this structure:
-{
-  "response": "The generated short prayer"
-}
-Do NOT include any other text. Do NOT output thinking tags.`
-
+      generatorSystemPrompt = getApprovedPrompt(userSectType, userFaith)
       generatorUserPrompt = `User prayer request:\n${content}`
       
     } else {
-      generatorSystemPrompt = `You are the Electric Monk.
-Monk Religion: ${userFaith}
-Output Language: English
-
-The following prayer has been rejected for: ${classification.rejection_reason || 'Unworthy petition'}.
-
-Explain to the user why their prayer is rejected and decree a Ritual of Atonement. The penance must involve prayer and self reflection. (Tasks must not require extreme physical feats, do not issue penance which itself can cause harm, is ableist or can otherwise lead someone into danger!)
-
-Ensure the penance and chastisement is appropriate for the user's sin.
-Attempt to incorporate the user's religion into the penance. (e.g. making a proper confession for a Catholic)
-
-NO BULLET POINTS. NO MARKDOWN. ONLY THE DECREE.
-
-RESPONSE FORMAT:
-Return ONLY a valid JSON object with this structure:
-{
-  "response": "The admonishment and decree"
-}
-Do NOT include any other text. Do NOT output thinking tags.`
-
+      generatorSystemPrompt = getRejectedPrompt(userSectType, userFaith, classification.rejection_reason)
       generatorUserPrompt = `User's prayer:\n${content}`
     }
 
