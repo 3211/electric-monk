@@ -70,6 +70,7 @@ ON CONFLICT (sect_key) DO UPDATE SET
 
 ALTER TABLE faction_relationships ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can view faction relationships" ON faction_relationships;
 CREATE POLICY "Anyone can view faction relationships"
   ON faction_relationships FOR SELECT
   USING (true);

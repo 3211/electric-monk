@@ -13,7 +13,6 @@ import PurgatoryView from './views/PurgatoryView.vue'
 import AkashicRecordsView from './views/AkashicRecordsView.vue'
 import KarmaShopView from './views/KarmaShopView.vue'
 import VaticanView from './views/VaticanView.vue'
-import LeaderboardView from './views/LeaderboardView.vue'
 import ScriptoriumView from './views/ScriptoriumView.vue'
 import SynodHallView from './views/SynodHallView.vue'
 import FactionsView from './views/FactionsView.vue'
@@ -139,12 +138,6 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
               >
                 &#x1F6D2; Shop
               </button>
-              <button
-                @click="currentTab = 'rankings'"
-                :class="currentTab === 'rankings' ? 'nav-tab-active' : 'nav-tab-inactive'"
-              >
-                &#x1F3C6; Rankings
-              </button>
             </div>
 
             <!-- Shield indicator (global, always visible when shield active) -->
@@ -198,7 +191,6 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
         <VaticanView v-else-if="currentView === 'vatican'" />
         <SynodHallView v-else-if="currentView === 'synod'" />
         <FactionsView v-else-if="currentView === 'factions'" />
-        <LeaderboardView v-else-if="currentView === 'rankings'" />
 
         <!-- Onboarding Wizard (new user flow) -->
         <OnboardingWizard />
