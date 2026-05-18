@@ -34,10 +34,10 @@ BEGIN
             p.faith,
             p.divine_shield_until,
             ROW_NUMBER() OVER (ORDER BY p.karma DESC, p.mana DESC, p.created_at ASC) AS global_rank,
-            ROW_NUMBER() OVER (PARTITION BY p.faith ORDER BY p.karma DESC, p.mana DESC, p.created_at ASC) AS faith_rank
+            ROW_NUMBER() OVER (PARTITION BY p.sect_type ORDER BY p.karma DESC, p.mana DESC, p.created_at ASC) AS faith_rank
         FROM profiles p
         WHERE p.username IS NOT NULL
-          AND p.faith = p_faith
+          AND p.sect_type = p_faith
         ORDER BY p.karma DESC, p.mana DESC, p.created_at ASC
         LIMIT p_limit OFFSET p_offset
     ) t;
@@ -70,14 +70,14 @@ BEGIN
             SELECT COUNT(*) + 1
             FROM profiles p2
             WHERE p2.username IS NOT NULL
-              AND p2.faith = p1.faith
+              AND p2.sect_type = p1.sect_type
               AND (
                   p2.karma > p1.karma
                   OR (p2.karma = p1.karma AND p2.mana > p1.mana)
                   OR (p2.karma = p1.karma AND p2.mana = p1.mana AND p2.created_at < p1.created_at)
               )
         ),
-        'faith', p1.faith
+        'faith', p1.sect_type
     ) INTO v_result
     FROM profiles p1
     WHERE p1.id = v_user_id;
