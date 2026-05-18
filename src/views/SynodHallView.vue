@@ -1,19 +1,19 @@
 <template>
-  <div :class="[activeTab === 'dark' ? 'evil-shell' : 'war-shell', 'min-h-screen']">
+  <div :class="[activeTab === 'reliquary' ? 'evil-shell' : 'war-shell', 'min-h-screen']">
     <header class="border-b surface-divider bg-theme-panel/50 backdrop-blur-sm">
       <div class="app-frame py-5">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="relative min-w-0">
             <div class="merged-header-glow" aria-hidden="true"></div>
             <h1 class="ritual-heading relative text-4xl font-bold text-theme-accent sm:text-5xl">
-              {{ activeTab === 'dark' ? 'Reliquary' : (synod.inSynod ? 'Synod Hall' : 'Find a Synod') }}
+              {{ headerTitle }}
             </h1>
             <p class="relative mt-1 text-sm text-theme-text-muted">
-              {{ activeTab === 'dark' ? 'Ten Sacred Relics. Hold them or steal them.' : (synod.inSynod ? 'Unite in faith, wage holy war.' : 'Browse public Synods or found your own.') }}
+              {{ headerSubtitle }}
             </p>
           </div>
           <div class="flex flex-wrap items-center justify-start gap-3 xl:justify-end">
-            <template v-if="activeTab === 'light'">
+            <template v-if="activeTab === 'synod'">
               <div v-if="synod.inSynod" class="chip status-chip gap-2 px-4 py-2 text-sm">
                 <span class="text-lg">&#x2694;&#xFE0F;</span>
                 <span>{{ synod.synodInfo?.name || 'Synod' }}</span>
@@ -23,13 +23,21 @@
                 <span class="text-theme-text-muted">No Synod</span>
               </div>
             </template>
-            <template v-else>
+            <template v-else-if="activeTab === 'reliquary'">
               <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim">
                 <span class="text-lg">&#x1F3C6;</span>
                 <span>Held: <span class="font-semibold text-theme-accent">{{ myRelicCount }}</span>/10</span>
               </div>
               <div v-if="economy.synodId" class="chip status-chip gap-2 px-4 py-2 text-sm">
                 <span>&#x2694;&#xFE0F; Synod Steal Available</span>
+              </div>
+            </template>
+            <template v-else-if="activeTab === 'war'">
+              <div v-if="synod.hasActiveWar" class="chip status-chip gap-2 px-4 py-2 text-sm">
+                At War
+              </div>
+              <div v-if="sr.underAttack" class="chip gap-2 px-4 py-2 text-sm text-theme-purgatory-dark border border-theme-purgatory/25 bg-theme-purgatory/5">
+                &#x1F6E1;&#xFE0F; Under Attack by {{ sr.attackerName || 'Unknown' }}
               </div>
             </template>
           </div>
@@ -42,23 +50,36 @@
       <div class="mb-8 flex justify-center">
         <div class="segmented-shell">
           <button
-            @click="activeTab = 'light'"
-            :class="activeTab === 'light' ? 'nav-tab-active' : 'nav-tab-inactive'"
+            @click="activeTab = 'synod'"
+            :class="activeTab === 'synod' ? 'nav-tab-active' : 'nav-tab-inactive'"
           >
-            {{ synod.inSynod ? '\u2694\uFE0F Synod' : '\uD83D\uDD0D Find Synod' }}
+            {{ synod.inSynod ? '&#x2694;&#xFE0F; Synod' : '&#x1F50D; Find Synod' }}
           </button>
           <button
             v-if="synod.inSynod"
-            @click="activeTab = 'dark'"
-            :class="activeTab === 'dark' ? 'nav-tab-active' : 'nav-tab-inactive'"
+            @click="activeTab = 'reliquary'"
+            :class="activeTab === 'reliquary' ? 'nav-tab-active' : 'nav-tab-inactive'"
           >
             &#x1F3FA; Reliquary
+          </button>
+          <button
+            v-if="synod.inSynod"
+            @click="activeTab = 'war'"
+            :class="activeTab === 'war' ? 'nav-tab-active' : 'nav-tab-inactive'"
+          >
+            &#x2694;&#xFE0F; War
+          </button>
+          <button
+            @click="activeTab = 'rankings'"
+            :class="activeTab === 'rankings' ? 'nav-tab-active' : 'nav-tab-inactive'"
+          >
+            &#x1F3C6; Rankings
           </button>
         </div>
       </div>
 
       <!-- ==================== SYNOD TAB ==================== -->
-      <div v-if="activeTab === 'light'">
+      <div v-if="activeTab === 'synod'">
         <!-- Loading -->
         <div v-if="synod.loading" class="glass-panel glass-panel-soft p-12 text-center">
           <div class="text-4xl mb-4" style="animation: ritual-breathe 3s ease-in-out infinite">&#x26EA;</div>
@@ -348,16 +369,13 @@
             </div>
           </div>
 
-          <!-- Holy Wars -->
-          <div class="glass-panel glass-panel-soft p-6 sm:p-8">
+          <!-- Holy Wars (summary, shown in dashboard) -->
+          <div v-if="synod.wars.length > 0" class="glass-panel glass-panel-soft p-6 sm:p-8">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <h3 class="ritual-heading text-xl font-bold text-theme-text">Holy Wars</h3>
             </div>
 
-            <div v-if="synod.wars.length === 0" class="text-center py-8 text-theme-text-muted text-sm">
-              No active Holy Wars. {{ synod.isLeader ? 'Visit the Holy Wars page to declare one.' : '' }}
-            </div>
-            <div v-else class="space-y-4">
+            <div class="space-y-4">
               <div
                 v-for="war in synod.wars"
                 :key="war.id"
@@ -379,7 +397,7 @@
       </div>
 
       <!-- ==================== RELIQUARY TAB ==================== -->
-      <div v-if="activeTab === 'dark' && synod.inSynod">
+      <div v-if="activeTab === 'reliquary' && synod.inSynod">
         <div v-if="relics.loading" class="glass-panel glass-panel-soft p-12 text-center">
           <div class="text-4xl mb-4" style="animation: ritual-breathe 3s ease-in-out infinite">&#x2728;</div>
           <p class="text-theme-text-dim">Summoning the sacred artifacts...</p>
@@ -444,7 +462,7 @@
                 class="btn-secondary w-full py-2.5 text-sm"
               >
                 <span class="relative z-10 font-medium">
-                  {{ !economy.synodId ? 'Requires Synod' : (relics.stealing ? 'Stealing...' : '\u2694\uFE0F Attempt Steal') }}
+                  {{ !economy.synodId ? 'Requires Synod' : (relics.stealing ? 'Stealing...' : '&#x2694;&#xFE0F; Attempt Steal') }}
                 </span>
               </button>
               <div v-else class="text-center py-2">
@@ -515,6 +533,217 @@
           </div>
         </div>
       </div>
+
+      <!-- ==================== WAR TAB ==================== -->
+      <div v-if="activeTab === 'war' && synod.inSynod">
+        <!-- Declare War (leader only) -->
+        <div v-if="synod.isLeader" class="glass-panel glass-panel-strong glass-gloss p-6 sm:p-8 mb-8">
+          <h2 class="ritual-heading text-2xl font-bold text-theme-text mb-4">Declare Crusade</h2>
+
+          <div v-if="synod.hasActiveWar" class="text-center py-4 text-theme-text-muted text-sm">
+            Your Synod is already waging a Holy War. Finish it before declaring another.
+          </div>
+
+          <div v-else-if="sr.underAttack" class="text-center py-4 text-theme-text-muted text-sm">
+            &#x1F6E1;&#xFE0F; Your Synod is under attack by <strong>{{ sr.attackerName || 'another Synod' }}</strong>. Defend first.
+          </div>
+
+          <template v-else>
+            <p class="text-sm text-theme-text-muted mb-4">
+              Enter the exact name of the target Synod. Costs 200 Gold to initiate. 30-day siege.
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-3 mb-4">
+              <input
+                v-model="warTargetName"
+                type="text"
+                placeholder="Enter exact Synod name..."
+                class="form-field px-4 py-3 flex-1"
+                @keyup.enter="handleFindTarget"
+              />
+              <button
+                @click="handleFindTarget"
+                :disabled="!warTargetName.trim() || hw.finding"
+                class="btn-secondary px-6 py-3"
+              >
+                <span class="relative z-10 font-medium">{{ hw.finding ? 'Searching...' : 'Find' }}</span>
+              </button>
+            </div>
+
+            <div v-if="hw.warTarget?.found" class="rounded-[20px] border border-theme-accent/30 bg-theme-accent/5 p-5">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="font-semibold text-theme-text text-lg">{{ hw.warTarget.name }}</div>
+                  <div class="text-sm text-theme-text-muted mt-1">
+                    {{ hw.warTarget.member_count }} members
+                  </div>
+                </div>
+                <button
+                  @click="handleDeclareWar(hw.warTarget.id)"
+                  :disabled="hw.initiating"
+                  class="btn-danger px-6 py-3 text-sm"
+                >
+                  <span class="relative z-10 font-medium">
+                    {{ hw.initiating ? 'Declaring...' : 'Declare War (200 Gold)' }}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <div v-if="hw.lastResult?.success" class="mt-4 rounded-[16px] border border-theme-accent/30 bg-theme-accent/5 p-4 text-sm text-theme-text">
+            Crusade declared! {{ hw.lastResult.siege_days }}-day siege. {{ hw.lastResult.attacker_mana }} Mana / {{ hw.lastResult.attacker_workers }} Workers committed.
+          </div>
+        </div>
+
+        <div v-else class="glass-panel glass-panel-soft p-6 sm:p-8 mb-8 text-center">
+          <p class="text-theme-text-muted text-sm">Only the Synod leader can declare Holy Wars.</p>
+        </div>
+
+        <!-- Active Wars / Defense Scanner -->
+        <div v-if="hw.activeWars.length > 0" class="glass-panel glass-panel-soft p-6 sm:p-8">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="ritual-heading text-2xl font-bold text-theme-text">
+              {{ hw.activeWars.length === 1 ? 'Active War' : 'Defenses (' + hw.activeWars.length + ')' }}
+            </h2>
+            <div v-if="hw.activeWars.length > 1" class="flex items-center gap-2">
+              <button @click="hw.prevDefense()" class="btn-ghost px-3 py-1 text-sm">&larr;</button>
+              <span class="text-xs text-theme-text-muted">{{ hw.defenseIndex + 1 }} / {{ hw.activeWars.length }}</span>
+              <button @click="hw.nextDefense()" class="btn-ghost px-3 py-1 text-sm">&rarr;</button>
+            </div>
+          </div>
+
+          <div v-for="(war, idx) in [hw.activeWars[hw.defenseIndex]]" :key="war?.session_id || idx">
+            <div v-if="war" class="p-5 rounded-[20px] border"
+              :class="war.is_attacker ? 'border-theme-accent/25 bg-theme-accent/5' : 'border-theme-purgatory/25 bg-theme-purgatory/5'">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <h3 class="font-semibold text-theme-text">
+                    {{ war.attacker_synod_name }} vs {{ war.defender_synod_name }}
+                  </h3>
+                  <p class="text-xs text-theme-text-muted mt-0.5">
+                    You are the {{ war.is_attacker ? 'Attacker' : 'Defender' }}
+                    <span v-if="war.ticks_total > 1000" class="ml-2 text-theme-text-dim">
+                      ({{ Math.round((war.ticks_total - war.ticks_remaining) / 1440) }}d / {{ Math.round(war.ticks_total / 1440) }}d siege)
+                    </span>
+                  </p>
+                </div>
+                <span class="chip status-chip text-xs">Active</span>
+              </div>
+
+              <div class="space-y-2 mb-3">
+                <div>
+                  <div class="flex justify-between text-xs text-theme-text-muted mb-1">
+                    <span>Attacker Mana</span><span class="font-semibold text-blue-400">{{ war.attacker_mana }}</span>
+                  </div>
+                  <div class="h-3 rounded-full border border-theme-border/30 bg-theme-panel/50 overflow-hidden">
+                    <div class="h-full bg-blue-500/60 transition-all duration-500"
+                      :style="{ width: manaPercent(war.attacker_mana, war.attacker_mana + war.defender_mana) + '%' }"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs text-theme-text-muted mb-1">
+                    <span>Defender Mana</span><span class="font-semibold text-red-400">{{ war.defender_mana }}</span>
+                  </div>
+                  <div class="h-3 rounded-full border border-theme-border/30 bg-theme-panel/50 overflow-hidden">
+                    <div class="h-full bg-red-500/60 transition-all duration-500"
+                      :style="{ width: manaPercent(war.defender_mana, war.attacker_mana + war.defender_mana) + '%' }"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-4 gap-2 text-xs text-theme-text-muted">
+                <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                  <div class="font-semibold text-theme-text">{{ war.attacker_workers }}</div><div>Atk Workers</div>
+                </div>
+                <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                  <div class="font-semibold text-theme-text">{{ war.defender_workers }}</div><div>Def Workers</div>
+                </div>
+                <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                  <div class="font-semibold text-theme-text">{{ war.ticks_remaining }}/{{ war.ticks_total }}</div><div>Ticks</div>
+                </div>
+                <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                  <div class="font-semibold text-yellow-500">{{ war.gold_stolen || 0 }}</div><div>Gold Stolen</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="glass-panel glass-panel-soft p-8 text-center text-theme-text-muted text-sm">
+          No active Holy Wars.
+        </div>
+      </div>
+
+      <!-- ==================== RANKINGS TAB ==================== -->
+      <div v-if="activeTab === 'rankings'">
+        <div v-if="sr.loading" class="glass-panel glass-panel-soft p-12 text-center">
+          <div class="text-4xl mb-4" style="animation: ritual-breathe 3s ease-in-out infinite">&#x1F3C6;</div>
+          <p class="text-theme-text-dim">Consulting the divine ledger...</p>
+        </div>
+
+        <div v-else-if="sr.error" class="glass-panel p-8 text-center border border-theme-purgatory/25">
+          <div class="text-4xl mb-4">&#x26A0;&#xFE0F;</div>
+          <p class="text-theme-purgatory-dark">{{ sr.error }}</p>
+          <button @click="sr.fetchRankings()" class="btn-secondary mt-4 px-6 py-2">Try Again</button>
+        </div>
+
+        <div v-else class="space-y-6">
+          <!-- Global Synod Rankings Summary -->
+          <div class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
+            <h2 class="ritual-heading text-xl font-bold text-theme-accent mb-4 text-center">&#x1F3C6; Synod Rankings by Sect</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+              <div
+                v-for="sectKey in sr.SECT_KEYS"
+                :key="sectKey"
+                class="glass-panel glass-panel-soft p-4 sm:p-5"
+              >
+                <!-- Column Header -->
+                <h3 class="ritual-heading text-base font-bold text-theme-accent mb-3 text-center flex items-center justify-center gap-2">
+                  <span class="text-lg">{{ sr.SECT_ICONS[sectKey] }}</span>
+                  <span class="truncate">{{ sr.SECT_NAMES[sectKey] }}</span>
+                </h3>
+
+                <!-- Synod List -->
+                <div class="space-y-2">
+                  <div
+                    v-for="synodEntry in sr.sectColumns[sectKey]"
+                    :key="synodEntry.synod_id"
+                    class="flex items-center gap-2.5 py-2.5 px-3 rounded-xl transition-colors duration-200 hover:bg-theme-accent/5"
+                    :class="{ 'bg-theme-accent/10 ring-1 ring-theme-accent/20': economy.synodId === synodEntry.synod_id }"
+                  >
+                    <span class="inline-flex items-center justify-center w-8 h-8 flex-shrink-0 rounded-full text-xs font-bold"
+                      :class="rankBadgeClass(synodEntry.rank)"
+                    >
+                      {{ synodEntry.rank }}
+                    </span>
+                    <div class="flex-1 min-w-0">
+                      <div class="text-sm font-semibold text-theme-text truncate">
+                        {{ synodEntry.name }}
+                        <span v-if="synodEntry.has_active_war" class="text-red-400 text-xs ml-1" title="At War">&#x2694;</span>
+                      </div>
+                      <div class="text-xs text-theme-text-muted truncate">
+                        {{ synodEntry.leader_name || 'Unknown' }} &#xB7; {{ synodEntry.member_count }} members
+                      </div>
+                    </div>
+                    <div class="text-xs text-yellow-500 font-semibold flex-shrink-0" :title="'Vault Gold'">
+                      &#x1F4B0;{{ synodEntry.vault_gold || 0 }}
+                    </div>
+                  </div>
+
+                  <div
+                    v-if="(!sr.sectColumns[sectKey] || sr.sectColumns[sectKey].length === 0) && !sr.loading"
+                    class="text-center py-6 text-sm text-theme-text-muted"
+                  >
+                    No Synods yet
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
 
     <!-- Confirm Action Modal -->
@@ -542,28 +771,33 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch, inject } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, inject } from 'vue'
 import { useSynod } from '@/composables/useSynod'
 import { useEconomy } from '@/composables/useEconomy'
 import { useRelics } from '@/composables/useRelics'
 import { useIndulgences } from '@/composables/useIndulgences'
+import { useHolyWar } from '@/composables/useHolyWar'
+import { useSynodRankings } from '@/composables/useSynodRankings'
 import { useAuth } from '@/composables/useAuth'
 
 const synod = useSynod()
 const economy = useEconomy()
 const relics = useRelics()
 const indulgences = useIndulgences()
+const hw = useHolyWar()
+const sr = useSynodRankings()
 const auth = useAuth()
 
 const forceEvilTheme = inject('forceEvilTheme', ref(false))
 const forceWarTheme = inject('forceWarTheme', ref(false))
-const activeTab = ref('light')
+const activeTab = ref('synod')
 
 const newSynodName = ref('')
 const newSynodPrivacy = ref('public')
 const newSynodMessage = ref('')
 const editMessage = ref('')
 const confirmAction = ref(null)
+const warTargetName = ref('')
 
 const currentUserId = computed(() => auth.user?.id)
 const myRelicCount = computed(() => relics.heldRelics(currentUserId.value)?.length || 0)
@@ -590,10 +824,44 @@ function factionLabel(key) {
   return FACTION_NAMES[key] || key || 'Unknown'
 }
 
+// Header computed props
+const headerTitle = computed(() => {
+  switch (activeTab.value) {
+    case 'reliquary': return 'Reliquary'
+    case 'war': return 'Holy Wars'
+    case 'rankings': return 'Synod Rankings'
+    case 'synod':
+    default:
+      return synod.inSynod ? 'Synod Hall' : 'Find a Synod'
+  }
+})
+
+const headerSubtitle = computed(() => {
+  switch (activeTab.value) {
+    case 'reliquary': return 'Ten Sacred Relics. Hold them or steal them.'
+    case 'war': return '30-day sieges. One attack at a time. Vanquish to destroy enemy Synods.'
+    case 'rankings': return 'Every Synod, ranked by power and devotion.'
+    case 'synod':
+    default:
+      return synod.inSynod ? 'Unite in faith, wage holy war.' : 'Browse public Synods or found your own.'
+  }
+})
+
+// Theme management — only synod/war/rankings use war-shell; reliquary uses evil-shell
 watch(activeTab, (tab) => {
-  forceEvilTheme.value = (tab === 'dark')
-  forceWarTheme.value = (tab === 'light')
+  forceEvilTheme.value = (tab === 'reliquary')
+  forceWarTheme.value = (tab === 'synod' || tab === 'war' || tab === 'rankings')
 }, { immediate: true })
+
+// Poll holy wars when watching the war tab
+watch(activeTab, (tab) => {
+  if (tab === 'war') {
+    hw.startPolling()
+    sr.fetchDefenseStatus()
+  } else {
+    hw.stopPolling()
+  }
+})
 
 function roleIcon(role) {
   switch (role) {
@@ -622,6 +890,19 @@ function formatDate(dateString) {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+function manaPercent(value, total) {
+  if (!total || total <= 0) return 0
+  return Math.min(100, Math.max(0, (value / total) * 100))
+}
+
+function rankBadgeClass(rank) {
+  if (rank === 1) return 'rank-gold rank-badge-sm'
+  if (rank === 2) return 'rank-silver rank-badge-sm'
+  if (rank === 3) return 'rank-bronze rank-badge-sm'
+  return 'rank-default rank-badge-sm'
+}
+
+// -- Synod actions --
 async function handleCreateSynod() {
   if (!newSynodName.value.trim()) return
   try {
@@ -639,9 +920,7 @@ async function handleRefreshBrowser() {
 }
 
 async function handlePetition(synodId) {
-  try {
-    await synod.petitionSynod(synodId)
-  } catch { /* captured in synod.error */ }
+  try { await synod.petitionSynod(synodId) } catch { /* captured */ }
 }
 
 async function handleLeaveSynod() {
@@ -691,7 +970,7 @@ function handleDemote(userId) {
 function handleKick(userId, username) {
   confirmAction.value = {
     title: 'Kick Member',
-    message: `Kick ${username || 'this member'} from the Synod?`,
+    message: 'Kick ' + (username || 'this member') + ' from the Synod?',
     buttonText: 'Kick',
     danger: true,
     handler: () => synod.kickMember(userId),
@@ -710,18 +989,40 @@ async function handleActivateDivineArchitect() {
   try { await indulgences.activateDivineArchitect() } catch { /* captured */ }
 }
 
+// -- War actions --
+function handleFindTarget() {
+  if (!warTargetName.value.trim()) return
+  hw.findTarget(warTargetName.value.trim())
+}
+
+async function handleDeclareWar(synodId) {
+  try {
+    await synod.initiateHolyWar(synodId)
+    warTargetName.value = ''
+    hw.warTarget.value = null
+  } catch { /* captured */ }
+}
+
 onMounted(() => {
+  forceWarTheme.value = true
   synod.fetchSynodInfo()
   synod.fetchPublicSynods()
   relics.fetchRelics()
   indulgences.fetchActiveMiracles()
+  sr.fetchRankings()
+})
+
+onUnmounted(() => {
+  forceWarTheme.value = false
+  forceEvilTheme.value = false
+  hw.stopPolling()
 })
 </script>
 
 <style scoped>
 .nav-tab-active,
 .nav-tab-inactive {
-  min-width: 10rem;
+  min-width: 8rem;
 }
 
 .nav-tab-active {
@@ -730,7 +1031,7 @@ onMounted(() => {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)), linear-gradient(145deg, rgba(62, 72, 82, 0.92), rgba(35, 43, 51, 0.96));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(255, 255, 255, 0.03), 0 14px 28px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(182, 144, 91, 0.06);
   border-radius: 999px;
-  padding: 0.625rem 2rem;
+  padding: 0.625rem 1.5rem;
   font-weight: 600;
   cursor: pointer;
 }
@@ -741,7 +1042,7 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(10px);
   border-radius: 999px;
-  padding: 0.625rem 2rem;
+  padding: 0.625rem 1.5rem;
   font-weight: 500;
   cursor: pointer;
 }
@@ -756,6 +1057,8 @@ onMounted(() => {
 .segmented-shell {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .evil-shell .nav-tab-active {
@@ -806,11 +1109,67 @@ onMounted(() => {
   cursor: pointer;
 }
 
+/* Rank badges (for Rankings tab) */
+.rank-badge-sm {
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.rank-gold {
+  color: #5c3d0a;
+  background: linear-gradient(145deg, rgba(255, 193, 59, 0.95), rgba(213, 154, 23, 0.88));
+  border: 1px solid rgba(213, 154, 23, 0.42);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 16px rgba(213, 154, 23, 0.18);
+}
+
+.rank-silver {
+  color: #3a3f48;
+  background: linear-gradient(145deg, rgba(192, 200, 212, 0.92), rgba(156, 164, 176, 0.84));
+  border: 1px solid rgba(156, 164, 176, 0.36);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32), 0 8px 16px rgba(156, 164, 176, 0.14);
+}
+
+.rank-bronze {
+  color: #4a2e1a;
+  background: linear-gradient(145deg, rgba(196, 138, 88, 0.9), rgba(168, 108, 58, 0.82));
+  border: 1px solid rgba(168, 108, 58, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 8px 16px rgba(168, 108, 58, 0.12);
+}
+
+.rank-default {
+  color: var(--theme-text-dim);
+  background: rgba(139, 125, 91, 0.12);
+  border: 1px solid rgba(139, 125, 91, 0.14);
+}
+
 @media (max-width: 640px) {
   .nav-tab-active,
   .nav-tab-inactive {
     min-width: 0;
-    width: 100%;
+    flex: 1 1 auto;
+    padding: 0.5rem 1rem;
+    font-size: 0.78rem;
+  }
+
+  .segmented-shell {
+    gap: 0.35rem;
+  }
+
+  .rank-badge-sm {
+    width: 1.75rem;
+    height: 1.75rem;
+    font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .nav-tab-active,
+  .nav-tab-inactive {
+    flex-basis: calc(50% - 0.35rem);
+    justify-content: center;
+    text-align: center;
   }
 }
 </style>

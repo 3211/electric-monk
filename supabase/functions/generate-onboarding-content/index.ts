@@ -13,7 +13,7 @@ const corsHeaders = {
 }
 
 // Model Configuration - matches process-prayer
-const MODEL = 'openai-gpt-oss-120b'
+const MODEL = 'gemma-4-uncensored'
 
 // ==========================================
 // FACTION CONFIGURATION (shared with process-prayer)

@@ -14,7 +14,7 @@ const corsHeaders = {
 }
 
 // Model Configuration
-const OUTPUT_MODEL = 'e2ee-venice-uncensored-24b-p'
+const OUTPUT_MODEL = 'gemma-4-uncensored'
 
 // ==========================================
 // FACTION CONFIGURATION (shared with process-prayer)

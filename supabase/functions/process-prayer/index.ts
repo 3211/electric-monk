@@ -15,7 +15,7 @@ const corsHeaders = {
 
 // Model Configuration - Easy to swap later
 const CLASSIFIER_MODEL = 'openai-gpt-oss-120b'
-const OUTPUT_MODEL = 'openai-gpt-oss-120b'
+const OUTPUT_MODEL = 'gemma-4-uncensored'
 
 // ==========================================
 // FACTION CONFIGURATION
