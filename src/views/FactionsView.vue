@@ -37,15 +37,15 @@
       </div>
 
       <div v-if="activeTab === 'overview'">
-        <div v-if="factions.loading" class="glass-panel glass-panel-soft p-12 text-center">
+        <div v-if="loading" class="glass-panel glass-panel-soft p-12 text-center">
           <div class="text-4xl mb-4" style="animation: ritual-breathe 3s ease-in-out infinite">🏛️</div>
           <p class="text-theme-text-dim">Consulting the archives...</p>
         </div>
 
-        <div v-else-if="factions.error" class="glass-panel p-8 text-center border border-theme-purgatory/25">
+        <div v-else-if="error" class="glass-panel p-8 text-center border border-theme-purgatory/25">
           <div class="text-4xl mb-4">⚠️</div>
-          <p class="text-theme-purgatory-dark">{{ factions.error }}</p>
-          <button @click="factions.fetchFactions()" class="btn-secondary mt-4 px-6 py-2">Try Again</button>
+          <p class="text-theme-purgatory-dark">{{ error }}</p>
+          <button @click="fetchFactions()" class="btn-secondary mt-4 px-6 py-2">Try Again</button>
         </div>
 
         <div v-else class="space-y-10">
@@ -400,7 +400,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, toRefs } from 'vue'
 import { useFactions, FACTION_ICONS, FACTION_NAMES, FACTION_COLORS, formatModifier, getModifierLabel } from '@/composables/useFactions'
 import { useLeaderboard } from '@/composables/useLeaderboard'
 import { useAuth } from '@/composables/useAuth'
@@ -416,9 +416,8 @@ const {
   hoveredFaction,
   selectedFaction,
   playerSect,
-  fetchFactions,
-  autoSelectPlayerFaction,
-} = factions
+} = toRefs(factions)
+const { fetchFactions, autoSelectPlayerFaction } = factions
 
 const activeTab = ref('overview')
 const currentUserId = ref(null)

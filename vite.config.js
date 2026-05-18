@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [vue()],
   // Base path for GitHub Pages deployment
   // Change 'electric-monk' to your repository name if different
-  base: '/electric-monk/',
+  base: '/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
