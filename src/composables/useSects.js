@@ -56,10 +56,22 @@ function createSectsState() {
     },
   }
 
+  const availableFactions = ref([])
+  const loadingFactions = ref(false)
+
   const sectList = computed(() => {
+    if (availableFactions.value.length > 0) {
+      return availableFactions.value.map(f => ({
+        key: f.sect_key,
+        ...sectInfo[f.sect_key],
+        memberCount: f.member_count,
+      }))
+    }
+    // Fallback: show all if RPC hasn't loaded yet
     return Object.entries(sectInfo).map(([key, info]) => ({
       key,
       ...info,
+      memberCount: 0,
     }))
   })
 
@@ -98,6 +110,29 @@ function createSectsState() {
   }
 
   /**
+   * Fetch available factions for balanced onboarding (lowest member count)
+   */
+  async function fetchAvailableFactions() {
+    try {
+      loadingFactions.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('get_available_factions')
+
+      if (rpcError) throw rpcError
+
+      if (data) {
+        availableFactions.value = data || []
+      }
+    } catch (err) {
+      error.value = err.message
+      console.error('[useSects] Fetch available factions error:', err)
+    } finally {
+      loadingFactions.value = false
+    }
+  }
+
+  /**
    * Fetch sect info from RPC
    */
   async function fetchSectInfo() {
@@ -125,6 +160,8 @@ function createSectsState() {
     sectType,
     sectList,
     sectInfo,
+    availableFactions,
+    loadingFactions,
     currentSectInfo,
     modifiers,
     loading,
@@ -132,6 +169,7 @@ function createSectsState() {
     choosing,
     chooseSect,
     fetchSectInfo,
+    fetchAvailableFactions,
   })
 }
 

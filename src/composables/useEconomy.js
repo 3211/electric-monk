@@ -115,19 +115,7 @@ function createEconomyState() {
     return counts
   })
 
-  // Computed: resource caps based on daily rates and config multipliers
-  const manaCap = computed(() => {
-    const multiplier = gameConfig.value['cap.mana_multiplier'] || 10
-    return Math.floor((dailyRates.value.mana_per_day || 0) * multiplier)
-  })
-  const goldCap = computed(() => {
-    const multiplier = gameConfig.value['cap.gold_multiplier'] || 10
-    return Math.floor((dailyRates.value.gold_per_day || 0) * multiplier)
-  })
-  const foodCap = computed(() => {
-    const multiplier = gameConfig.value['cap.food_multiplier'] || 10
-    return Math.floor((dailyRates.value.food_per_day || 0) * multiplier)
-  })
+  // Resource caps removed — economy is now unbounded (Exodus 1 rebalance)
 
   // Computed: heresy per day (net of nothing - heresy has no upkeep)
   const netHeresyPerDay = computed(() => dailyRates.value.heresy_per_day || 0)
@@ -311,10 +299,6 @@ function createEconomyState() {
     netHeresyPerDay,
     netDogmaPerDay,
     buildingCounts,
-    manaCap,
-    goldCap,
-    foodCap,
-    heresyCap,
     isVassal,
     totalTithesPerDay,
     // Vassalage state

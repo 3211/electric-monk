@@ -3,14 +3,17 @@ import { supabase } from '@/lib/supabase'
 import { useEconomy } from './useEconomy'
 
 /**
- * useSynod Composable
+ * useSynod Composable (Exodus 1 Overhaul)
  *
  * Manages the Synod (Alliance) system:
- * - Create, join, leave synods
- * - View synod info, members, vault
+ * - Petition to join (faction-gated, replaces direct join)
+ * - Public Synod Browser (faction-filtered)
+ * - Create, leave synods
+ * - View synod info, members, vault, applicants
  * - Promote, demote, kick members
- * - Declare Holy Wars
- * - Synod tax management
+ * - Declare Holy Wars (via text-input target name)
+ * - Privacy toggle, custom message
+ * - Applicant queue management (approve/reject)
  */
 
 let sharedState = null
@@ -24,11 +27,15 @@ function createSynodState() {
   const memberCount = ref(0)
   const wars = ref([])
   const synodRelics = ref([])
+  const applicants = ref([])
+  const publicSynods = ref([])
   const loading = ref(false)
   const creating = ref(false)
-  const joining = ref(false)
+  const petitioning = ref(false)
   const declaring = ref(false)
   const managing = ref(false)
+  const browsing = ref(false)
+  const searching = ref(false)
   const error = ref(null)
 
   const isLeader = computed(() => {
@@ -43,7 +50,7 @@ function createSynodState() {
   })
 
   /**
-   * Fetch full synod info from RPC
+   * Fetch full synod info from RPC (now includes applicants, privacy, custom_message)
    */
   async function fetchSynodInfo() {
     try {
@@ -56,11 +63,21 @@ function createSynodState() {
 
       if (data) {
         inSynod.value = data.in_synod
-        synodInfo.value = data.synod
-        members.value = data.members || []
-        memberCount.value = data.member_count || 0
-        wars.value = data.wars || []
-        synodRelics.value = data.synod_relics || []
+        if (data.in_synod) {
+          synodInfo.value = data.synod
+          members.value = data.members || []
+          memberCount.value = data.member_count || 0
+          wars.value = data.wars || []
+          synodRelics.value = data.synod_relics || []
+          applicants.value = data.applicants || []
+        } else {
+          synodInfo.value = null
+          members.value = []
+          memberCount.value = 0
+          wars.value = []
+          synodRelics.value = []
+          applicants.value = []
+        }
       }
     } catch (err) {
       error.value = err.message
@@ -71,15 +88,62 @@ function createSynodState() {
   }
 
   /**
-   * Create a new Synod
+   * Fetch public Synods matching player's faction or ally (for Synod Browser)
    */
-  async function createSynod(name) {
+  async function fetchPublicSynods() {
+    try {
+      browsing.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('get_public_synods')
+
+      if (rpcError) throw rpcError
+
+      publicSynods.value = data || []
+    } catch (err) {
+      error.value = err.message
+      console.error('[useSynod] Public synods error:', err)
+    } finally {
+      browsing.value = false
+    }
+  }
+
+  /**
+   * Find a Synod by exact name (for Holy War target selection)
+   */
+  async function findSynodByName(name) {
+    try {
+      searching.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('find_synod_by_name', {
+        p_name: name,
+      })
+
+      if (rpcError) throw rpcError
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[useSynod] Find synod error:', err)
+      return { found: false }
+    } finally {
+      searching.value = false
+    }
+  }
+
+  /**
+   * Create a new Synod (now with privacy and custom_message)
+   */
+  async function createSynod(name, { privacy = 'public', customMessage = null } = {}) {
     try {
       creating.value = true
       error.value = null
 
       const { data, error: rpcError } = await supabase.rpc('create_synod', {
         p_name: name,
+        p_privacy: privacy,
+        p_custom_message: customMessage,
       })
 
       if (rpcError) throw rpcError
@@ -100,31 +164,28 @@ function createSynodState() {
   }
 
   /**
-   * Join an existing Synod
+   * Petition to join a Synod (faction-gated, replaces direct join)
    */
-  async function joinSynod(synodId) {
+  async function petitionSynod(synodId) {
     try {
-      joining.value = true
+      petitioning.value = true
       error.value = null
 
-      const { data, error: rpcError } = await supabase.rpc('join_synod', {
+      const { data, error: rpcError } = await supabase.rpc('petition_synod', {
         p_synod_id: synodId,
       })
 
       if (rpcError) throw rpcError
 
-      await Promise.all([
-        fetchSynodInfo(),
-        economy.fetchEconomy(),
-      ])
+      await fetchPublicSynods()
 
       return data
     } catch (err) {
       error.value = err.message
-      console.error('[useSynod] Join error:', err)
+      console.error('[useSynod] Petition error:', err)
       throw err
     } finally {
-      joining.value = false
+      petitioning.value = false
     }
   }
 
@@ -156,7 +217,114 @@ function createSynodState() {
   }
 
   /**
-   * Promote a synod member (member -> officer, officer -> leader with transfer)
+   * Approve a pending applicant (leader or officer only)
+   */
+  async function approveApplicant(userId) {
+    try {
+      managing.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('approve_synod_applicant', {
+        p_applicant_user_id: userId,
+      })
+
+      if (rpcError) throw rpcError
+
+      await Promise.all([
+        fetchSynodInfo(),
+        economy.fetchEconomy(),
+      ])
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[useSynod] Approve error:', err)
+      throw err
+    } finally {
+      managing.value = false
+    }
+  }
+
+  /**
+   * Reject a pending applicant
+   */
+  async function rejectApplicant(userId) {
+    try {
+      managing.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('reject_synod_applicant', {
+        p_applicant_user_id: userId,
+      })
+
+      if (rpcError) throw rpcError
+
+      await fetchSynodInfo()
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[useSynod] Reject error:', err)
+      throw err
+    } finally {
+      managing.value = false
+    }
+  }
+
+  /**
+   * Update Synod privacy (leader only)
+   */
+  async function updatePrivacy(privacy) {
+    try {
+      managing.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('update_synod_privacy', {
+        p_privacy: privacy,
+      })
+
+      if (rpcError) throw rpcError
+
+      await fetchSynodInfo()
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[useSynod] Privacy error:', err)
+      throw err
+    } finally {
+      managing.value = false
+    }
+  }
+
+  /**
+   * Update Synod custom message (leader only)
+   */
+  async function updateMessage(message) {
+    try {
+      managing.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('update_synod_message', {
+        p_message: message,
+      })
+
+      if (rpcError) throw rpcError
+
+      await fetchSynodInfo()
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[useSynod] Message error:', err)
+      throw err
+    } finally {
+      managing.value = false
+    }
+  }
+
+  /**
+   * Promote a synod member (member -> officer -> leader transfer)
    */
   async function promoteMember(targetUserId) {
     try {
@@ -243,14 +411,14 @@ function createSynodState() {
   }
 
   /**
-   * Declare Holy War on another Synod (by UUID)
+   * Initiate Holy War on another Synod (leader only, auto-conscripts all members)
    */
-  async function declareHolyWar(targetSynodId) {
+  async function initiateHolyWar(targetSynodId) {
     try {
       declaring.value = true
       error.value = null
 
-      const { data, error: rpcError } = await supabase.rpc('declare_holy_war', {
+      const { data, error: rpcError } = await supabase.rpc('initiate_holy_war', {
         p_target_synod_id: targetSynodId,
       })
 
@@ -268,25 +436,6 @@ function createSynodState() {
   }
 
   /**
-   * Search for synods by name (for joining)
-   */
-  async function searchSynods(query) {
-    try {
-      const { data, error: queryError } = await supabase
-        .from('synods')
-        .select('id, name, leader_id, tax_rate, created_at')
-        .ilike('name', `%${query}%`)
-        .limit(10)
-
-      if (queryError) throw queryError
-      return data || []
-    } catch (err) {
-      console.error('[useSynod] Search error:', err)
-      return []
-    }
-  }
-
-  /**
    * Reset all state (used on sign-out)
    */
   function resetState() {
@@ -296,6 +445,8 @@ function createSynodState() {
     memberCount.value = 0
     wars.value = []
     synodRelics.value = []
+    applicants.value = []
+    publicSynods.value = []
     error.value = null
   }
 
@@ -306,23 +457,32 @@ function createSynodState() {
     memberCount,
     wars,
     synodRelics,
+    applicants,
+    publicSynods,
     loading,
     creating,
-    joining,
+    petitioning,
     declaring,
     managing,
+    browsing,
+    searching,
     error,
     isLeader,
     currentUserRole,
     fetchSynodInfo,
+    fetchPublicSynods,
+    findSynodByName,
     createSynod,
-    joinSynod,
+    petitionSynod,
     leaveSynod,
+    approveApplicant,
+    rejectApplicant,
+    updatePrivacy,
+    updateMessage,
     promoteMember,
     demoteMember,
     kickMember,
-    declareHolyWar,
-    searchSynods,
+    initiateHolyWar,
     resetState,
   })
 }

@@ -32,6 +32,9 @@
             <div class="mb-2 text-3xl">{{ sect.icon }}</div>
             <h3 :class="['text-lg font-semibold', sect.color]">{{ sect.name }}</h3>
             <p class="mt-1 text-xs text-theme-text-muted leading-relaxed">{{ sect.description }}</p>
+            <p v-if="sect.memberCount !== undefined" class="mt-1 text-xs text-theme-text-dim">
+              {{ sect.memberCount }} {{ sect.memberCount === 1 ? 'monk' : 'monks' }}
+            </p>
           </button>
         </div>
 
@@ -57,7 +60,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useSects } from '@/composables/useSects'
 
 const props = defineProps({
@@ -68,6 +71,13 @@ const emit = defineEmits(['chosen'])
 
 const sects = useSects()
 const selectedSect = ref(null)
+
+// Fetch balanced faction list when modal becomes visible
+watch(() => props.visible, (isVisible) => {
+  if (isVisible) {
+    sects.fetchAvailableFactions()
+  }
+})
 
 async function handleConfirm() {
   if (!selectedSect.value) return

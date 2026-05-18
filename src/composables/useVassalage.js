@@ -3,13 +3,16 @@ import { supabase } from '@/lib/supabase'
 import { useEconomy } from './useEconomy'
 
 /**
- * useVassalage Composable
+ * useVassalage Composable (Exodus 1 Overhaul)
  *
  * Manages the Vassalage system state:
  * - Suzerain info (who you bow to)
  * - Vassals list (who bows to you)
  * - Daily tithes received
  * - Divine Shield status
+ * - Subjugation timers (168-hour countdown)
+ * - Resist subjugation (pay gold tribute)
+ * - Rebellion (break free after 3 idle days)
  * - Crusade, Schism, and Plague combat actions
  * - Akashic log feed
  */
@@ -19,36 +22,39 @@ let sharedState = null
 function createVassalageState() {
   const economy = useEconomy()
 
-  // -- Vassalage state --
-  const suzerain = ref(null) // { id, username, faith } or null if free
-  const vassals = ref([]) // array of { id, username, faith }
+  const suzerain = ref(null)
+  const vassals = ref([])
   const vassalCount = ref(0)
   const dailyTithes = ref({ mana_per_day: 0, gold_per_day: 0, food_per_day: 0 })
-  const isProtected = ref(false) // divine shield active
-  const chainDepth = ref(0) // 0 = free, 1 = vassal of free player, etc.
+  const isProtected = ref(false)
+  const chainDepth = ref(0)
 
-  // -- Akashic logs --
+  // Exodus 1: Subjugation timers
+  const subjugationAsLiege = ref([])
+  const subjugationAsVassal = ref([])
+
+  // Akashic logs
   const akashicLogs = ref([])
   const logsLoading = ref(false)
 
-  // -- Combat state --
+  // Combat state (legacy)
   const crusadeLoading = ref(false)
   const schismLoading = ref(false)
   const plagueLoading = ref(false)
   const combatResult = ref(null)
   const combatError = ref(null)
 
-  // -- Loading / error --
+  // Subjugation actions
+  const subjugating = ref(false)
+  const resisting = ref(false)
+  const rebelling = ref(false)
+
   const loading = ref(false)
   const error = ref(null)
 
-  // Computed: Is the player currently a vassal?
   const isVassal = computed(() => suzerain.value !== null && suzerain.value !== undefined)
-
-  // Computed: Does the player have any vassals?
   const hasVassals = computed(() => vassalCount.value > 0)
 
-  // Computed: Total daily tithes as formatted string
   const totalTithesPerDay = computed(() => {
     const t = dailyTithes.value
     const parts = []
@@ -58,7 +64,6 @@ function createVassalageState() {
     return parts.length > 0 ? parts.join(', ') : 'none'
   })
 
-  // Computed: Schism cost (exponential scaling)
   const schismCost = computed(() => {
     const baseCost = 100
     const scalingFactor = 2
@@ -66,7 +71,6 @@ function createVassalageState() {
     return Math.floor(baseCost * Math.pow(scalingFactor, count))
   })
 
-  // Computed: Crusade attack power estimate
   const crusadeAttackPower = computed(() => {
     const mana = economy.mana || 0
     const clericCount = economy.buildingCounts?.cleric || 0
@@ -74,14 +78,12 @@ function createVassalageState() {
     return Math.max(1, mana) + (clericCount * ratingPerCleric)
   })
 
-  // Computed: Defense power estimate
   const defensePower = computed(() => {
     const churchCount = economy.buildingCounts?.church || 0
     const cathedralCount = economy.buildingCounts?.cathedral || 0
     return (churchCount * 15) + (cathedralCount * 40)
   })
 
-  // Computed: Divine shield remaining time
   const divineShieldRemaining = computed(() => {
     if (!economy.divineShieldUntil) return null
     const until = new Date(economy.divineShieldUntil)
@@ -93,9 +95,10 @@ function createVassalageState() {
     return `${hours}h ${minutes}m`
   })
 
-  /**
-   * Fetch full vassalage info from RPC
-   */
+  // Exodus 1: Subjugation threat level
+  const isBeingSubjugated = computed(() => subjugationAsVassal.value.length > 0)
+  const isSubjugatingSomeone = computed(() => subjugationAsLiege.value.length > 0)
+
   async function fetchVassalageInfo() {
     try {
       loading.value = true
@@ -112,6 +115,9 @@ function createVassalageState() {
         dailyTithes.value = data.daily_tithes || { mana_per_day: 0, gold_per_day: 0, food_per_day: 0 }
         isProtected.value = data.is_protected || false
         chainDepth.value = data.chain_depth || 0
+        // Exodus 1: Subjugation timers from updated RPC
+        subjugationAsLiege.value = data.subjugation_as_liege || []
+        subjugationAsVassal.value = data.subjugation_as_vassal || []
       }
     } catch (err) {
       error.value = err.message
@@ -122,8 +128,86 @@ function createVassalageState() {
   }
 
   /**
-   * Launch a crusade against a target player
+   * Start or advance subjugation timer against a target
    */
+  async function startSubjugation(targetId) {
+    try {
+      subjugating.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('start_subjugation', {
+        p_target_id: targetId,
+      })
+
+      if (rpcError) throw rpcError
+
+      await fetchVassalageInfo()
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[useVassalage] Subjugation error:', err)
+      throw err
+    } finally {
+      subjugating.value = false
+    }
+  }
+
+  /**
+   * Resist subjugation: pay 1000 Gold to reduce timer by 24 hours
+   */
+  async function resistSubjugation(liegeId) {
+    try {
+      resisting.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('resist_subjugation', {
+        p_liege_id: liegeId,
+      })
+
+      if (rpcError) throw rpcError
+
+      await Promise.all([
+        fetchVassalageInfo(),
+        economy.fetchEconomy(),
+      ])
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[useVassalage] Resist error:', err)
+      throw err
+    } finally {
+      resisting.value = false
+    }
+  }
+
+  /**
+   * Attempt rebellion: break free if liege hasn't attacked for 3+ days
+   */
+  async function attemptRebellion() {
+    try {
+      rebelling.value = true
+      error.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('attempt_rebellion')
+
+      if (rpcError) throw rpcError
+
+      await Promise.all([
+        fetchVassalageInfo(),
+        economy.fetchEconomy(),
+      ])
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[useVassalage] Rebellion error:', err)
+      throw err
+    } finally {
+      rebelling.value = false
+    }
+  }
+
   async function launchCrusade(targetId) {
     try {
       crusadeLoading.value = true
@@ -138,7 +222,6 @@ function createVassalageState() {
 
       combatResult.value = { type: 'crusade', ...data }
 
-      // Refresh economy and vassalage state
       await Promise.all([
         economy.fetchEconomy(),
         fetchVassalageInfo()
@@ -154,9 +237,6 @@ function createVassalageState() {
     }
   }
 
-  /**
-   * Declare schism - break free from suzerain
-   */
   async function declareSchism() {
     try {
       schismLoading.value = true
@@ -169,7 +249,6 @@ function createVassalageState() {
 
       combatResult.value = { type: 'schism', ...data }
 
-      // Refresh economy and vassalage state
       await Promise.all([
         economy.fetchEconomy(),
         fetchVassalageInfo()
@@ -185,9 +264,6 @@ function createVassalageState() {
     }
   }
 
-  /**
-   * Cast plague on a target player
-   */
   async function castPlague(targetId) {
     try {
       plagueLoading.value = true
@@ -202,7 +278,6 @@ function createVassalageState() {
 
       combatResult.value = { type: 'plague', ...data }
 
-      // Refresh economy
       await economy.fetchEconomy()
 
       return data
@@ -215,9 +290,6 @@ function createVassalageState() {
     }
   }
 
-  /**
-   * Fetch akashic logs for this player
-   */
   async function fetchAkashicLogs(limit = 50, offset = 0) {
     try {
       logsLoading.value = true
@@ -239,9 +311,6 @@ function createVassalageState() {
     }
   }
 
-  /**
-   * Look up a player by username (for targeting crusades/plagues)
-   */
   async function lookupPlayer(username) {
     try {
       const { data, error: rpcError } = await supabase.rpc('lookup_player', {
@@ -256,16 +325,12 @@ function createVassalageState() {
     }
   }
 
-  /**
-   * Clear combat result/error state
-   */
   function clearCombatState() {
     combatResult.value = null
     combatError.value = null
   }
 
   return reactive({
-    // Vassalage state
     suzerain,
     vassals,
     vassalCount,
@@ -279,24 +344,31 @@ function createVassalageState() {
     crusadeAttackPower,
     defensePower,
     divineShieldRemaining,
-
-    // Akashic logs
+    // Exodus 1: Subjugation
+    subjugationAsLiege,
+    subjugationAsVassal,
+    isBeingSubjugated,
+    isSubjugatingSomeone,
+    subjugating,
+    resisting,
+    rebelling,
+    // Akashic
     akashicLogs,
     logsLoading,
-
-    // Combat state
+    // Legacy combat
     crusadeLoading,
     schismLoading,
     plagueLoading,
     combatResult,
     combatError,
-
     // General
     loading,
     error,
-
     // Methods
     fetchVassalageInfo,
+    startSubjugation,
+    resistSubjugation,
+    attemptRebellion,
     launchCrusade,
     declareSchism,
     castPlague,

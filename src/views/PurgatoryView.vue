@@ -76,6 +76,89 @@
         </div>
       </div>
 
+      <!-- Exodus 1: Direct PvP Combat -->
+      <div class="glass-panel glass-panel-strong glass-gloss evil-purgatory-indulgence mb-6 p-6 sm:p-7">
+        <h2 class="text-3xl font-semibold text-theme-accent-light">Direct Combat</h2>
+        <p class="mt-2 text-sm text-theme-text-dim">
+          Challenge another monk to combat. Attack anyone — but betraying allies or your own faction carries severe consequences.
+        </p>
+
+        <!-- Player Lookup -->
+        <div class="mt-4 flex flex-col sm:flex-row gap-3">
+          <input
+            v-model="combatTargetName"
+            type="text"
+            placeholder="Enter target username..."
+            class="form-field px-4 py-3 flex-1"
+          />
+          <button
+            @click="handleLookupPlayer"
+            :disabled="!combatTargetName.trim() || combat.lookingUp"
+            class="btn-secondary px-4 py-2"
+          >
+            {{ combat.lookingUp ? 'Looking...' : 'Find' }}
+          </button>
+        </div>
+
+        <!-- Lookup Results -->
+        <div v-if="lookupResults.length > 0" class="mt-3 space-y-2">
+          <div
+            v-for="player in lookupResults"
+            :key="player.id"
+            class="flex items-center justify-between p-3 rounded-[16px] border border-theme-border/50 bg-theme-panel/30"
+          >
+            <div>
+              <div class="font-medium text-theme-text text-sm">{{ player.username }}</div>
+              <div class="text-xs text-theme-text-muted">{{ player.faith || 'No faith' }}</div>
+            </div>
+            <button
+              @click="handleAttack(player.id, player.username)"
+              :disabled="combat.initiating"
+              class="btn-danger px-4 py-2 text-sm"
+            >
+              {{ combat.initiating ? 'Attacking...' : 'Attack' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Betrayal Notice -->
+        <div v-if="combat.lastResult?.betrayal" class="mt-3 rounded-[16px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark">
+          You have betrayed your {{ combat.lastResult.faction_relation === 'own_faction' ? 'own faction' : 'allies' }}!
+          Ban: {{ combat.lastResult.ban_minutes }} min. Karma: {{ combat.lastResult.karma_penalty }}
+        </div>
+
+        <!-- Active Combats -->
+        <div v-if="combat.activeCombats.length > 0" class="mt-4 space-y-3">
+          <h3 class="text-sm font-semibold text-theme-text-muted uppercase tracking-[0.12em]">Active Combats</h3>
+          <div
+            v-for="c in combat.activeCombats"
+            :key="c.session_id"
+            class="p-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/5"
+          >
+            <div class="flex items-center justify-between mb-2">
+              <div class="font-medium text-theme-text text-sm">
+                vs. {{ c.is_attacker ? c.defender_name : c.attacker_name }}
+              </div>
+              <span class="chip text-xs" :class="c.result ? '' : 'status-chip'">
+                {{ c.result || 'Active' }}
+              </span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-xs text-theme-text-muted">
+              <div>Your Mana: <span class="font-semibold text-blue-400">{{ c.is_attacker ? c.attacker_mana : c.defender_mana }}</span></div>
+              <div>Enemy Mana: <span class="font-semibold text-red-400">{{ c.is_attacker ? c.defender_mana : c.attacker_mana }}</span></div>
+              <div>Your Workers: <span class="font-semibold">{{ c.is_attacker ? c.attacker_workers : c.defender_workers }}</span></div>
+              <div>Tick {{ c.ticks_total - c.ticks_remaining }}/{{ c.ticks_total }}</div>
+            </div>
+            <div class="mt-2 text-xs text-yellow-500">
+              Gold Stolen: {{ c.gold_stolen || 0 }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Combat Error -->
+        <div v-if="combat.error" class="mt-3 text-xs text-theme-purgatory-dark">{{ combat.error }}</div>
+      </div>
+
       <!-- Error Message -->
       <div v-if="banTimer.error" class="evil-alert evil-alert--danger mb-6 p-3 text-sm text-theme-purgatory-dark">
         {{ banTimer.error }}
@@ -106,14 +189,20 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useBanTimer } from '@/composables/useBanTimer'
 import { usePrayers } from '@/composables/usePrayers'
 import { useAuth } from '@/composables/useAuth'
+import { useCombat } from '@/composables/useCombat'
+import { useVassalage } from '@/composables/useVassalage'
 import { supabase } from '@/lib/supabase'
 
 const banTimer = useBanTimer()
 const prayers = usePrayers()
 const auth = useAuth()
+const combat = useCombat()
+const vassalage = useVassalage()
 const showingAd = ref(false)
 const rejectionReason = ref(null)
 const intercessoryCount = ref(0)
+const combatTargetName = ref('')
+const lookupResults = ref([])
 
 let countPollInterval = null
 
@@ -144,6 +233,9 @@ onMounted(async () => {
 
   // Poll intercessory count every 30 seconds
   countPollInterval = setInterval(fetchIntercessoryCount, 30000)
+
+  // Start polling active combats
+  combat.startPolling()
 })
 
 onUnmounted(() => {
@@ -151,6 +243,7 @@ onUnmounted(() => {
     clearInterval(countPollInterval)
     countPollInterval = null
   }
+  combat.stopPolling()
 })
 
 function startIndulgence() {
@@ -170,6 +263,26 @@ async function completeIndulgence() {
 
 async function handleLogout() {
   await auth.signOut()
+}
+
+async function handleLookupPlayer() {
+  if (!combatTargetName.value.trim()) return
+  try {
+    const results = await vassalage.lookupPlayer(combatTargetName.value.trim())
+    lookupResults.value = results || []
+  } catch {
+    lookupResults.value = []
+  }
+}
+
+async function handleAttack(targetId, username) {
+  try {
+    await combat.initiateCombat(targetId)
+    lookupResults.value = []
+    combatTargetName.value = ''
+  } catch {
+    // Error captured in combat.error
+  }
 }
 
 function karmaClass() {
