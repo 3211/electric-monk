@@ -2,13 +2,7 @@ import { ref, reactive } from 'vue'
 import { supabase } from '@/lib/supabase'
 
 /**
- * useHolyWar Composable (Exodus 1 — NEW)
- *
- * Manages Synod-vs-Synod Holy War tick-based combat:
- * - Find target synod by exact text name
- * - Initiate Holy War (leader only, auto-conscripts all members)
- * - Poll active wars for live tick updates
- * - Display collective mana pools, worker counts, gold stolen, tick progress
+ * useHolyWar Composable (Exodus 2 — siege-aware, defense scanner)
  */
 
 let sharedState = null
@@ -21,11 +15,10 @@ function createHolyWarState() {
   const loading = ref(false)
   const error = ref(null)
   const lastResult = ref(null)
+  // Exodus 2: Defense scanner state
+  const defenseIndex = ref(0)
   let pollInterval = null
 
-  /**
-   * Find a synod by exact name (case-insensitive)
-   */
   async function findTarget(name) {
     try {
       finding.value = true
@@ -49,9 +42,6 @@ function createHolyWarState() {
     }
   }
 
-  /**
-   * Initiate a Holy War against a target synod (leader only)
-   */
   async function initiateHolyWar(synodId) {
     try {
       initiating.value = true
@@ -80,9 +70,6 @@ function createHolyWarState() {
     }
   }
 
-  /**
-   * Fetch all active Holy Wars involving the player's synod
-   */
   async function fetchActiveWars() {
     try {
       loading.value = true
@@ -93,6 +80,11 @@ function createHolyWarState() {
       if (rpcError) throw rpcError
 
       activeWars.value = data || []
+
+      // Clamp defenseIndex if wars changed
+      if (defenseIndex.value >= activeWars.value.length) {
+        defenseIndex.value = Math.max(0, activeWars.value.length - 1)
+      }
     } catch (err) {
       error.value = err.message
       console.error('[useHolyWar] Fetch error:', err)
@@ -101,15 +93,23 @@ function createHolyWarState() {
     }
   }
 
-  /**
-   * Start polling active wars every 5 seconds for live tick updates
-   */
+  // Exodus 2: Defense scanner navigation
+  function prevDefense() {
+    if (activeWars.value.length > 0) {
+      defenseIndex.value = (defenseIndex.value - 1 + activeWars.value.length) % activeWars.value.length
+    }
+  }
+
+  function nextDefense() {
+    if (activeWars.value.length > 0) {
+      defenseIndex.value = (defenseIndex.value + 1) % activeWars.value.length
+    }
+  }
+
   function startPolling() {
     stopPolling()
     fetchActiveWars()
-    pollInterval = setInterval(() => {
-      fetchActiveWars()
-    }, 5000)
+    pollInterval = setInterval(() => fetchActiveWars(), 5000)
   }
 
   function stopPolling() {
@@ -124,6 +124,7 @@ function createHolyWarState() {
     activeWars.value = []
     warTarget.value = null
     lastResult.value = null
+    defenseIndex.value = 0
     error.value = null
   }
 
@@ -135,9 +136,12 @@ function createHolyWarState() {
     loading,
     error,
     lastResult,
+    defenseIndex,
     findTarget,
     initiateHolyWar,
     fetchActiveWars,
+    prevDefense,
+    nextDefense,
     startPolling,
     stopPolling,
     resetState,
@@ -145,8 +149,6 @@ function createHolyWarState() {
 }
 
 export function useHolyWar() {
-  if (!sharedState) {
-    sharedState = createHolyWarState()
-  }
+  if (!sharedState) sharedState = createHolyWarState()
   return sharedState
 }

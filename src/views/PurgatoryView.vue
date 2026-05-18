@@ -164,10 +164,10 @@
         {{ banTimer.error }}
       </div>
 
-      <!-- Reason for Ban (if available) -->
-      <div v-if="rejectionReason" class="glass-panel glass-panel-soft glass-gloss evil-purgatory-transgression mt-6 border-theme-purgatory/25 p-5">
-        <p class="text-xs uppercase tracking-[0.18em] text-theme-text-muted">Last Transgression</p>
-        <p class="mt-2 italic text-theme-purgatory-dark">"{{ rejectionReason }}"</p>
+      <!-- Reason for Ban -->
+      <div v-if="banTimer.banReason || rejectionReason" class="glass-panel glass-panel-soft glass-gloss evil-purgatory-transgression mt-6 border-theme-purgatory/25 p-5">
+        <p class="text-xs uppercase tracking-[0.18em] text-theme-text-muted">Ban Reason</p>
+        <p class="mt-2 italic text-theme-purgatory-dark">{{ banTimer.banReason || `"${rejectionReason}"` }}</p>
       </div>
 
       <!-- Logout -->

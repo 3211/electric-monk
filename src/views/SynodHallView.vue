@@ -99,12 +99,12 @@
             </div>
 
             <!-- Privacy Toggle -->
-            <div class="flex items-center gap-3 mb-4">
-              <label class="text-sm text-theme-text-muted">Privacy:</label>
+            <div class="flex items-center gap-2 mb-4">
+              <span class="text-xs text-theme-text-muted">Privacy:</span>
               <button
                 @click="newSynodPrivacy = newSynodPrivacy === 'public' ? 'private' : 'public'"
                 :class="newSynodPrivacy === 'public' ? 'btn-primary' : 'btn-secondary'"
-                class="px-3 py-1 text-xs"
+                class="privacy-btn"
               >
                 {{ newSynodPrivacy === 'public' ? 'Public' : 'Private' }}
               </button>
@@ -162,10 +162,11 @@
                 </div>
                 <button
                   @click="handlePetition(s.id)"
-                  :disabled="synod.petitioning"
+                  :disabled="synod.petitioning || synod.myPetitionSynodId === s.id"
                   class="btn-secondary px-4 py-2 text-sm"
                 >
-                  <span class="relative z-10 font-medium">{{ synod.petitioning ? 'Requesting...' : 'Petition' }}</span>
+                  <span v-if="synod.myPetitionSynodId === s.id" class="relative z-10 font-medium text-theme-text-muted">Pending...</span>
+                  <span v-else class="relative z-10 font-medium">{{ synod.petitioning ? 'Requesting...' : 'Petition' }}</span>
                 </button>
               </div>
             </div>
@@ -222,13 +223,13 @@
             <h3 class="ritual-heading text-xl font-bold text-theme-text mb-4">Synod Settings</h3>
             <div class="space-y-4">
               <!-- Privacy -->
-              <div class="flex items-center gap-3">
-                <span class="text-sm text-theme-text-muted w-24">Privacy:</span>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-theme-text-muted">Privacy:</span>
                 <button
                   @click="handleUpdatePrivacy(synod.synodInfo?.privacy === 'public' ? 'private' : 'public')"
                   :disabled="synod.managing"
                   :class="synod.synodInfo?.privacy === 'public' ? 'btn-primary' : 'btn-secondary'"
-                  class="px-3 py-1 text-xs"
+                  class="privacy-btn"
                 >
                   {{ synod.synodInfo?.privacy === 'public' ? 'Public' : 'Private' }}
                 </button>
@@ -793,6 +794,16 @@ onMounted(() => {
 
 .evil-shell .merged-header-glow {
   background: radial-gradient(circle, rgba(177, 128, 255, 0.24) 0%, rgba(177, 128, 255, 0.1) 42%, transparent 74%);
+}
+
+.privacy-btn {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.65rem;
+  border-radius: 999px;
+  line-height: 1.25;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
 }
 
 @media (max-width: 640px) {

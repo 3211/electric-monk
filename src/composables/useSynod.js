@@ -3,17 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useEconomy } from './useEconomy'
 
 /**
- * useSynod Composable (Exodus 1 Overhaul)
- *
- * Manages the Synod (Alliance) system:
- * - Petition to join (faction-gated, replaces direct join)
- * - Public Synod Browser (faction-filtered)
- * - Create, leave synods
- * - View synod info, members, vault, applicants
- * - Promote, demote, kick members
- * - Declare Holy Wars (via text-input target name)
- * - Privacy toggle, custom message
- * - Applicant queue management (approve/reject)
+ * useSynod Composable (Exodus 2 — petition tracking + applicant polling)
  */
 
 let sharedState = null
@@ -38,6 +28,10 @@ function createSynodState() {
   const searching = ref(false)
   const error = ref(null)
 
+  // Exodus 2: Track which synod the user has a pending petition to
+  const myPetitionSynodId = ref(null)
+  let applicantPollInterval = null
+
   const isLeader = computed(() => {
     if (!synodInfo.value || !economy.user) return false
     return synodInfo.value.leader_id === economy.user?.id
@@ -49,9 +43,16 @@ function createSynodState() {
     return member?.role || null
   })
 
-  /**
-   * Fetch full synod info from RPC (now includes applicants, privacy, custom_message)
-   */
+  const isStewardOrLeader = computed(() => {
+    const role = currentUserRole.value
+    return role === 'leader' || role === 'officer'
+  })
+
+  // Exodus 2: Active war tracking
+  const hasActiveWar = computed(() => {
+    return synodInfo.value?.active_war_id != null || wars.value.length > 0
+  })
+
   async function fetchSynodInfo() {
     try {
       loading.value = true
@@ -70,6 +71,11 @@ function createSynodState() {
           wars.value = data.wars || []
           synodRelics.value = data.synod_relics || []
           applicants.value = data.applicants || []
+
+          // Start applicant polling if leader/steward
+          if (data.my_role === 'leader' || data.my_role === 'officer') {
+            startApplicantPolling()
+          }
         } else {
           synodInfo.value = null
           members.value = []
@@ -77,6 +83,7 @@ function createSynodState() {
           wars.value = []
           synodRelics.value = []
           applicants.value = []
+          stopApplicantPolling()
         }
       }
     } catch (err) {
@@ -87,9 +94,20 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Fetch public Synods matching player's faction or ally (for Synod Browser)
-   */
+  function startApplicantPolling() {
+    stopApplicantPolling()
+    applicantPollInterval = setInterval(() => {
+      fetchSynodInfo()
+    }, 30000)
+  }
+
+  function stopApplicantPolling() {
+    if (applicantPollInterval) {
+      clearInterval(applicantPollInterval)
+      applicantPollInterval = null
+    }
+  }
+
   async function fetchPublicSynods() {
     try {
       browsing.value = true
@@ -108,9 +126,6 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Find a Synod by exact name (for Holy War target selection)
-   */
   async function findSynodByName(name) {
     try {
       searching.value = true
@@ -132,9 +147,6 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Create a new Synod (now with privacy and custom_message)
-   */
   async function createSynod(name, { privacy = 'public', customMessage = null } = {}) {
     try {
       creating.value = true
@@ -163,9 +175,6 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Petition to join a Synod (faction-gated, replaces direct join)
-   */
   async function petitionSynod(synodId) {
     try {
       petitioning.value = true
@@ -176,6 +185,9 @@ function createSynodState() {
       })
 
       if (rpcError) throw rpcError
+
+      // Track petition state
+      myPetitionSynodId.value = synodId
 
       await fetchPublicSynods()
 
@@ -189,9 +201,6 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Leave current Synod
-   */
   async function leaveSynod() {
     try {
       loading.value = true
@@ -200,6 +209,9 @@ function createSynodState() {
       const { data, error: rpcError } = await supabase.rpc('leave_synod')
 
       if (rpcError) throw rpcError
+
+      stopApplicantPolling()
+      myPetitionSynodId.value = null
 
       await Promise.all([
         fetchSynodInfo(),
@@ -216,9 +228,6 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Approve a pending applicant (leader or officer only)
-   */
   async function approveApplicant(userId) {
     try {
       managing.value = true
@@ -245,9 +254,6 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Reject a pending applicant
-   */
   async function rejectApplicant(userId) {
     try {
       managing.value = true
@@ -259,6 +265,8 @@ function createSynodState() {
 
       if (rpcError) throw rpcError
 
+      // If rejecting the user who petitioned us, clear their petition tracking
+      // (We can't easily know this from RPC response, so clear on any reject)
       await fetchSynodInfo()
 
       return data
@@ -271,9 +279,6 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Update Synod privacy (leader only)
-   */
   async function updatePrivacy(privacy) {
     try {
       managing.value = true
@@ -297,9 +302,6 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Update Synod custom message (leader only)
-   */
   async function updateMessage(message) {
     try {
       managing.value = true
@@ -323,9 +325,6 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Promote a synod member (member -> officer -> leader transfer)
-   */
   async function promoteMember(targetUserId) {
     try {
       managing.value = true
@@ -352,9 +351,6 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Demote a synod member (officer -> member)
-   */
   async function demoteMember(targetUserId) {
     try {
       managing.value = true
@@ -381,9 +377,6 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Kick a synod member
-   */
   async function kickMember(targetUserId) {
     try {
       managing.value = true
@@ -410,9 +403,6 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Initiate Holy War on another Synod (leader only, auto-conscripts all members)
-   */
   async function initiateHolyWar(targetSynodId) {
     try {
       declaring.value = true
@@ -435,10 +425,8 @@ function createSynodState() {
     }
   }
 
-  /**
-   * Reset all state (used on sign-out)
-   */
   function resetState() {
+    stopApplicantPolling()
     inSynod.value = false
     synodInfo.value = null
     members.value = []
@@ -447,6 +435,7 @@ function createSynodState() {
     synodRelics.value = []
     applicants.value = []
     publicSynods.value = []
+    myPetitionSynodId.value = null
     error.value = null
   }
 
@@ -469,6 +458,9 @@ function createSynodState() {
     error,
     isLeader,
     currentUserRole,
+    isStewardOrLeader,
+    hasActiveWar,
+    myPetitionSynodId,
     fetchSynodInfo,
     fetchPublicSynods,
     findSynodByName,

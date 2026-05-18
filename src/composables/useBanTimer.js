@@ -2,17 +2,9 @@ import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'
 import { supabase } from '@/lib/supabase'
 
 /**
- * useBanTimer Composable (Singleton Pattern)
- * 
- * Manages the ban timer system for users who submit malicious prayers.
- * - Tracks ban status and countdown
- * - Provides method to watch "Indulgence" ad to reduce ban time
- * - Uses shared state so all components see the same ban status
- * 
- * @returns {Object} Ban timer state and methods
+ * useBanTimer Composable (Exodus 2 — faster polling, ban reason display)
  */
 
-// Shared state — created once, reused by all useBanTimer() calls
 let sharedState = null
 
 function createBanTimerState() {
@@ -21,62 +13,47 @@ function createBanTimerState() {
   const timeRemaining = ref(null)
   const loading = ref(false)
   const error = ref(null)
+  const banReason = ref(null)
   const countdownInterval = ref(null)
   const banPollInterval = ref(null)
 
-  // Computed properties
   const formattedTimeRemaining = computed(() => {
     if (!timeRemaining.value || timeRemaining.value <= 0) return null
-    
     const hours = Math.floor(timeRemaining.value / 3600)
     const minutes = Math.floor((timeRemaining.value % 3600) / 60)
     const seconds = timeRemaining.value % 60
-    
     const parts = []
     if (hours > 0) parts.push(`${hours}h`)
     if (minutes > 0) parts.push(`${minutes}m`)
     parts.push(`${seconds}s`)
-    
     return parts.join(' ')
   })
 
   const canWatchIndulgence = computed(() => isBanned.value && !loading.value)
 
-  /**
-   * Update ban state based on current time
-   */
   function updateBanState() {
     if (!banUntil.value) {
       isBanned.value = false
       timeRemaining.value = null
       return
     }
-
     const now = new Date()
     const banEnd = new Date(banUntil.value)
-    const diff = Math.floor((banEnd - now) / 1000) // seconds
-
+    const diff = Math.floor((banEnd - now) / 1000)
     if (diff > 0) {
       isBanned.value = true
       timeRemaining.value = diff
     } else {
       isBanned.value = false
       timeRemaining.value = null
-      // Auto-clear expired ban
+      banReason.value = null
       clearBan()
     }
   }
 
-  /**
-   * Start countdown timer
-   */
   function startCountdown() {
-    if (countdownInterval.value) {
-      clearInterval(countdownInterval.value)
-    }
-    if (banPollInterval.value) {
-      clearInterval(banPollInterval.value)
-    }
+    if (countdownInterval.value) clearInterval(countdownInterval.value)
+    if (banPollInterval.value) clearInterval(banPollInterval.value)
 
     countdownInterval.value = setInterval(() => {
       updateBanState()
@@ -85,27 +62,26 @@ function createBanTimerState() {
       }
     }, 1000)
 
-    // Poll ban status from database every 30 seconds
-    // This ensures purgatory users see ban reductions from intercessory prayers in real-time
+    // Exodus 2: Poll ban status every 10 seconds (was 30s)
     banPollInterval.value = setInterval(() => {
       if (isBanned.value) {
         checkBanStatus()
+      } else {
+        // Also check even when not banned — catch mid-session bans
+        checkBanStatus()
       }
-    }, 30000)
+    }, 10000)
   }
 
-  /**
-   * Fetch current ban status from profile
-   */
   async function checkBanStatus() {
     try {
       error.value = null
-      
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         banUntil.value = null
         isBanned.value = false
         timeRemaining.value = null
+        banReason.value = null
         return
       }
 
@@ -117,96 +93,80 @@ function createBanTimerState() {
 
       if (profileError) throw profileError
 
+      const wasBanned = isBanned.value
       banUntil.value = profile?.ban_until || null
       updateBanState()
+
+      // Exodus 2: If just got banned mid-session, fetch reason
+      if (!wasBanned && isBanned.value) {
+        await fetchBanReason()
+        // Emit custom event so App.vue can redirect to Purgatory
+        window.dispatchEvent(new CustomEvent('ban-detected', {
+          detail: { reason: banReason.value }
+        }))
+      }
     } catch (err) {
       error.value = err.message
       console.error('[useBanTimer] Check ban status error:', err)
     }
   }
 
-  /**
-   * Clear ban from database (called when timer expires)
-   */
-  async function clearBan() {
+  async function fetchBanReason() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      const { data } = await supabase
+        .from('betrayal_punishments')
+        .select('betrayal_type, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (data && data.length > 0) {
+        const bt = data[0].betrayal_type
+        if (bt === 'ally') banReason.value = 'Attacked ally faction'
+        else if (bt === 'own_faction') banReason.value = 'Attacked own faction'
+        else banReason.value = bt
+      }
+    } catch {
+      banReason.value = null
+    }
+  }
+
+  async function clearBan() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ ban_until: null })
         .eq('id', user.id)
-
       if (updateError) throw updateError
-
       banUntil.value = null
       isBanned.value = false
       timeRemaining.value = null
+      banReason.value = null
     } catch (err) {
       console.error('[useBanTimer] Clear ban error:', err)
     }
   }
 
-  /**
-   * Watch indulgence ad to reduce ban time by 15 minutes
-   */
   async function watchIndulgence() {
     if (!canWatchIndulgence.value) return
-
     try {
       loading.value = true
       error.value = null
-
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('No user logged in')
-
-      // Call the database function to reduce ban time
       const { data, error: rpcError } = await supabase.rpc('reduce_ban_time', {
         p_user_id: user.id
       })
-
       if (rpcError) throw rpcError
-
-      // Refresh ban status after reduction
       await checkBanStatus()
-
       return { success: true, timeRemoved: data }
     } catch (err) {
       error.value = err.message
-      console.error('[useBanTimer] Indulgence error:', err)
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
-
-  /**
-   * Manually set a ban (for testing or admin purposes)
-   * @param {number} hours - Hours to ban for
-   */
-  async function setBan(hours = 2) {
-    try {
-      loading.value = true
-      error.value = null
-
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('No user logged in')
-
-      const banEnd = new Date()
-      banEnd.setHours(banEnd.getHours() + hours)
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ ban_until: banEnd.toISOString() })
-        .eq('id', user.id)
-
-      if (updateError) throw updateError
-
-      await checkBanStatus()
-    } catch (err) {
-      error.value = err.message
-      console.error('[useBanTimer] Set ban error:', err)
       throw err
     } finally {
       loading.value = false
@@ -214,40 +174,21 @@ function createBanTimerState() {
   }
 
   return reactive({
-    // State
-    banUntil,
-    isBanned,
-    timeRemaining,
-    loading,
-    error,
-    // Computed
-    formattedTimeRemaining,
-    canWatchIndulgence,
-    // Methods
-    checkBanStatus,
-    watchIndulgence,
-    setBan,
-    // Lifecycle
-    startCountdown,
-    countdownInterval,
+    banUntil, isBanned, timeRemaining, loading, error, banReason,
+    formattedTimeRemaining, canWatchIndulgence,
+    checkBanStatus, watchIndulgence, fetchBanReason,
+    startCountdown, countdownInterval,
   })
 }
 
-// Module-level flag to ensure initialization happens only once
 let initialized = false
 
 export function useBanTimer() {
-  // Create shared state on first call, reuse on subsequent calls
-  if (!sharedState) {
-    sharedState = createBanTimerState()
-  }
-
-  // Initialize ban check and countdown only once across all component instances
+  if (!sharedState) sharedState = createBanTimerState()
   if (!initialized) {
     initialized = true
     sharedState.checkBanStatus()
     sharedState.startCountdown()
   }
-
   return sharedState
 }

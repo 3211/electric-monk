@@ -1,14 +1,8 @@
-import { ref, reactive } from 'vue'
+import { ref, computed, reactive } from 'vue'
 import { supabase } from '@/lib/supabase'
 
 /**
- * useCombat Composable (Exodus 1 — NEW)
- *
- * Manages direct PvP tick-based combat:
- * - Initiate combat (NO faction block — always allowed)
- * - Betrayal detection handled on the API; composable displays the result
- * - Poll active combats for live tick updates
- * - Display mana bars, worker counts, gold stolen, tick progress
+ * useCombat Composable (Exodus 2 — siege-aware, one-at-a-time)
  */
 
 let sharedState = null
@@ -19,12 +13,15 @@ function createCombatState() {
   const loading = ref(false)
   const error = ref(null)
   const lastResult = ref(null)
+  // Exodus 2: Track our active target
+  const myCombatTargetId = ref(null)
   let pollInterval = null
 
-  /**
-   * Initiate combat against a target player.
-   * No faction filtering — always allowed. API handles betrayal detection.
-   */
+  const isAttacking = computed(() => myCombatTargetId.value !== null)
+  const attackersOnMe = computed(() => activeCombats.value.filter(c => !c.is_attacker))
+  const myAttack = computed(() => activeCombats.value.find(c => c.is_attacker))
+  const hasActiveCombat = computed(() => activeCombats.value.length > 0)
+
   async function initiateCombat(targetId) {
     try {
       initiating.value = true
@@ -40,6 +37,7 @@ function createCombatState() {
       lastResult.value = data
 
       if (data?.success) {
+        myCombatTargetId.value = targetId
         await fetchActiveCombats()
       }
 
@@ -53,9 +51,6 @@ function createCombatState() {
     }
   }
 
-  /**
-   * Fetch all active PvP combats for the current player
-   */
   async function fetchActiveCombats() {
     try {
       loading.value = true
@@ -66,6 +61,14 @@ function createCombatState() {
       if (rpcError) throw rpcError
 
       activeCombats.value = data || []
+
+      // Sync myCombatTargetId: if no active combat where I'm attacker, clear it
+      const myAtk = activeCombats.value.find(c => c.is_attacker)
+      if (!myAtk) {
+        myCombatTargetId.value = null
+      } else if (myAtk.defender_id !== myCombatTargetId.value) {
+        myCombatTargetId.value = myAtk.defender_id
+      }
     } catch (err) {
       error.value = err.message
       console.error('[useCombat] Fetch error:', err)
@@ -74,15 +77,10 @@ function createCombatState() {
     }
   }
 
-  /**
-   * Start polling active combats every 5 seconds for live tick updates
-   */
   function startPolling() {
     stopPolling()
     fetchActiveCombats()
-    pollInterval = setInterval(() => {
-      fetchActiveCombats()
-    }, 5000)
+    pollInterval = setInterval(() => fetchActiveCombats(), 5000)
   }
 
   function stopPolling() {
@@ -96,6 +94,7 @@ function createCombatState() {
     stopPolling()
     activeCombats.value = []
     lastResult.value = null
+    myCombatTargetId.value = null
     error.value = null
   }
 
@@ -105,6 +104,11 @@ function createCombatState() {
     loading,
     error,
     lastResult,
+    myCombatTargetId,
+    isAttacking,
+    attackersOnMe,
+    myAttack,
+    hasActiveCombat,
     initiateCombat,
     fetchActiveCombats,
     startPolling,
@@ -114,8 +118,6 @@ function createCombatState() {
 }
 
 export function useCombat() {
-  if (!sharedState) {
-    sharedState = createCombatState()
-  }
+  if (!sharedState) sharedState = createCombatState()
   return sharedState
 }
