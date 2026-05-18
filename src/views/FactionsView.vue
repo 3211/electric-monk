@@ -400,7 +400,7 @@
 </template>
 
 <script setup>
-import { ref, computed, inject, onMounted, onUnmounted, toRefs } from 'vue'
+import { ref, computed, inject, onMounted, toRefs } from 'vue'
 import { useFactions, FACTION_ICONS, FACTION_NAMES, FACTION_COLORS, formatModifier, getModifierLabel } from '@/composables/useFactions'
 import { useLeaderboard } from '@/composables/useLeaderboard'
 import { useAuth } from '@/composables/useAuth'
@@ -515,9 +515,6 @@ onMounted(async () => {
   autoSelectPlayerFaction()
 })
 
-onUnmounted(() => {
-  if (forceWarTheme) forceWarTheme.value = false
-})
 </script>
 
 <style scoped>
