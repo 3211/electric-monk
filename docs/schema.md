@@ -10,13 +10,13 @@
 | Series | Files | Status |
 |--------|-------|--------|
 | Genesis | `genesis_1` through `genesis_10` + `genesis_9_hotfix` | **CLOSED** (foundation) |
-| Exodus | `exodus_0` | **ACTIVE** |
+| Exodus | `exodus_0` through `exodus_5` | **ACTIVE** |
 
 Run all `.sql` files in lexicographic order to rebuild the full database from scratch.
 
 ---
 
-## Tables (18)
+## Tables (22)
 
 ### `game_config`
 Central balance values. Key-value store read by all RPCs and the cron heartbeat.
@@ -352,6 +352,78 @@ RLS: SELECT public.
 
 ---
 
+### `combat_sessions`
+Tick-based PvP and Holy War combat. Created by [`exodus_1.sql`](supabase/migrations/exodus_1.sql).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `combat_type` | TEXT CHECK | `pvp` or `holy_war` |
+| `attacker_id` | UUID → profiles.id | |
+| `defender_id` | UUID → profiles.id | |
+| `attacker_synod_id` | UUID → synods.id | NULL for PvP |
+| `defender_synod_id` | UUID → synods.id | NULL for PvP |
+| `ticks_total` | INT | Total ticks (4320 = 3d PvP, 10080 = 7d HW) |
+| `ticks_remaining` | INT | Ticks left until stalemate |
+| `attacker_mana` | INT | HP pool for attacker |
+| `defender_mana` | INT | HP pool for defender |
+| `attacker_workers` | INT | DPS per tick for attacker |
+| `defender_workers` | INT | DPS per tick for defender (0 for HW) |
+| `gold_stolen` | INT DEFAULT 0 | Cumulative gold leeched |
+| `gold_spent` | INT DEFAULT 0 | Cumulative gold spent on ticks |
+| `started_at` | TIMESTAMPTZ | |
+| `last_tick_at` | TIMESTAMPTZ | Last heartbeat tick |
+| `is_active` | BOOLEAN DEFAULT true | |
+| `result` | TEXT CHECK | `attacker_win`, `defender_win`, `stalemate` |
+
+RLS: Participants can view. Synod members can view holy wars.
+
+---
+
+### `subjugation_timers`
+168-hour vassalage countdown. Created by [`exodus_1.sql`](supabase/migrations/exodus_1.sql).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `liege_id` | UUID → profiles.id | |
+| `vassal_id` | UUID → profiles.id | |
+| `accumulated_hours` | NUMERIC DEFAULT 0 | At 168, target becomes vassal |
+| `last_attack_at` | TIMESTAMPTZ | |
+| `created_at` | TIMESTAMPTZ | |
+
+UNIQUE(liege_id, vassal_id). RLS: Participants can view.
+
+---
+
+### `synod_applicants`
+Petition queue for joining synods. Created by [`exodus_1.sql`](supabase/migrations/exodus_1.sql).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `user_id` | UUID → profiles.id | |
+| `synod_id` | UUID → synods.id | |
+| `created_at` | TIMESTAMPTZ | |
+
+RLS: Users see own applications. Synod leaders/officers see apps to their synod.
+
+---
+
+### `pending_bans`
+Deferred ban application queue. Created by [`exodus_2.sql`](supabase/migrations/exodus_2.sql).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `user_id` | UUID → profiles.id | |
+| `ban_until` | TIMESTAMPTZ | |
+| `ban_reason` | TEXT | |
+| `applied` | BOOLEAN DEFAULT false | |
+| `created_at` | TIMESTAMPTZ | |
+
+---
+
 ## RPC Functions
 
 ### Prayer Management
@@ -388,10 +460,21 @@ RLS: SELECT public.
 ### Vassalage & Combat
 | Function | Returns | Notes |
 |----------|---------|-------|
-| `get_vassalage_info()` | JSONB | Suzerain, vassals, tithes, chain depth |
-| `launch_crusade(UUID)` | JSONB | v2: acre theft, LIFO ruin, sect/relic/war bonuses |
+| `get_vassalage_info()` | JSONB | Suzerain, vassals, tithes, chain depth, subjugation timers |
+| `initiate_combat(UUID)` | JSONB | Exodus 5: tick-based siege (3-day PvP, 7-day HW). Workers=DPS, mana=HP |
+| `get_active_combats()` | JSONB | All active PvP sieges for current player |
+| `cancel_combat(UUID)` | JSONB | Exodus 5: attacker withdraws at 50% remaining gold + -5 karma |
+| `surrender_combat(UUID)` | JSONB | Exodus 5: defender gives up, becomes vassal (PvP) or synod destroyed (HW) |
+| `initiate_holy_war(UUID)` | JSONB | Synod leader only. Sums all members' mana + workers for siege |
+| `get_active_holy_wars()` | JSONB | All active Holy Wars for player's synod |
+| `process_holy_war_tick(UUID)` | JSONB | Called by heartbeat. Damage, attrition, leech per tick |
+| `vanquish_synod(UUID, UUID)` | JSONB | Destroy defeated synod, scatter members, transfer relics, loot gold |
+| `start_subjugation(UUID)` | JSONB | Start/advance 168-hour subjugation timer against target |
+| `resist_subjugation(UUID)` | JSONB | Pay 1000 Gold -> reduce subjugation timer by 24 hours |
+| `attempt_rebellion()` | JSONB | Break free if liege hasn't attacked in 3+ days |
+| `launch_crusade(UUID)` | JSONB | **DEPRECATED** -- use initiate_combat. Instant dice-roll with acre theft |
 | `declare_schism()` | JSONB | Escalating heresy cost, 24h shield |
-| `cast_plague(UUID)` | JSONB | Zeroes target food |
+| `cast_plague(UUID)` | JSONB | Zeroes target food (anonymous, costs heresy) |
 | `launch_inquisition(UUID)` | JSONB | Reveals heresy + miracles, assassinates worker |
 | `get_akashic_logs(INT, INT)` | JSONB | Paginated combat logs |
 | `lookup_player(TEXT)` | JSONB | Find user by username for targeting |
@@ -399,13 +482,14 @@ RLS: SELECT public.
 ### Synods
 | Function | Returns | Notes |
 |----------|---------|-------|
-| `create_synod(TEXT)` | JSONB | Costs gold |
-| `join_synod(UUID)` | JSONB | |
+| `create_synod(TEXT)` | JSONB | Costs gold, sets sect_key from founder's faction |
+| `join_synod(UUID)` | JSONB | Faction-gated via petition/approval |
 | `leave_synod()` | JSONB | Promotes oldest member if leader |
-| `declare_holy_war(UUID)` | JSONB | Leader only, 48h, +20% attack |
-| `get_synod_info()` | JSONB | Full synod state with members, roles, wars, relics |
-| `promote_member(UUID)` | JSONB | Leader → officer |
-| `demote_member(UUID)` | JSONB | Officer → member |
+| `initiate_holy_war(UUID)` | JSONB | Synod leader only. Exodus 5: 7-day siege, per-tick combat |
+| `find_synod_by_name(TEXT)` | JSONB | Exact name match for war targeting |
+| `get_synod_info()` | JSONB | Full synod state with members, roles, wars, relics, applicants |
+| `promote_member(UUID)` | JSONB | Leader -> officer |
+| `demote_member(UUID)` | JSONB | Officer -> member |
 | `kick_member(UUID)` | JSONB | Remove from synod |
 
 ### Research
@@ -454,7 +538,7 @@ RLS: SELECT public.
 |----------|---------|----------|
 | `calculate_automated_karma()` | VOID | Every minute (`prayer-heartbeat`) |
 
-5 phases: (1) karma milestones, (2) resource generation + sect modifiers + relic bonuses, (3) synod vault deposits, (4) expire timed effects, (5) process Divine Architect queue.
+9 phases: (1) karma milestones, (2) resource generation + sect/relic bonuses + tithes, (3) synod vault deposits, (4) expire timed effects, (5) Divine Architect queue, (6) combat ticks (PvP + Holy War), (7) subjugation timer advance, (8) vassal tithes + liege karma, (9) apply pending bans.
 
 ---
 
