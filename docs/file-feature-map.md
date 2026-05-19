@@ -10,10 +10,10 @@
 |------|-----------|---------|
 | [`LoginView.vue`](../src/views/LoginView.vue) | Unauthenticated | Google OAuth + email/password signup/login |
 | [`AltarView.vue`](../src/views/AltarView.vue) | "Altar" tab | Main prayer interface — submit, cycle prayers, resource bar |
-| [`AkashicRecordsView.vue`](../src/views/AkashicRecordsView.vue) | "Records" tab | Public prayer feed + sinners list, altruistic/intercessory praying |
+| [`AkashicRecordsView.vue`](../src/views/AkashicRecordsView.vue) | "Records" tab | Public prayer feed + sinners list + shouts (global/sect), altruistic/intercessory praying |
 | [`FactionsView.vue`](../src/views/FactionsView.vue) | "Factions" tab | Diamond layout showing 4 factions + relationships |
 | [`VaticanView.vue`](../src/views/VaticanView.vue) | "Vatican" tab | Vassalage management + siege combat + subjugation + combat log |
-| [`SynodHallView.vue`](../src/views/SynodHallView.vue) | "Synod Hall" tab | Guild management, members, vault, holy war |
+| [`SynodHallView.vue`](../src/views/SynodHallView.vue) | "Synod Hall" tab | Guild management, members, vault, forum, holy war |
 | [`ScriptoriumView.vue`](../src/views/ScriptoriumView.vue) | "Scriptorium" tab | Light/dark tech tree with prerequisite lines |
 | [`KarmaShopView.vue`](../src/views/KarmaShopView.vue) | "Shop" tab | Real Estate, Workforce, Blessings, Infrastructure tabs |
 | [`ReliquaryView.vue`](../src/views/ReliquaryView.vue) | "Reliquary" tab | 10 global relics with holders + steal progress |
@@ -49,12 +49,14 @@
 | [`useLeaderboard.js`](../src/composables/useLeaderboard.js) | profiles | `get_leaderboard_by_faith`, `get_user_ranks` |
 | [`useOnboarding.js`](../src/composables/useOnboarding.js) | profiles | `choose_sect`, `change_username` |
 | [`useBanTimer.js`](../src/composables/useBanTimer.js) | profiles, indulgences | `reduce_ban_time` |
+| [`useShouts.js`](../src/composables/useShouts.js) | shouts, shout_replies, shout_blessings | `submit_shout`, `submit_shout_reply`, `get_shouts`, `get_shout_replies`, `grant_shout_blessing` |
 
 ## Components → What They Render
 
 | Component | Type | Purpose |
 |-----------|------|---------|
 | [`OnboardingWizard.vue`](../src/components/organisms/OnboardingWizard.vue) | Organism | 4-step onboarding: AI welcome → identity → faction intro → first prayer |
+| [`ShoutDetailModal.vue`](../src/components/organisms/ShoutDetailModal.vue) | Organism | Full shout detail with replies, reply form, and inline blessing picker |
 | [`SectSelectionModal.vue`](../src/components/organisms/SectSelectionModal.vue) | Organism | Faction picker with lore + modifiers |
 | [`AkashicPrayerCard.vue`](../src/components/organisms/AkashicPrayerCard.vue) | Organism | Public prayer card with blessing badges |
 | [`SinnerCard.vue`](../src/components/organisms/SinnerCard.vue) | Organism | Purgatory user card with countdown |
@@ -66,6 +68,7 @@
 | [`KarmaToast.vue`](../src/components/molecules/KarmaToast.vue) | Molecule | Karma milestone notification |
 | [`MiracleBuffBar.vue`](../src/components/molecules/MiracleBuffBar.vue) | Molecule | Active miracle indicators |
 | [`ShieldTimer.vue`](../src/components/molecules/ShieldTimer.vue) | Molecule | Divine shield countdown |
+| [`ShoutCard.vue`](../src/components/molecules/ShoutCard.vue) | Molecule | Shout card with author, crier content, blessings, reply count |
 
 ## Edge Functions
 

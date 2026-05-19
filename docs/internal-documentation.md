@@ -21,10 +21,10 @@ Holy War Online (Formerly Electric Monk) is a theological PBBG (Persistent Brows
 |------|-----------|---------|
 | [`LoginView.vue`](src/views/LoginView.vue) | Unauthenticated | Google OAuth + email/password signup/login |
 | [`AltarView.vue`](src/views/AltarView.vue) | "Altar" tab | Main prayer interface — submit, cycle prayers, resource bar |
-| [`AkashicRecordsView.vue`](src/views/AkashicRecordsView.vue) | "Records" tab | Public prayer feed + sinners list, altruistic/intercessory praying |
+| [`AkashicRecordsView.vue`](src/views/AkashicRecordsView.vue) | "Records" tab | Public prayer feed + sinners list + shouts (global/sect), altruistic/intercessory praying |
 | [`FactionsView.vue`](src/views/FactionsView.vue) | "Factions" tab | Diamond layout showing 4 factions + relationships |
 | [`VaticanView.vue`](src/views/VaticanView.vue) | "Vatican" tab | Vassalage management + siege combat + subjugation + combat log |
-| [`SynodHallView.vue`](src/views/SynodHallView.vue) | "Synod Hall" tab | Guild management, members, vault, holy war |
+| [`SynodHallView.vue`](src/views/SynodHallView.vue) | "Synod Hall" tab | Guild management, members, vault, forum, holy war |
 | [`ScriptoriumView.vue`](src/views/ScriptoriumView.vue) | "Scriptorium" tab | Light/dark tech tree with prerequisite lines |
 | [`KarmaShopView.vue`](src/views/KarmaShopView.vue) | "Shop" tab | Real Estate, Workforce, Blessings, Infrastructure tabs |
 | [`ReliquaryView.vue`](src/views/ReliquaryView.vue) | "Reliquary" tab | 10 global relics with holders + steal progress |
@@ -60,6 +60,7 @@ Holy War Online (Formerly Electric Monk) is a theological PBBG (Persistent Brows
 | [`useLeaderboard.js`](src/composables/useLeaderboard.js) | profiles | `get_leaderboard_by_faith`, `get_user_ranks` |
 | [`useOnboarding.js`](src/composables/useOnboarding.js) | profiles | `choose_sect`, `change_username` |
 | [`useBanTimer.js`](src/composables/useBanTimer.js) | profiles, indulgences | `reduce_ban_time` |
+| [`useShouts.js`](src/composables/useShouts.js) | shouts, shout_replies, shout_blessings | `submit_shout`, `submit_shout_reply`, `get_shouts`, `get_shout_replies`, `grant_shout_blessing` |
 
 ### Components → What They Render
 
@@ -73,7 +74,9 @@ Holy War Online (Formerly Electric Monk) is a theological PBBG (Persistent Brows
 | [`BlessingDetailModal.vue`](src/components/organisms/BlessingDetailModal.vue) | Organism | Full blessing breakdown popup |
 | [`PrayerHistoryModal.vue`](src/components/organisms/PrayerHistoryModal.vue) | Organism | User's prayer history |
 | [`UsernameChangeModal.vue`](src/components/organisms/UsernameChangeModal.vue) | Organism | Username change with cooldown |
+| [`ShoutDetailModal.vue`](src/components/organisms/ShoutDetailModal.vue) | Organism | Full shout detail with replies, reply form, and inline blessing picker |
 | [`BlessingBadgeBar.vue`](src/components/molecules/BlessingBadgeBar.vue) | Molecule | Emoji badge bar with overflow |
+| [`ShoutCard.vue`](src/components/molecules/ShoutCard.vue) | Molecule | Shout card with author, crier content, blessings, reply count |
 | [`KarmaToast.vue`](src/components/molecules/KarmaToast.vue) | Molecule | Karma milestone notification |
 | [`MiracleBuffBar.vue`](src/components/molecules/MiracleBuffBar.vue) | Molecule | Active miracle indicators |
 | [`ShieldTimer.vue`](src/components/molecules/ShieldTimer.vue) | Molecule | Divine shield countdown |
@@ -85,6 +88,7 @@ Holy War Online (Formerly Electric Monk) is a theological PBBG (Persistent Brows
 | `process-prayer` | Prayer submitted | Venice AI validates + responds. Applies karma (+1 approved / -1 rejected), bans on rejection |
 | `pray-for-sinner` | Intercessory prayer started | Venice AI generates intercessory prayer text for the sinner |
 | `generate-onboarding-content` | Onboarding steps | AI-generated welcome message, faction intro, prayer suggestion |
+| `town-crier` | Shout/reply submitted | Faction-appropriate message translation. Accepts `shout_id` or `reply_id` to update DB. Soft-censors slurs/threats/doxxing. |
 
 ---
 
@@ -138,9 +142,19 @@ New signups receive: altar (mana), pot (food), novice (gold), 25 sacred acres, 1
 Blessings grant Divine Shield protection to both giver and receiver (duration = karma cost × shield_minutes_per_karma from game_config).
 
 ### Akashic Records
-Two sub-tabs:
+Three sub-tabs:
 - **Prayers**: All approved completed prayers, sortable by newest/most_prayed, paginated. Shows blessing badges
+- **Shouts**: Social messages filtered through the Town Crier. Two sub-filters: Global (all shouts) and My Sect (same sect only). Shouts cost 100 gold, replies cost 50 gold. Blessable like prayers.
 - **Sinners**: Users in purgatory with rejection reason, live countdown. Players can pray intercessorially to reduce ban time
+
+### Social Messaging (Shouts)
+- **Global Shouts**: Cost 100 gold (personal). Visible to all. Filterable by sect (`My Sect` sub-tab shows only same-sect shouts)
+- **Synod Forum**: Private to synod members. Leader/officers: 50 gold from vault. Members: 100 gold personal. New tab in Synod Hall
+- **Replies**: Cost 50 gold (personal). Each reply is filtered through the Town Crier. Replies are blessable
+- **Blessings**: Same 4 blessing types as prayers (Golden Light, Holy Flame, Dove of Peace, Divine Crown). Applied to shouts or replies
+- **Permanence**: Shouts and replies cannot be deleted — the Akashic Record is permanent
+- **Town Crier**: Edge function (`town-crier`) translates user input into faction-appropriate language, soft-censors slurs/threats/doxxing
+- **Pricing**: Configurable via `game_config` keys: `shout.global_cost`, `shout.reply_cost`, `shout.synod_leader_cost`, `shout.synod_member_cost`
 
 ### Factions (Sects)
 Four one-time-choice factions with asymmetric modifiers:

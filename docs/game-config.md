@@ -19,3 +19,7 @@ All balance values live in `game_config` table. Change a row to rebalance — no
 - `tick.production_divisor` — per-day to per-minute conversion (currently 1440)
 - `indulgence.*` — premium config
 - `shop.cost_scaling_multiplier` — exponential building cost
+- `shout.global_cost` — gold cost for a global shout (default 100)
+- `shout.reply_cost` — gold cost for a shout reply (default 50)
+- `shout.synod_leader_cost` — gold cost for synod leader/officer shout, billed to vault (default 50)
+- `shout.synod_member_cost` — gold cost for synod member shout, personal gold (default 100)

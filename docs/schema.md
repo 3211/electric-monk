@@ -1,7 +1,7 @@
 # Electric Monk — Database Schema
 
-**Authority source:** Migration files in [`supabase/migrations/`](supabase/migrations/) (idempotent, run in lexicographic order to rebuild).  
-**Last updated:** 2026-05-18
+**Authority source:** Migration files in [`supabase/migrations/`](supabase/migrations/) (idempotent, run in lexicographic order to rebuild).
+**Last updated:** 2026-05-19
 
 ---
 
@@ -10,13 +10,13 @@
 | Series | Files | Status |
 |--------|-------|--------|
 | Genesis | `genesis_1` through `genesis_10` + `genesis_9_hotfix` | **CLOSED** (foundation) |
-| Exodus | `exodus_0` through `exodus_5` | **ACTIVE** |
+| Exodus | `exodus_0` through `exodus_6` | **ACTIVE** |
 
 Run all `.sql` files in lexicographic order to rebuild the full database from scratch.
 
 ---
 
-## Tables (22)
+## Tables (25)
 
 ### `game_config`
 Central balance values. Key-value store read by all RPCs and the cron heartbeat.
@@ -424,6 +424,60 @@ Deferred ban application queue. Created by [`exodus_2.sql`](supabase/migrations/
 
 ---
 
+### `shouts`
+Social messages filtered through the Town Crier. Created by [`exodus_6.sql`](supabase/migrations/exodus_6.sql).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `user_id` | UUID → profiles.id | |
+| `content` | TEXT | Original user text |
+| `crier_content` | TEXT | Town Crier translated text |
+| `context` | TEXT CHECK | `global` or `synod` |
+| `synod_id` | UUID → synods.id | NULL for global shouts |
+| `sect_type` | TEXT CHECK | Set for global shouts (sect filtering) |
+| `status` | TEXT CHECK | `pending`, `posted`, `failed` |
+| `created_at` | TIMESTAMPTZ | |
+| `updated_at` | TIMESTAMPTZ | |
+
+RLS: SELECT public. INSERT own. No UPDATE/DELETE (permanent record).
+
+---
+
+### `shout_replies`
+Threaded replies to shouts. Created by [`exodus_6.sql`](supabase/migrations/exodus_6.sql).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `shout_id` | UUID → shouts.id | |
+| `user_id` | UUID → profiles.id | |
+| `content` | TEXT | Original user text |
+| `crier_content` | TEXT | Town Crier translated text |
+| `status` | TEXT CHECK | `pending`, `posted`, `failed` |
+| `created_at` | TIMESTAMPTZ | |
+
+RLS: SELECT public. INSERT own. No UPDATE/DELETE (permanent record).
+
+---
+
+### `shout_blessings`
+Blessings placed on shouts or replies. Reuses `blessing_types`. Created by [`exodus_6.sql`](supabase/migrations/exodus_6.sql).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `shout_id` | UUID → shouts.id | |
+| `reply_id` | UUID → shout_replies.id | NULL for shout-level blessing |
+| `blessing_type_id` | TEXT → blessing_types.id | |
+| `giver_id` | UUID → profiles.id | |
+| `receiver_id` | UUID → profiles.id | |
+| `created_at` | TIMESTAMPTZ | |
+
+UNIQUE(shout_id, COALESCE(reply_id, nil), blessing_type_id, giver_id). RLS: SELECT public. INSERT own.
+
+---
+
 ## RPC Functions
 
 ### Prayer Management
@@ -510,6 +564,16 @@ Deferred ban application queue. Created by [`exodus_2.sql`](supabase/migrations/
 |----------|---------|-------|
 | `consume_indulgence(TEXT)` | JSONB | `papal_bull` or `divine_architect` |
 
+### Social Messaging (Shouts)
+| Function | Returns | Notes |
+|----------|---------|-------|
+| `submit_shout(TEXT, TEXT)` | JSONB | Post a shout. Deducts gold (100 global, 50 vault for leaders, 100 personal for members). Creates pending row. |
+| `submit_shout_reply(UUID, TEXT)` | JSONB | Reply to a shout. Deducts 50 gold. Creates pending row. |
+| `get_shouts(INT, INT, TEXT)` | JSONB | Paginated shout feed. Filter: `global`, `sect`, `synod`. Includes author info + blessings + reply count. |
+| `get_shout_replies(UUID, INT, INT)` | JSONB | Shout detail with paginated replies + blessing aggregates. |
+| `grant_shout_blessing(UUID, TEXT, UUID)` | JSONB | Bless a shout or reply. Deducts karma, awards rebate + receiver karma, grants Divine Shield. |
+| `get_shout_blessings(UUID[])` | JSONB | Batch blessing aggregates for multiple shouts. |
+
 ### Blessings
 | Function | Returns | Notes |
 |----------|---------|-------|
@@ -566,3 +630,4 @@ Deferred ban application queue. Created by [`exodus_2.sql`](supabase/migrations/
 | `process-prayer` | Venice AI prayer validation + response generation |
 | `pray-for-sinner` | AI-generated intercessory prayer for purgatory users |
 | `generate-onboarding-content` | AI-generated welcome message + faction intro + first prayer prompt |
+| `town-crier` | Faction-appropriate message translation for shouts/replies. Accepts `shout_id` or `reply_id` to update DB. Soft-censors slurs/threats/doxxing. |
