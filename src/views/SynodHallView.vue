@@ -1014,8 +1014,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  forceWarTheme.value = false
-  forceEvilTheme.value = false
   hw.stopPolling()
 })
 </script>

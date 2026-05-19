@@ -103,17 +103,16 @@
         </div>
 
         <!-- Dark Tech Tree -->
-        <div v-if="activeTab === 'dark'" class="rounded-[var(--radius-panel)] p-6 sm:p-8 space-y-6">
-          <div class="relative z-10">
-            <div v-if="research.darkNodes.length === 0" class="text-center py-8">
-              <p class="text-theme-text-muted">No occult research available yet.</p>
-            </div>
-            <div
-              v-for="node in research.darkNodes"
-              :key="node.id"
-              class="glass-panel glass-panel-soft p-5 sm:p-6 transition-all duration-[var(--dur-standard)]"
-              :class="{ 'opacity-50': !canResearchDark(node), 'ring-1 ring-[#b180ff]/40': isUnlocked(node.id) }"
-            >
+        <div v-if="activeTab === 'dark'" class="space-y-6">
+          <div v-if="research.darkNodes.length === 0" class="glass-panel glass-panel-soft p-8 text-center">
+            <p class="text-theme-text-muted">No occult research available yet.</p>
+          </div>
+          <div
+            v-for="node in research.darkNodes"
+            :key="node.id"
+            class="glass-panel glass-panel-soft p-5 sm:p-6 transition-all duration-[var(--dur-standard)]"
+            :class="{ 'opacity-50': !canResearchDark(node), 'ring-1 ring-[#b180ff]/40': isUnlocked(node.id) }"
+          >
               <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div class="flex-1">
                   <div class="flex items-center gap-3 mb-1">
@@ -142,7 +141,6 @@
                   </button>
                 </div>
               </div>
-            </div>
           </div>
         </div>
       </div>
