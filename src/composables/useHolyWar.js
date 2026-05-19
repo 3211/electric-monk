@@ -12,6 +12,8 @@ function createHolyWarState() {
   const warTarget = ref(null)
   const finding = ref(false)
   const initiating = ref(false)
+  const withdrawing = ref(false)
+  const surrendering = ref(false)
   const loading = ref(false)
   const error = ref(null)
   const lastResult = ref(null)
@@ -133,6 +135,8 @@ function createHolyWarState() {
     warTarget,
     finding,
     initiating,
+    withdrawing,
+    surrendering,
     loading,
     error,
     lastResult,

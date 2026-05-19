@@ -131,17 +131,168 @@
           </div>
         </section>
 
-        <section class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
+        <!-- Active Siege Card (shown when you have an active combat) -->
+        <section v-if="combat.myCombatTargetId || combat.attackersOnMe.length > 0" class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
           <h2 class="text-lg font-semibold text-theme-text flex items-center gap-2">
             <span class="text-red-500">⚔</span>
-            Launch Crusade
+            Active Siege
+            <span class="chip gap-1 px-2 py-0.5 text-xs font-semibold text-green-500">● Live</span>
+          </h2>
+
+          <div v-if="combat.myAttack" class="mt-4 space-y-4">
+            <!-- Attacker view -->
+            <div class="rounded-[20px] border border-theme-accent/25 bg-theme-accent/5 p-4">
+              <p class="text-xs text-theme-text-muted mb-2">
+                Sieging <span class="font-semibold text-red-400">{{ combat.myAttack.defender_name }}</span>
+                — <span class="text-theme-text-dim">{{ siegeProgressText(combat.myAttack) }}</span>
+              </p>
+
+              <div class="space-y-3">
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-theme-text-muted">Your Mana</span>
+                    <span class="font-semibold text-blue-400">{{ combat.myAttack.attacker_mana }}
+                      <span class="text-[0.65rem] text-theme-text-dim">(-{{ combat.myAttack.defender_workers || 0 }}/min)</span>
+                    </span>
+                  </div>
+                  <div class="h-3 rounded-full border border-theme-border/30 bg-theme-panel/50 overflow-hidden">
+                    <div class="h-full bg-blue-500/60 transition-all duration-500"
+                      :style="{ width: manaBarPercent(combat.myAttack.attacker_mana, combat.myAttack.attacker_mana + combat.myAttack.defender_mana) + '%' }"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-theme-text-muted">Enemy Mana</span>
+                    <span class="font-semibold text-red-400">{{ combat.myAttack.defender_mana }}
+                      <span class="text-[0.65rem] text-theme-text-dim">(-{{ combat.myAttack.attacker_workers }}/min)</span>
+                    </span>
+                  </div>
+                  <div class="h-3 rounded-full border border-theme-border/30 bg-theme-panel/50 overflow-hidden">
+                    <div class="h-full bg-red-500/60 transition-all duration-500"
+                      :style="{ width: manaBarPercent(combat.myAttack.defender_mana, combat.myAttack.attacker_mana + combat.myAttack.defender_mana) + '%' }"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                  <div class="font-semibold text-theme-text">{{ combat.myAttack.attacker_workers }}</div>
+                  <div class="text-theme-text-dim">Your Workers</div>
+                </div>
+                <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                  <div class="font-semibold text-theme-text">{{ combat.myAttack.defender_workers }}</div>
+                  <div class="text-theme-text-dim">Enemy Workers</div>
+                </div>
+                <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                  <div class="font-semibold text-theme-text">{{ combat.myAttack.ticks_total - combat.myAttack.ticks_remaining }} / {{ combat.myAttack.ticks_total }}</div>
+                  <div class="text-theme-text-dim">Ticks</div>
+                </div>
+                <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                  <div class="font-semibold text-yellow-500">{{ combat.myAttack.gold_stolen || 0 }} ⚜</div>
+                  <div class="text-theme-text-dim">Gold Leech</div>
+                </div>
+              </div>
+
+              <button
+                @click="handleCancelSiege(combat.myAttack.session_id)"
+                class="btn-secondary mt-4 w-full py-2 text-xs"
+                :title="'Pay 50% of remaining tick gold to withdraw. -5 Karma penalty.'"
+              >
+                <span class="relative z-10 font-medium">Withdraw ({{ withdrawCost(combat.myAttack) }} Gold, -5 Karma)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Defender view: under attack -->
+          <div v-for="atk in combat.attackersOnMe" :key="atk.session_id" class="mt-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/5 p-4">
+            <p class="text-xs text-theme-text-muted mb-2">
+              🛡 <span class="font-semibold text-red-400">{{ atk.attacker_name }}</span> is sieging you!
+              — <span class="text-theme-text-dim">{{ siegeProgressText(atk) }}</span>
+            </p>
+
+            <div class="space-y-3">
+              <div>
+                <div class="flex justify-between text-xs mb-1">
+                  <span class="text-theme-text-muted">Enemy Mana</span>
+                  <span class="font-semibold text-red-400">{{ atk.attacker_mana }}
+                    <span class="text-[0.65rem] text-theme-text-dim">(-{{ atk.defender_workers || 0 }}/min)</span>
+                  </span>
+                </div>
+                <div class="h-3 rounded-full border border-theme-border/30 bg-theme-panel/50 overflow-hidden">
+                  <div class="h-full bg-red-500/60 transition-all duration-500"
+                    :style="{ width: manaBarPercent(atk.attacker_mana, atk.attacker_mana + atk.defender_mana) + '%' }"></div>
+                </div>
+              </div>
+              <div>
+                <div class="flex justify-between text-xs mb-1">
+                  <span class="text-theme-text-muted">Your Mana</span>
+                  <span class="font-semibold text-blue-400">{{ atk.defender_mana }}
+                    <span class="text-[0.65rem] text-theme-text-dim">(-{{ atk.attacker_workers }}/min)</span>
+                  </span>
+                </div>
+                <div class="h-3 rounded-full border border-theme-border/30 bg-theme-panel/50 overflow-hidden">
+                  <div class="h-full bg-blue-500/60 transition-all duration-500"
+                    :style="{ width: manaBarPercent(atk.defender_mana, atk.attacker_mana + atk.defender_mana) + '%' }"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+              <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                <div class="font-semibold text-theme-text">{{ atk.attacker_workers }}</div>
+                <div class="text-theme-text-dim">Enemy Workers</div>
+              </div>
+              <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                <div class="font-semibold text-yellow-500">{{ atk.gold_stolen || 0 }} ⚜</div>
+                <div class="text-theme-text-dim">Gold Leech</div>
+              </div>
+              <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                <div class="font-semibold text-theme-text">{{ atk.ticks_total - atk.ticks_remaining }} / {{ atk.ticks_total }}</div>
+                <div class="text-theme-text-dim">Ticks</div>
+              </div>
+            </div>
+
+            <button
+              @click="handleSurrenderSiege(atk.session_id)"
+              class="btn-danger mt-4 w-full py-2 text-xs"
+              title="Immediately become their Vassal. 10% tithe on all production."
+            >
+              <span class="relative z-10 font-medium">Surrender (Become Vassal)</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Launch Siege (shown when NOT in combat AND not attacking) -->
+        <section v-if="!combat.myCombatTargetId && combat.attackersOnMe.length === 0" class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
+          <h2 class="text-lg font-semibold text-theme-text flex items-center gap-2">
+            <span class="text-red-500">⚔</span>
+            Launch Siege
           </h2>
 
           <div class="mt-4 rounded-[20px] border border-theme-border bg-theme-panel/35 p-4">
-            <p class="text-xs text-theme-text-muted">
-              Spend Mana to attack another player. If victorious, they become your Vassal and pay 10% tithe.
-              Your attack power: <span class="font-semibold text-blue-500">{{ vassalage.crusadeAttackPower }}</span> (Mana + Clerics)
+            <p class="text-xs text-theme-text-muted leading-relaxed">
+              <span class="font-semibold text-theme-text">3-day siege</span> (4,320 ticks, one per minute).
+              Your <span class="font-semibold text-blue-400">Workers</span> deal damage to their <span class="font-semibold text-blue-400">Mana</span> pool each tick.
+              Their Workers counter-attack. You leech <span class="font-semibold text-yellow-500">0.5% Gold</span> per tick.
             </p>
+            <div class="mt-3 flex flex-wrap gap-3 text-xs">
+              <span class="chip gap-1 px-2 py-1">
+                <span>🛠 Workers:</span>
+                <span class="font-semibold text-blue-400">{{ workerCount }}</span>
+                <span class="text-theme-text-dim">({{ workerCount }} DPS/tick)</span>
+              </span>
+              <span class="chip gap-1 px-2 py-1">
+                <span>💎 Mana:</span>
+                <span class="font-semibold text-blue-400">{{ economy.mana }}</span>
+                <span class="text-theme-text-dim">HP</span>
+              </span>
+              <span class="chip gap-1 px-2 py-1">
+                <span>💰 Cost:</span>
+                <span class="font-semibold text-yellow-500">50 Gold</span>
+                <span class="text-theme-text-dim">initiation + 2/min</span>
+              </span>
+            </div>
+            <p class="mt-2 text-[0.65rem] text-theme-text-dim">Workers = Novices, Monks, Clerics, Bishops, Cardinals, Cultists</p>
           </div>
 
           <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -178,29 +329,81 @@
                 </div>
                 <button
                   @click="selectTarget(player)"
-                  :disabled="isPlayerShielded(player)"
+                  :disabled="isPlayerShielded(player) || combat.myCombatTargetId"
                   class="btn-danger px-4 py-2 text-xs"
-                  :class="{ 'opacity-50 cursor-not-allowed': isPlayerShielded(player) }"
+                  :class="{ 'opacity-50 cursor-not-allowed': isPlayerShielded(player) || combat.myCombatTargetId }"
                 >
-                  <span class="relative z-10 font-medium">{{ isPlayerShielded(player) ? '🛡 Shielded' : 'Target' }}</span>
+                  <span class="relative z-10 font-medium">{{ isPlayerShielded(player) ? '🛡 Shielded' : 'Siege' }}</span>
                 </button>
               </div>
             </div>
           </div>
 
-          <div v-if="vassalage.combatResult && vassalage.combatResult.type === 'crusade'" class="mt-5 rounded-[20px] border p-4" :class="vassalage.combatResult.success ? 'border-emerald-500/25 bg-emerald-500/10' : 'border-red-500/25 bg-red-500/10'">
-            <p class="text-sm font-semibold" :class="vassalage.combatResult.success ? 'text-emerald-600' : 'text-red-600'">
-              {{ vassalage.combatResult.success ? 'Crusade Victorious!' : 'Crusade Failed!' }}
-            </p>
-            <div class="mt-3 space-y-1 text-xs text-theme-text-muted">
-              <p>Attack Power: {{ Math.round(vassalage.combatResult.attack_power) }} (roll: {{ Math.round(vassalage.combatResult.attack_roll) }})</p>
-              <p>Defense Power: {{ Math.round(vassalage.combatResult.defense_power) }} (roll: {{ Math.round(vassalage.combatResult.defense_roll) }})</p>
-              <p>Mana Cost: {{ vassalage.combatResult.mana_cost }}</p>
+          <div v-if="combat.lastResult && combat.lastResult.type === 'initiated'" class="mt-5 rounded-[20px] border border-theme-accent/25 bg-theme-accent/10 p-4">
+            <p class="text-sm font-semibold text-theme-accent-light">Siege Launched!</p>
+            <p class="text-xs text-theme-text-muted mt-1">{{ combat.lastResult.siege_days }} days. {{ combat.lastResult.max_ticks }} ticks. Check the Active Siege card above.</p>
+          </div>
+
+          <div v-if="combat.error" class="mt-4 rounded-[20px] border border-red-500/25 bg-red-500/10 p-4">
+            <p class="text-xs text-red-600">{{ combat.error }}</p>
+          </div>
+        </section>
+
+        <!-- Subjugation Progress -->
+        <section v-if="vassalage.isSubjugatingSomeone || vassalage.isBeingSubjugated" class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
+          <h2 class="text-lg font-semibold text-theme-text flex items-center gap-2">
+            <span class="text-purple-500">⛓</span>
+            Subjugation Progress
+          </h2>
+
+          <div v-if="vassalage.isSubjugatingSomeone" class="mt-4 space-y-3">
+            <div v-for="sub in vassalage.subjugationAsLiege" :key="sub.vassal_id"
+              class="rounded-[20px] border border-theme-accent/20 bg-theme-panel/35 p-4">
+              <div class="flex items-center justify-between mb-2">
+                <p class="text-sm font-medium text-theme-text">{{ sub.vassal_name }}</p>
+                <span class="text-xs text-theme-text-dim">{{ Math.floor(sub.accumulated_hours) }} / 168 hours</span>
+              </div>
+              <div class="h-2 rounded-full border border-theme-border/30 bg-theme-panel/50 overflow-hidden">
+                <div class="h-full bg-purple-500/60 transition-all duration-500"
+                  :style="{ width: (sub.accumulated_hours / 168 * 100) + '%' }"></div>
+              </div>
+              <p class="mt-1 text-[0.65rem] text-theme-text-dim">Each minute of active siege = +1/60th hour. At 168, they become your Vassal.</p>
             </div>
           </div>
 
-          <div v-if="vassalage.combatError" class="mt-4 rounded-[20px] border border-red-500/25 bg-red-500/10 p-4">
-            <p class="text-xs text-red-600">{{ vassalage.combatError }}</p>
+          <div v-if="vassalage.isBeingSubjugated" class="mt-4 space-y-3">
+            <div v-for="sub in vassalage.subjugationAsVassal" :key="sub.liege_id"
+              class="rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/5 p-4">
+              <p class="text-xs text-theme-text-muted mb-2">
+                <span class="font-semibold text-red-400">{{ sub.liege_name }}</span> is subjugating you
+              </p>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-theme-text-dim">{{ Math.floor(sub.accumulated_hours) }} / 168 hours</span>
+                <span class="text-xs font-semibold text-theme-purgatory-dark">{{ Math.max(0, Math.floor(sub.remaining_hours)) }}h remaining</span>
+              </div>
+              <div class="h-2 rounded-full border border-theme-border/30 bg-theme-panel/50 overflow-hidden">
+                <div class="h-full bg-red-500/60 transition-all duration-500"
+                  :style="{ width: (sub.accumulated_hours / 168 * 100) + '%' }"></div>
+              </div>
+              <div class="mt-3 flex gap-2">
+                <button
+                  @click="vassalage.resistSubjugation(sub.liege_id)"
+                  :disabled="vassalage.resisting || economy.gold < 1000"
+                  class="btn-secondary flex-1 py-1.5 text-xs"
+                  title="Pay 1000 Gold to reduce timer by 24 hours"
+                >
+                  <span class="relative z-10 font-medium">Resist (1000 ⚜ → -24h)</span>
+                </button>
+                <button
+                  @click="vassalage.attemptRebellion()"
+                  :disabled="vassalage.rebelling"
+                  class="btn-ghost flex-1 py-1.5 text-xs"
+                  title="Break free if liege hasn't attacked in 3+ days"
+                >
+                  <span class="relative z-10 font-medium">Rebel</span>
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -482,23 +685,28 @@
 
     <div v-if="showCrusadeConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" @click.self="showCrusadeConfirm = false">
       <div class="glass-panel glass-panel-strong glass-gloss w-full max-w-md p-6 space-y-4">
-        <h3 class="text-lg font-semibold text-theme-text">Confirm Crusade</h3>
+        <h3 class="text-lg font-semibold text-theme-text">Confirm Siege</h3>
         <div v-if="selectedTarget && isPlayerShielded(selectedTarget)" class="rounded-[20px] border border-amber-500/25 bg-amber-500/10 p-3">
-          <p class="text-xs text-amber-600">🛡 This player is protected by Divine Shield and cannot be crusaded.</p>
+          <p class="text-xs text-amber-600">🛡 This player is protected by Divine Shield and cannot be attacked.</p>
         </div>
         <p class="text-sm text-theme-text-muted">
-          You are about to launch a crusade against <span class="font-semibold text-red-500">{{ selectedTarget?.username }}</span>.
-          This will cost <span class="font-semibold text-blue-500">50 Mana</span> regardless of outcome.
+          Launch a 3-day siege against <span class="font-semibold text-red-500">{{ selectedTarget?.username }}</span>?
         </p>
-        <p class="text-xs text-theme-text-muted">Your Attack Power: {{ vassalage.crusadeAttackPower }}</p>
+        <div class="rounded-[20px] border border-theme-border bg-theme-panel/35 p-3 space-y-1 text-xs text-theme-text-muted">
+          <p>💰 <span class="font-semibold text-yellow-500">50 Gold</span> to initiate + 2 Gold per minute</p>
+          <p>🛠 Your Workers: <span class="font-semibold text-blue-400">{{ workerCount }}</span> ({{ workerCount }} DPS/tick)</p>
+          <p>💎 Your Mana: <span class="font-semibold text-blue-400">{{ economy.mana }}</span> (HP pool)</p>
+          <p>⚔ If victorious, they become your Vassal (10% tithe)</p>
+          <p>⚙ You can withdraw at any time (50% remaining gold cost + -5 Karma)</p>
+        </div>
         <div class="flex gap-3">
           <button
-            @click="executeCrusade"
-            :disabled="vassalage.crusadeLoading || (selectedTarget && isPlayerShielded(selectedTarget))"
+            @click="executeSiege"
+            :disabled="combat.initiating || (selectedTarget && isPlayerShielded(selectedTarget))"
             class="btn-danger flex-1 px-4 py-2 text-sm"
             :class="{ 'opacity-50 cursor-not-allowed': selectedTarget && isPlayerShielded(selectedTarget) }"
           >
-            <span class="relative z-10 font-medium">{{ vassalage.crusadeLoading ? 'Crusading...' : 'Launch Crusade' }}</span>
+            <span class="relative z-10 font-medium">{{ combat.initiating ? 'Launching...' : 'Launch Siege' }}</span>
           </button>
           <button
             @click="showCrusadeConfirm = false"
@@ -569,16 +777,18 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, inject } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, inject } from 'vue'
 import { useVassalage } from '@/composables/useVassalage'
 import { useCatacombs } from '@/composables/useCatacombs'
 import { useEconomy } from '@/composables/useEconomy'
+import { useCombat } from '@/composables/useCombat'
 import ShieldTimer from '@/components/molecules/ShieldTimer.vue'
 import MiracleBuffBar from '@/components/molecules/MiracleBuffBar.vue'
 
 const vassalage = useVassalage()
 const catacombs = useCatacombs()
 const economy = useEconomy()
+const combat = useCombat()
 
 const forceEvilTheme = inject('forceEvilTheme', ref(false))
 const forceWarTheme = inject('forceWarTheme', ref(false))
@@ -597,6 +807,51 @@ const showPlagueConfirm = ref(false)
 const selectedPlagueTarget = ref(null)
 const showSchismConfirm = ref(false)
 
+// Combat helpers
+const workerCount = computed(() => {
+  const counts = economy.buildingCounts || {}
+  return (counts.novice || 0) + (counts.monk || 0) + (counts.cleric || 0) +
+    (counts.bishop || 0) + (counts.cardinal || 0) + (counts.cultist || 0)
+})
+
+function manaBarPercent(value, total) {
+  if (!total || total <= 0) return 0
+  return Math.min(100, Math.max(0, (value / total) * 100))
+}
+
+function siegeProgressText(combat) {
+  if (!combat) return ''
+  const elapsed = combat.ticks_total - combat.ticks_remaining
+  const days = Math.floor(elapsed / 1440)
+  const hours = Math.floor((elapsed % 1440) / 60)
+  const remaining = combat.ticks_remaining
+  const rDays = Math.floor(remaining / 1440)
+  const rHours = Math.floor((remaining % 1440) / 60)
+  return `Day ${days + 1} · ${rDays}d ${rHours}h left`
+}
+
+function withdrawCost(combat) {
+  if (!combat) return 0
+  const goldPerTick = combat.combat_type === 'holy_war' ? 10 : 2
+  return Math.max(1, Math.floor(combat.ticks_remaining * goldPerTick * 0.5))
+}
+
+async function handleCancelSiege(sessionId) {
+  try {
+    await combat.cancelCombat(sessionId)
+  } catch {
+    // handled in composable
+  }
+}
+
+async function handleSurrenderSiege(sessionId) {
+  try {
+    await combat.surrenderCombat(sessionId)
+  } catch {
+    // handled in composable
+  }
+}
+
 // Filter blessing_shield out of MiracleBuffBar — ShieldTimer handles that display
 const nonShieldMiracles = computed(() =>
   economy.activeMiracles.filter(m => m.miracle_type !== 'blessing_shield')
@@ -613,6 +868,11 @@ onMounted(async () => {
     vassalage.fetchAkashicLogs(20),
     catacombs.fetchCatacombsItems(),
   ])
+  combat.startPolling()
+})
+
+onUnmounted(() => {
+  combat.stopPolling()
 })
 
 async function searchPlayer() {
@@ -631,10 +891,10 @@ function selectTarget(player) {
   showCrusadeConfirm.value = true
 }
 
-async function executeCrusade() {
+async function executeSiege() {
   if (!selectedTarget.value) return
   try {
-    await vassalage.launchCrusade(selectedTarget.value.id)
+    await combat.initiateCombat(selectedTarget.value.id)
     showCrusadeConfirm.value = false
     selectedTarget.value = null
     targetUsername.value = ''

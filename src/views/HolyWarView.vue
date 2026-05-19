@@ -156,6 +156,27 @@
                 <div class="font-semibold text-yellow-500">{{ war.gold_stolen || 0 }}</div><div>Gold Stolen</div>
               </div>
             </div>
+
+            <div class="mt-4 flex gap-3">
+              <button
+                v-if="war.is_attacker && synod.isLeader"
+                @click="handleWithdrawWar(war.session_id)"
+                :disabled="hw.withdrawing"
+                class="btn-secondary flex-1 py-2 text-xs"
+                :title="'Pay 50% of remaining tick gold to withdraw. -5 Karma penalty.'"
+              >
+                <span class="relative z-10 font-medium">{{ hw.withdrawing ? 'Withdrawing...' : `Withdraw (${withdrawCostHW(war)} Gold, -5 Karma)` }}</span>
+              </button>
+              <button
+                v-if="!war.is_attacker"
+                @click="handleSurrenderWar(war.session_id)"
+                :disabled="hw.surrendering"
+                class="btn-danger flex-1 py-2 text-xs"
+                title="Synod is destroyed, members scattered, relics transferred to attacker."
+              >
+                <span class="relative z-10 font-medium">{{ hw.surrendering ? 'Surrendering...' : 'Surrender (Synod Destroyed)' }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -167,9 +188,11 @@
 import { ref, onMounted, onUnmounted, inject } from 'vue'
 import { useSynod } from '@/composables/useSynod'
 import { useHolyWar } from '@/composables/useHolyWar'
+import { useCombat } from '@/composables/useCombat'
 
 const synod = useSynod()
 const hw = useHolyWar()
+const combat = useCombat()
 const targetName = ref('')
 const forceWarTheme = inject('forceWarTheme', ref(false))
 
@@ -195,6 +218,26 @@ async function handleDeclareWar(synodId) {
     targetName.value = ''
     hw.warTarget.value = null
   } catch { /* captured */ }
+}
+
+async function handleWithdrawWar(sessionId) {
+  try {
+    await combat.cancelCombat(sessionId)
+    await hw.fetchActiveWars()
+  } catch { /* captured */ }
+}
+
+async function handleSurrenderWar(sessionId) {
+  try {
+    await combat.surrenderCombat(sessionId)
+    await hw.fetchActiveWars()
+  } catch { /* captured */ }
+}
+
+function withdrawCostHW(war) {
+  if (!war) return 0
+  const goldPerTick = 10
+  return Math.max(1, Math.floor((war.ticks_remaining || 0) * goldPerTick * 0.5))
 }
 
 function manaPercent(value, total) {

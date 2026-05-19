@@ -51,6 +51,64 @@ function createCombatState() {
     }
   }
 
+  /**
+   * Attacker withdraws from a siege. Pays 50% of remaining
+   * tick gold cost + -5 karma. Combat ends as defender_win.
+   */
+  async function cancelCombat(sessionId) {
+    try {
+      error.value = null
+      lastResult.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('cancel_combat', {
+        p_session_id: sessionId,
+      })
+
+      if (rpcError) throw rpcError
+
+      lastResult.value = { type: 'cancelled', ...data }
+
+      if (data?.success) {
+        await fetchActiveCombats()
+      }
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[useCombat] Cancel error:', err)
+      throw err
+    }
+  }
+
+  /**
+   * Defender surrenders immediately. Becomes attacker's vassal.
+   * Combat ends as attacker_win.
+   */
+  async function surrenderCombat(sessionId) {
+    try {
+      error.value = null
+      lastResult.value = null
+
+      const { data, error: rpcError } = await supabase.rpc('surrender_combat', {
+        p_session_id: sessionId,
+      })
+
+      if (rpcError) throw rpcError
+
+      lastResult.value = { type: 'surrendered', ...data }
+
+      if (data?.success) {
+        await fetchActiveCombats()
+      }
+
+      return data
+    } catch (err) {
+      error.value = err.message
+      console.error('[useCombat] Surrender error:', err)
+      throw err
+    }
+  }
+
   async function fetchActiveCombats() {
     try {
       loading.value = true
@@ -110,6 +168,8 @@ function createCombatState() {
     myAttack,
     hasActiveCombat,
     initiateCombat,
+    cancelCombat,
+    surrenderCombat,
     fetchActiveCombats,
     startPolling,
     stopPolling,
