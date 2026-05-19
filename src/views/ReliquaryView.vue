@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div>
     <!-- Header -->
     <header class="border-b surface-divider bg-theme-panel/50 backdrop-blur-sm">
@@ -30,7 +30,7 @@
 
       <!-- Error -->
       <div v-else-if="relics.error" class="glass-panel p-8 text-center border border-theme-purgatory/25">
-        <div class="text-4xl mb-4">⚠�E�E/div>
+        <div class="text-4xl mb-4">⚠️</div>
         <p class="text-theme-purgatory-dark">{{ relics.error }}</p>
         <button @click="relics.fetchRelics()" class="btn-secondary mt-4 px-6 py-2">Try Again</button>
       </div>
@@ -120,7 +120,7 @@
               </span>
             </button>
             <div v-else class="text-center py-2">
-              <span class="chip status-chip text-xs">✁EIn Your Possession</span>
+              <span class="chip status-chip text-xs">✝️ In Your Possession</span>
             </div>
           </div>
         </div>
@@ -148,7 +148,7 @@
                 </div>
               </div>
               <div v-if="indulgences.hasPapalBull" class="mb-3">
-                <span class="chip status-chip text-xs">✁EActive  E{{ indulgences.papalBullRemaining }} remaining</span>
+                <span class="chip status-chip text-xs">✝️ Active · {{ indulgences.papalBullRemaining }} remaining</span>
               </div>
               <div v-else class="mb-3">
                 <p class="text-xs text-theme-text-muted">Cost: 1 Indulgence</p>
@@ -164,21 +164,21 @@
                 </span>
               </button>
               <div v-else class="text-center">
-                <span class="text-xs text-green-600 font-medium">🛡�E�EProtected</span>
+                <span class="text-xs text-green-600 font-medium">🛡️ Protected</span>
               </div>
             </div>
 
             <!-- Divine Architect -->
             <div class="rounded-lg border border-theme-border bg-theme-panel/40 p-5">
               <div class="flex items-center gap-3 mb-3">
-                <span class="text-3xl">🏗�E�E/span>
+                <span class="text-3xl">🏗️</span>
                 <div>
                   <h4 class="font-semibold text-theme-text">Divine Architect</h4>
                   <p class="text-xs text-theme-text-muted">Instant Build Queue</p>
                 </div>
               </div>
               <div v-if="indulgences.hasDivineArchitect" class="mb-3">
-                <span class="chip status-chip text-xs">✁EActive</span>
+                <span class="chip status-chip text-xs">✝️ Active</span>
               </div>
               <div v-else class="mb-3">
                 <p class="text-xs text-theme-text-muted">Cost: 1 Indulgence</p>

@@ -1,4 +1,4 @@
-<template>
+ï»¿<template>
   <div :class="activeSubTab === 'sinners' ? 'evil-shell' : ''">
     <header class="akashic-header border-b surface-divider bg-theme-panel/55 backdrop-blur-[16px]">
       <div class="app-frame py-6">
@@ -40,7 +40,7 @@
             class="pill-tab"
             :class="activeSubTab === 'sinners' ? 'pill-tab-active' : 'pill-tab-inactive'"
           >
-            ğŸE Sinners
+            ğŸ˜ˆ Sinners
           </button>
         </div>
       </div>
@@ -74,7 +74,7 @@
         </div>
 
         <div v-else-if="akashic.publicPrayers.length === 0 && !akashic.loading" class="glass-panel glass-panel-strong glass-gloss border-2 border-dashed border-theme-border p-12 text-center">
-          <div class="mb-4 text-6xl">ğŸ•ŠEE/div>
+          <div class="mb-4 text-6xl">ğŸ•Šï¸ğŸ™</div>
           <h3 class="mb-2 text-lg font-medium text-theme-text">No Prayers Yet</h3>
           <p class="text-theme-text-dim">The Akashic Records are empty. Be the first to submit a prayer.</p>
         </div>
@@ -207,12 +207,12 @@
 
       <div v-if="activeSubTab === 'sinners'" class="space-y-6">
         <div v-if="akashic.sinnersLoading && akashic.sinners.length === 0" class="glass-panel glass-panel-soft p-12 text-center text-theme-text-dim">
-          <div class="mb-3 text-4xl animate-pulse">ğŸE</div>
+          <div class="mb-3 text-4xl animate-pulse">ğŸ˜ˆ</div>
           <p>Scanning for souls in purgatory...</p>
         </div>
 
         <div v-else-if="akashic.sinners.length === 0 && !akashic.sinnersLoading" class="glass-panel glass-panel-strong glass-gloss border-2 border-dashed border-theme-border p-12 text-center">
-          <div class="mb-4 text-6xl">ğŸE</div>
+          <div class="mb-4 text-6xl">ğŸ˜ˆ</div>
           <h3 class="mb-2 text-lg font-medium text-theme-text">No Souls in Purgatory</h3>
           <p class="text-theme-text-dim">All is well in the spiritual realm. No one is currently condemned.</p>
         </div>
@@ -408,7 +408,7 @@ watch(counter.isAnimating, (val) => {
 const activePrayerTypeIcon = computed(() => {
   const prayer = akashic.activeAltruisticPrayer
   if (!prayer) return ''
-  if (prayer.prayer_type === 'intercessory') return 'ğŸ•¯EE
+  if (prayer.prayer_type === 'intercessory') return 'ğŸ•¯ï¸'
   return 'ğŸ™'
 })
 

@@ -1,11 +1,11 @@
-<template>
+﻿<template>
   <div class="factions-view min-h-screen">
     <header class="factions-war-header border-b surface-divider bg-theme-panel/50 backdrop-blur-sm">
       <div class="app-frame py-5">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="relative min-w-0">
             <div class="merged-header-glow" aria-hidden="true"></div>
-            <h1 class="faction-page-title ritual-heading relative text-4xl font-bold text-theme-accent sm:text-5xl">🏛�E�ESects</h1>
+            <h1 class="faction-page-title ritual-heading relative text-4xl font-bold text-theme-accent sm:text-5xl">🏛️ Sects</h1>
             <p class="faction-page-subtitle relative mt-1 text-sm text-theme-text-muted">Know thy allies. Fear thy enemies.</p>
           </div>
           <div v-if="playerSect && factionData[playerSect]" class="flex items-center gap-3">
@@ -25,7 +25,7 @@
             @click="activeTab = 'overview'"
             :class="activeTab === 'overview' ? 'nav-tab-active' : 'nav-tab-inactive'"
           >
-            🏛�E�EOverview
+            🏛️ Overview
           </button>
           <button
             @click="activeTab = 'rankings'"
@@ -38,12 +38,12 @@
 
       <div v-if="activeTab === 'overview'">
         <div v-if="loading" class="glass-panel glass-panel-soft faction-state-card p-12 text-center">
-          <div class="text-4xl mb-4" style="animation: ritual-breathe 3s ease-in-out infinite">🏛�E�E/div>
+          <div class="text-4xl mb-4" style="animation: ritual-breathe 3s ease-in-out infinite">🏛️</div>
           <p class="text-theme-text-dim">Consulting the archives...</p>
         </div>
 
         <div v-else-if="error" class="glass-panel faction-state-card faction-state-card--error p-8 text-center border border-theme-purgatory/25">
-          <div class="text-4xl mb-4">⚠�E�E/div>
+          <div class="text-4xl mb-4">⚠️</div>
           <p class="text-theme-purgatory-dark">{{ error }}</p>
           <button @click="fetchFactions()" class="btn-secondary faction-action-button mt-4 px-6 py-2">Try Again</button>
         </div>
@@ -90,7 +90,7 @@
                 <div class="faction-diamond-shell">
                   <div class="faction-diamond-aura" aria-hidden="true"></div>
                   <div class="faction-core-seal" aria-hidden="true">
-                    <span class="faction-core-seal-icon">{{ FACTION_ICONS[focusFactionKey] || '🏛�E�E }}</span>
+                    <span class="faction-core-seal-icon">{{ FACTION_ICONS[focusFactionKey] || '🏛️' }}</span>
                     <span v-if="focusFactionKey && factionData[focusFactionKey]" class="chip text-[0.65rem] px-2 py-0.5">
                       {{ factionData[focusFactionKey].member_count || 0 }} members
                     </span>
@@ -315,7 +315,7 @@
 
         <!-- Error State -->
         <div v-else-if="leaderboard.error" class="glass-panel faction-state-card faction-state-card--error p-8 text-center border border-theme-purgatory/25">
-          <div class="text-4xl mb-4">⚠�E�E/div>
+          <div class="text-4xl mb-4">⚠️</div>
           <p class="font-semibold text-red-500 mb-2">Failed to load rankings</p>
           <p class="text-sm text-theme-text-muted">{{ leaderboard.error }}</p>
           <button @click="handleRefreshRankings" class="btn-secondary faction-action-button mt-4 px-4 py-2 text-sm">Try Again</button>

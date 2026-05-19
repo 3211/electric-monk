@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="evil-shell min-h-screen">
     <div class="app-frame flex min-h-screen items-center justify-center px-4 py-10 sm:py-14">
       <div class="purgatory-shell evil-purgatory-shell max-w-xl w-full text-center">
@@ -16,7 +16,7 @@
       <!-- Intercessory Prayer Count -->
       <div v-if="intercessoryCount > 0" class="glass-panel glass-panel-soft glass-gloss evil-purgatory-support mb-5 rounded-lg border border-theme-accent/20 p-4 sm:rounded-lg">
         <p class="text-sm font-medium text-theme-accent">
-          🕯�E�E{{ intercessoryCount }} {{ intercessoryCount === 1 ? 'person is' : 'people are' }} praying for your redemption
+          🕯️ {{ intercessoryCount }} {{ intercessoryCount === 1 ? 'person is' : 'people are' }} praying for your redemption
         </p>
         <p class="mt-1 text-xs text-theme-text-muted">Each completed prayer cycle reduces your time by 1 minute</p>
       </div>

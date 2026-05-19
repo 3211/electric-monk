@@ -1,6 +1,6 @@
-<template>
+﻿<template>
   <div>
-    <header class=shop-header border-b surface-divider bg-theme-panel/50 backdrop-blur-sm">
+    <header class="shop-header border-b surface-divider bg-theme-panel/50 backdrop-blur-sm">
       <div class="app-frame py-6">
         <div class="flex flex-col gap-5">
           <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -34,7 +34,7 @@
               class="pill-tab"
               :class="shop.activeTab === 'mana' ? 'pill-tab-active' : 'pill-tab-inactive'"
             >
-              🕯�E�EEstates
+              🕯️ Estates
             </button>
             <button
               @click="shop.activeTab = 'food'"

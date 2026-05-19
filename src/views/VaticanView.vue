@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div :class="[activeTab === 'dark' ? 'evil-shell' : 'war-shell', 'min-h-screen']">
     <header class="border-b surface-divider bg-theme-panel/50 backdrop-blur-sm">
       <div class="app-frame py-5">
@@ -15,7 +15,7 @@
           <div class="flex flex-wrap items-center justify-start gap-3 xl:justify-end">
             <template v-if="activeTab === 'light'">
               <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-                <span class="text-purple-500">✁E/span>
+                <span class="text-purple-500">✝️</span>
                 <span>Heresy: <span class="font-semibold text-purple-500">{{ economy.heresy }}</span></span>
               </div>
               <ShieldTimer :shield-until="economy.divineShieldUntil" />
@@ -23,7 +23,7 @@
             </template>
             <template v-else>
               <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-                <span class="text-purple-400 text-lg">✁E/span>
+                <span class="text-purple-400 text-lg">✝️</span>
                 <span>Heresy: <span class="font-semibold text-theme-accent">{{ catacombs.heresy }}</span><span class="text-theme-text-muted">/{{ catacombs.heresyCap }}</span></span>
               </div>
               <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
@@ -51,7 +51,7 @@
             @click="activeTab = 'dark'"
             :class="activeTab === 'dark' ? 'nav-tab-active' : 'nav-tab-inactive'"
           >
-            ✁ECatacombs
+            ✝️ Catacombs
           </button>
         </div>
       </div>
@@ -93,7 +93,7 @@
 
         <section class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
           <h2 class="text-lg font-semibold text-theme-text flex items-center gap-2">
-            <span class="text-amber-500">⚁E/span>
+            <span class="text-amber-500">⚔️</span>
             Your Vassals
             <span v-if="vassalage.vassalCount > 0" class="chip gap-1 px-2 py-0.5 text-xs font-semibold text-amber-600">
               {{ vassalage.vassalCount }}
@@ -134,9 +134,9 @@
         <!-- Active Siege Card (shown when you have an active combat) -->
         <section v-if="combat.myCombatTargetId || combat.attackersOnMe.length > 0" class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
           <h2 class="text-lg font-semibold text-theme-text flex items-center gap-2">
-            <span class="text-red-500">⚁E/span>
+            <span class="text-red-500">⚔️</span>
             Active Siege
-            <span class="chip gap-1 px-2 py-0.5 text-xs font-semibold text-green-500">◁ELive</span>
+            <span class="chip gap-1 px-2 py-0.5 text-xs font-semibold text-green-500">● Live</span>
           </h2>
 
           <div v-if="combat.myAttack" class="mt-4 space-y-4">
@@ -144,7 +144,7 @@
             <div class="rounded-lg border border-theme-accent/25 bg-theme-accent/5 p-4">
               <p class="text-xs text-theme-text-muted mb-2">
                 Sieging <span class="font-semibold text-red-400">{{ combat.myAttack.defender_name }}</span>
-                 E<span class="text-theme-text-dim">{{ siegeProgressText(combat.myAttack) }}</span>
+                · <span class="text-theme-text-dim">{{ siegeProgressText(combat.myAttack) }}</span>
               </p>
 
               <div class="space-y-3">
@@ -188,7 +188,7 @@
                   <div class="text-theme-text-dim">Ticks</div>
                 </div>
                 <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
-                  <div class="font-semibold text-yellow-500">{{ combat.myAttack.gold_stolen || 0 }} ⚁E/div>
+                  <div class="font-semibold text-yellow-500">{{ combat.myAttack.gold_stolen || 0 }} 💰</div>
                   <div class="text-theme-text-dim">Gold Leech</div>
                 </div>
               </div>
@@ -207,7 +207,7 @@
           <div v-for="atk in combat.attackersOnMe" :key="atk.session_id" class="mt-4 rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/5 p-4">
             <p class="text-xs text-theme-text-muted mb-2">
               🛡 <span class="font-semibold text-red-400">{{ atk.attacker_name }}</span> is sieging you!
-               E<span class="text-theme-text-dim">{{ siegeProgressText(atk) }}</span>
+               · <span class="text-theme-text-dim">{{ siegeProgressText(atk) }}</span>
             </p>
 
             <div class="space-y-3">
@@ -243,7 +243,7 @@
                 <div class="text-theme-text-dim">Enemy Workers</div>
               </div>
               <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
-                <div class="font-semibold text-yellow-500">{{ atk.gold_stolen || 0 }} ⚁E/div>
+                <div class="font-semibold text-yellow-500">{{ atk.gold_stolen || 0 }} 💰</div>
                 <div class="text-theme-text-dim">Gold Leech</div>
               </div>
               <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
@@ -265,7 +265,7 @@
         <!-- Launch Siege (shown when NOT in combat AND not attacking) -->
         <section v-if="!combat.myCombatTargetId && combat.attackersOnMe.length === 0" class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
           <h2 class="text-lg font-semibold text-theme-text flex items-center gap-2">
-            <span class="text-red-500">⚁E/span>
+            <span class="text-red-500">⚔️</span>
             Launch Siege
           </h2>
 
@@ -352,7 +352,7 @@
         <!-- Subjugation Progress -->
         <section v-if="vassalage.isSubjugatingSomeone || vassalage.isBeingSubjugated" class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
           <h2 class="text-lg font-semibold text-theme-text flex items-center gap-2">
-            <span class="text-purple-500">⛁E/span>
+            <span class="text-purple-500">💰</span>
             Subjugation Progress
           </h2>
 
@@ -425,7 +425,7 @@
             >
               <div class="flex items-start gap-3">
                 <div class="mt-0.5 flex-shrink-0">
-                  <span v-if="log.action_type === 'crusade'" class="text-red-500">⚁E/span>
+                  <span v-if="log.action_type === 'crusade'" class="text-red-500">⚔️</span>
                   <span v-else-if="log.action_type === 'schism'" class="text-purple-500">✨</span>
                   <span v-else-if="log.action_type === 'plague'" class="text-emerald-500">☠</span>
                 </div>
