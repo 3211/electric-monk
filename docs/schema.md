@@ -10,7 +10,7 @@
 | Series | Files | Status |
 |--------|-------|--------|
 | Genesis | `genesis_1` through `genesis_10` + `genesis_9_hotfix` | **CLOSED** (foundation) |
-| Exodus | `exodus_0` through `exodus_7` + hotfixes `exodus_5_hotfix`, `exodus_6_hotfix` through `exodus_6_hotfix_7` | **ACTIVE** |
+| Exodus | `exodus_0` through `exodus_7` + hotfixes `exodus_5_hotfix`, `exodus_6_hotfix` through `exodus_6_hotfix_8` | **ACTIVE** |
 
 Run all `.sql` files in lexicographic order to rebuild the full database from scratch.
 
