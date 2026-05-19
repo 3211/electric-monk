@@ -10,7 +10,7 @@
 | Series | Files | Status |
 |--------|-------|--------|
 | Genesis | `genesis_1` through `genesis_10` + `genesis_9_hotfix` | **CLOSED** (foundation) |
-| Exodus | `exodus_0` through `exodus_6` | **ACTIVE** |
+| Exodus | `exodus_0` through `exodus_7` + hotfixes `exodus_5_hotfix`, `exodus_6_hotfix` through `exodus_6_hotfix_7` | **ACTIVE** |
 
 Run all `.sql` files in lexicographic order to rebuild the full database from scratch.
 
@@ -425,7 +425,7 @@ Deferred ban application queue. Created by [`exodus_2.sql`](supabase/migrations/
 ---
 
 ### `shouts`
-Social messages filtered through the Town Crier. Created by [`exodus_6.sql`](supabase/migrations/exodus_6.sql).
+Social messages filtered through the Town Crier. Created by [`exodus_6.sql`](supabase/migrations/exodus_6.sql), updated by [`exodus_6_hotfix_7.sql`](supabase/migrations/exodus_6_hotfix_7.sql).
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -436,11 +436,12 @@ Social messages filtered through the Town Crier. Created by [`exodus_6.sql`](sup
 | `context` | TEXT CHECK | `global` or `synod` |
 | `synod_id` | UUID → synods.id | NULL for global shouts |
 | `sect_type` | TEXT CHECK | Set for global shouts (sect filtering) |
+| `is_sect_only` | BOOLEAN NOT NULL DEFAULT false | If true, global shouts only visible to same sect |
 | `status` | TEXT CHECK | `pending`, `posted`, `failed` |
 | `created_at` | TIMESTAMPTZ | |
 | `updated_at` | TIMESTAMPTZ | |
 
-RLS: SELECT public. INSERT own. No UPDATE/DELETE (permanent record).
+RLS: SELECT public. INSERT own. No UPDATE/DELETE (permanent record). Service role: SELECT, UPDATE (Town Crier writes `crier_content` + `status`).
 
 ---
 
@@ -457,7 +458,7 @@ Threaded replies to shouts. Created by [`exodus_6.sql`](supabase/migrations/exod
 | `status` | TEXT CHECK | `pending`, `posted`, `failed` |
 | `created_at` | TIMESTAMPTZ | |
 
-RLS: SELECT public. INSERT own. No UPDATE/DELETE (permanent record).
+RLS: SELECT public. INSERT own. No UPDATE/DELETE (permanent record). Service role: SELECT, UPDATE (Town Crier writes `crier_content` + `status`).
 
 ---
 
@@ -567,9 +568,9 @@ UNIQUE(shout_id, COALESCE(reply_id, nil), blessing_type_id, giver_id). RLS: SELE
 ### Social Messaging (Shouts)
 | Function | Returns | Notes |
 |----------|---------|-------|
-| `submit_shout(TEXT, TEXT)` | JSONB | Post a shout. Deducts gold (100 global, 50 vault for leaders, 100 personal for members). Creates pending row. |
+| `submit_shout(TEXT, TEXT, BOOLEAN)` | JSONB | Post a shout. Deducts gold (100 global, 50 vault for leaders, 100 personal for members). Creates pending row. Third param: `is_sect_only` (default false). |
 | `submit_shout_reply(UUID, TEXT)` | JSONB | Reply to a shout. Deducts 50 gold. Creates pending row. |
-| `get_shouts(INT, INT, TEXT)` | JSONB | Paginated shout feed. Filter: `global`, `sect`, `synod`. Includes author info + blessings + reply count. |
+| `get_shouts(INT, INT, TEXT)` | JSONB | Paginated shout feed. Filter: `global`, `sect`, `synod`. Global feed respects `is_sect_only` visibility. Includes author info + blessings + reply count. |
 | `get_shout_replies(UUID, INT, INT)` | JSONB | Shout detail with paginated replies + blessing aggregates. |
 | `grant_shout_blessing(UUID, TEXT, UUID)` | JSONB | Bless a shout or reply. Deducts karma, awards rebate + receiver karma, grants Divine Shield. |
 | `get_shout_blessings(UUID[])` | JSONB | Batch blessing aggregates for multiple shouts. |

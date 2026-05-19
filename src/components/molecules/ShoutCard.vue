@@ -29,6 +29,14 @@
           >
             {{ sectLabel(shout.author_sect_type) }}
           </span>
+          <!-- Sect-Only Badge -->
+          <span
+            v-if="shout.is_sect_only"
+            class="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[0.65rem] font-medium text-amber-400"
+            title="Only visible to your sect"
+          >
+            🔒 Sect
+          </span>
           <!-- Synod Context Badge -->
           <span
             v-if="shout.context === 'synod'"

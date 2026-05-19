@@ -115,27 +115,30 @@ function getFaction(sectType: string | null): FactionConfig {
 // ==========================================
 
 function getClassifierPrompt(sectType: string | null): string {
-  const faction = getFaction(sectType)
-  const principles = faction.principles.map(p => `- ${p}`).join('\n')
-  const rejectList = faction.reject.map(r => `- ${r}`).join('\n')
+  return `Holy War Online is a browser-based MMORPG with in-character chat in a fictional universe.
 
-  return `Holy War Online is a browser-based MMORPG.
+You are a safety classifier evaluating player messages for REAL-WORLD harmful content only.
 
-You are classifying a public message on behalf of the faction ${faction.name}.
+CLASSIFY AS "REJECTED" ONLY IF THE MESSAGE CONTAINS:
+- Real-world racial slurs or ethnic slurs
+- Severe real-world hate speech (directed at real protected groups, not fictional factions)
+- Real-world doxing: street addresses, real city/state/country names, GPS coordinates
+- Real-world personal information: phone numbers, email addresses, real full names of non-public figures
 
-Output only APPROVED or REJECTED.
+DO NOT REJECT FOR:
+- Faction-appropriate content (e.g., The Holy Way calling to "smite heretics" or "defend the temple")
+- In-character violence between fictional factions
+- Fantasy slurs or in-universe insults
+- Fictional locations or game lore
+- Roleplay aggression, threats, or conflict between players in the game context
 
-Determine if the user message falls within ${faction.name}'s Principles:
-${principles}
-
-Reject:
-${rejectList}
+The player belongs to faction: ${sectType || 'Unknown'}. This is ONLY for context - do NOT reject based on faction alignment or whether the message fits their faction's principles.
 
 RESPONSE FORMAT:
 Return ONLY a valid JSON object with this structure:
 {
   "judgment": "approved" | "rejected",
-  "rejection_reason": "Brief reason if rejected (2-5 words), null if approved"
+  "rejection_reason": "Brief reason if rejected (e.g., 'real-world slur detected', 'doxing attempt'), null if approved"
 }
 
 Do NOT include any other text. Do NOT explain your reasoning. ONLY return the JSON.`

@@ -10,8 +10,8 @@ Shouts are social messages posted through the Town Crier — an AI edge function
 
 ## Mechanics
 
-- **Global Shouts**: Cost 100 gold (personal). Visible to all players in the Akashic Records under the "Shouts" tab → "Global" sub-tab.
-- **Sect Shouts**: Visible only to members of the same sect. Shown in the Akashic Records under "Shouts" tab → "My Sect" sub-tab. These are global shouts filtered by `sect_type`.
+- **Global Shouts**: Cost 100 gold (personal). Visible to all players in the Akashic Records under the "Shouts" tab → "Global" sub-tab. Players can toggle **Sect Only** visibility, which restricts the shout to only members of their own sect even in the global feed.
+- **Sect Shouts**: Visible only to members of the same sect. Shown in the Akashic Records under "Shouts" tab → "My Sect" sub-tab. These are global shouts filtered by `sect_type`. Selecting the "My Sect" tab auto-enables the Sect Only toggle.
 - **Synod Forum**: Private to the synod. Leader/officers pay 50 gold from the **synod vault**. Regular members pay 100 gold (personal). Shown in the Synod Hall → "Forum" tab.
 - **Replies**: Cost 50 gold (personal). Each reply is also filtered through the Town Crier. Replies can be blessed.
 - **Blessings**: Same blessing types as prayers (Golden Light, Holy Flame, Dove of Peace, Divine Crown). Applied to shouts or replies. Deducts karma, awards rebate + receiver karma, grants Divine Shield.
@@ -48,6 +48,7 @@ For replies, the same flow applies using `submit_shout_reply` RPC and `reply_id`
 | `context` | TEXT CHECK | `global` or `synod` |
 | `synod_id` | UUID → synods.id | NULL for global shouts |
 | `sect_type` | TEXT CHECK | Set for global shouts (for sect filtering) |
+| `is_sect_only` | BOOLEAN NOT NULL DEFAULT false | If true, global shouts only visible to same sect |
 | `status` | TEXT CHECK | `pending`, `posted`, `failed` |
 | `created_at` | TIMESTAMPTZ | |
 | `updated_at` | TIMESTAMPTZ | |
@@ -84,9 +85,9 @@ UNIQUE(shout_id, COALESCE(reply_id, nil), blessing_type_id, giver_id). RLS: SELE
 
 | Function | Returns | Notes |
 |----------|---------|-------|
-| `submit_shout(TEXT, TEXT)` | JSONB | Deducts gold, creates pending shout. Context: `global` or `synod`. Synod leaders/officers billed from vault. |
+| `submit_shout(TEXT, TEXT, BOOLEAN)` | JSONB | Deducts gold, creates pending shout. Context: `global` or `synod`. Third param: `is_sect_only` (default false). Synod leaders/officers billed from vault. |
 | `submit_shout_reply(UUID, TEXT)` | JSONB | Deducts 50 gold, creates pending reply. |
-| `get_shouts(INT, INT, TEXT)` | JSONB | Paginated shout feed. Filter: `global`, `sect`, `synod`. Includes author info + blessing aggregates + reply count. |
+| `get_shouts(INT, INT, TEXT)` | JSONB | Paginated shout feed. Filter: `global`, `sect`, `synod`. Global feed respects `is_sect_only` visibility. Includes author info + blessing aggregates + reply count. |
 | `get_shout_replies(UUID, INT, INT)` | JSONB | Shout detail with paginated replies. Includes blessing aggregates. |
 | `grant_shout_blessing(UUID, TEXT, UUID)` | JSONB | Bless a shout or reply. Deducts karma, awards rebate + receiver karma, grants Divine Shield. |
 | `get_shout_blessings(UUID[])` | JSONB | Batch blessing aggregates for multiple shouts. |

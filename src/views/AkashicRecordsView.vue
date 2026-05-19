@@ -158,6 +158,23 @@
                 <span class="text-xs font-medium text-theme-accent">
                   💰 100 Gold
                 </span>
+                <!-- Sect-Only Toggle -->
+                <label class="flex items-center gap-1.5 cursor-pointer select-none" :class="{ 'opacity-50 pointer-events-none': shoutFilter === 'sect' }">
+                  <input
+                    type="checkbox"
+                    v-model="isSectOnly"
+                    :disabled="shoutFilter === 'sect'"
+                    class="sr-only peer"
+                  />
+                  <div class="relative w-8 h-4 rounded-full transition-colors duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-theme-accent/40"
+                    :class="isSectOnly ? 'bg-theme-accent' : 'bg-theme-border'"
+                  >
+                    <div class="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform duration-200"
+                      :class="isSectOnly ? 'translate-x-4' : 'translate-x-0'"
+                    ></div>
+                  </div>
+                  <span class="text-xs text-theme-text-muted">🔒 Sect Only</span>
+                </label>
               </div>
               <button
                 type="submit"
@@ -168,6 +185,7 @@
               </button>
             </div>
 
+            <p v-if="isSectOnly" class="text-xs text-theme-accent/80">Only members of your sect will see this shout.</p>
             <p v-if="economy.gold < 100" class="text-xs text-theme-purgatory-dark">Insufficient gold (need 100).</p>
           </form>
         </div>
@@ -454,8 +472,18 @@ const karmaToastLabel = ref('')
 // Shout state
 const shoutContent = ref('')
 const shoutFilter = ref('global')
+const isSectOnly = ref(false)
 const shoutDetailVisible = ref(false)
 const shoutDetailLoading = ref(false)
+
+// Auto-toggle sect-only when switching shout filter tabs
+watch(shoutFilter, (filter) => {
+  if (filter === 'sect') {
+    isSectOnly.value = true
+  } else {
+    isSectOnly.value = false
+  }
+})
 
 // Town Crier typewriter state
 const displayedCrierResponse = ref('')
@@ -611,7 +639,7 @@ async function handleCrierContinue() {
 // Handle shout submission (modal handles the result display now)
 async function handleShoutSubmit() {
   if (!shoutContent.value.trim()) return
-  const result = await shouts.submitShout(shoutContent.value.trim(), 'global')
+  const result = await shouts.submitShout(shoutContent.value.trim(), 'global', isSectOnly.value)
   if (result?.success) {
     shoutContent.value = ''
     // Feed refresh and economy update happen in handleCrierContinue after modal dismiss
@@ -967,5 +995,200 @@ function karmaClass() {
   height: 5rem;
   object-fit: contain;
   border-radius: 999px;
+}
+
+/* Town Crier Aether Modal (mirrors AltarView) */
+.aether-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 223, 147, 0.18), transparent 28%),
+    linear-gradient(180deg, rgba(48, 38, 21, 0.68), rgba(48, 38, 21, 0.8));
+  backdrop-filter: blur(14px);
+  animation: overlay-fade var(--dur-enter) var(--ease-standard);
+}
+
+.aether-modal-container {
+  width: min(92vw, 34rem);
+  max-height: min(84vh, 48rem);
+  overflow-y: auto;
+  padding: clamp(1.5rem, 2vw, 2rem);
+  border: 1px solid rgba(213, 154, 23, 0.36);
+  border-radius: var(--radius-panel);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 18%),
+    linear-gradient(135deg, rgba(255, 250, 241, 0.97), rgba(255, 244, 220, 0.94));
+  box-shadow:
+    0 24px 70px rgba(48, 38, 21, 0.2),
+    0 0 60px rgba(240, 182, 59, 0.14);
+  animation: modal-rise var(--dur-hero) var(--ease-silk-settle);
+}
+
+.aether-processing-state,
+.aether-result-state {
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+.aether-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 5rem;
+  height: 5rem;
+  margin: 0 auto 1.5rem;
+  border-radius: 999px;
+  color: var(--theme-accent);
+  background: rgba(255, 248, 228, 0.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 18px 30px rgba(213, 154, 23, 0.16);
+  filter: drop-shadow(0 0 8px rgba(213, 154, 23, 0.24));
+}
+
+.aether-title {
+  margin-bottom: 0.75rem;
+  color: var(--theme-accent);
+  font-family: var(--font-display);
+  font-size: clamp(1.85rem, 4vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+}
+
+.aether-description {
+  margin-bottom: 1.5rem;
+  color: var(--theme-text);
+  font-size: 0.98rem;
+  line-height: 1.65;
+  font-weight: 500;
+}
+
+.aether-loader {
+  width: 100%;
+  height: 0.5rem;
+  margin-top: 1.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(139, 125, 91, 0.12), rgba(255, 255, 255, 0.45));
+  box-shadow: inset 0 1px 1px rgba(48, 38, 21, 0.08), inset 0 -1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.aether-loader-bar {
+  height: 100%;
+  width: 38%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c79a2c 0%, #f6d980 34%, #fff1bd 52%, #d7a42a 100%);
+  animation: loaderShimmer 2.2s var(--ease-silk-settle) infinite;
+  box-shadow: 0 0 12px rgba(201, 168, 76, 0.38);
+}
+
+.aether-judgment-icon {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  margin: 0 auto 1.25rem;
+  border-radius: 999px;
+  background: rgba(255, 249, 235, 0.82);
+  border: 1px solid rgba(213, 154, 23, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76), 0 16px 28px rgba(48, 38, 21, 0.12);
+}
+
+.aether-judgment-icon.approved {
+  color: #3aa76d;
+  border-color: rgba(58, 167, 109, 0.36);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 0 24px rgba(58, 167, 109, 0.14);
+}
+
+.aether-judgment-icon.rejected {
+  color: var(--theme-purgatory);
+  border-color: rgba(168, 93, 50, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 0 24px rgba(168, 93, 50, 0.14);
+}
+
+.aether-judgment-icon.error {
+  color: #d18a16;
+  border-color: rgba(209, 138, 22, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78), 0 0 24px rgba(209, 138, 22, 0.14);
+}
+
+.aether-response-content {
+  margin: 1.25rem 0;
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid rgba(213, 154, 23, 0.26);
+  background: linear-gradient(180deg, rgba(255, 252, 244, 0.84), rgba(255, 247, 228, 0.78));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76), inset 0 -1px 0 rgba(213, 154, 23, 0.08);
+}
+
+.aether-error-content {
+  margin: 1.25rem 0;
+  text-align: left;
+  border-radius: 12px;
+  border: 1px solid rgba(168, 93, 50, 0.28);
+  background: linear-gradient(180deg, rgba(255, 248, 242, 0.82), rgba(247, 227, 211, 0.78));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76), inset 0 -1px 0 rgba(168, 93, 50, 0.08);
+}
+
+.aether-rejection-reason {
+  text-align: center;
+  font-style: italic;
+  color: var(--theme-purgatory);
+  font-weight: 500;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--dur-standard) var(--ease-standard);
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.typewriter-cursor {
+  animation: blink 0.7s infinite;
+  color: var(--theme-accent);
+  font-weight: 100;
+}
+
+@keyframes loaderShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes overlay-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 </style>

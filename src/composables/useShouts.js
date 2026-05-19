@@ -105,7 +105,7 @@ export function useShouts() {
    * @param {string} content - The raw shout text
    * @param {string} context - 'global' or 'synod'
    */
-  async function submitShout(content, context = 'global') {
+  async function submitShout(content, context = 'global', isSectOnly = false) {
     try {
       submitting.value = true
       submitError.value = null
@@ -115,6 +115,7 @@ export function useShouts() {
       const { data: rpcData, error: rpcError } = await supabase.rpc('submit_shout', {
         p_content: content,
         p_context: context,
+        p_is_sect_only: isSectOnly,
       })
 
       if (rpcError) throw rpcError
@@ -142,8 +143,8 @@ export function useShouts() {
         },
       })
 
-      isCrierProcessing.value = false
-
+      // IMPORTANT: Set crierResult BEFORE clearing isCrierProcessing to prevent
+      // the modal from flickering off (the v-if checks isCrierProcessing || crierResult).
       if (crierFnError) {
         console.error('[useShouts] Town crier error:', crierFnError)
         crierResult.value = {
@@ -151,6 +152,7 @@ export function useShouts() {
           error: crierFnError.message || 'Town Crier unavailable',
           shout_id: shoutId,
         }
+        isCrierProcessing.value = false
         return rpcData
       }
 
@@ -165,6 +167,7 @@ export function useShouts() {
         // For approved shouts: DB already updated by edge function.
         // For rejected shouts: DB marked as 'failed', user gets -1 karma + 15-min ban.
       }
+      isCrierProcessing.value = false
 
       return rpcData
     } catch (err) {
@@ -271,8 +274,8 @@ export function useShouts() {
         },
       })
 
-      isCrierProcessing.value = false
-
+      // IMPORTANT: Set crierResult BEFORE clearing isCrierProcessing to prevent
+      // the modal from flickering off (the v-if checks isCrierProcessing || crierResult).
       if (crierFnError) {
         console.error('[useShouts] Town crier reply error:', crierFnError)
         crierResult.value = {
@@ -290,6 +293,7 @@ export function useShouts() {
           error: crierData?.error || null,
         }
       }
+      isCrierProcessing.value = false
 
       // Refresh replies after submission (DB already updated by edge function)
       await fetchShoutDetail(shoutId, false)
