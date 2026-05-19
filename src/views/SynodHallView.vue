@@ -57,6 +57,13 @@
           </button>
           <button
             v-if="synod.inSynod"
+            @click="activeTab = 'forum'"
+            :class="activeTab === 'forum' ? 'nav-tab-active' : 'nav-tab-inactive'"
+          >
+            &#x1F4E2; Forum
+          </button>
+          <button
+            v-if="synod.inSynod"
             @click="activeTab = 'reliquary'"
             :class="activeTab === 'reliquary' ? 'nav-tab-active' : 'nav-tab-inactive'"
           >
@@ -394,6 +401,112 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- ==================== FORUM TAB ==================== -->
+      <div v-if="activeTab === 'forum' && synod.inSynod" class="space-y-6">
+        <!-- Forum Header -->
+        <div class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
+          <h2 class="ritual-heading mb-2 text-2xl font-bold text-theme-text">📢 Synod Forum</h2>
+          <p class="text-sm text-theme-text-muted">
+            Post messages to your Synod's private forum. Shouts are filtered through the Town Crier.
+          </p>
+          <p class="mt-1 text-xs text-theme-text-dim">
+            <span v-if="canManage" class="text-theme-accent">50 Gold from Synod Vault</span>
+            <span v-else class="text-theme-accent">100 Gold (personal)</span>
+            per shout · 50 Gold per reply · Shouts are permanent
+          </p>
+        </div>
+
+        <!-- Shout Submission Form -->
+        <div class="glass-panel glass-panel-strong glass-gloss p-5 sm:p-6">
+          <div v-if="forumShouts.submitError" class="mb-3 rounded-xl border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark">
+            {{ forumShouts.submitError }}
+          </div>
+
+          <form @submit.prevent="handleForumShoutSubmit" class="flex flex-col gap-3">
+            <textarea
+              v-model="forumShoutContent"
+              :disabled="forumShouts.submitting"
+              rows="3"
+              class="form-field resize-none px-4 py-3 text-sm"
+              placeholder="Address your Synod..."
+              maxlength="500"
+            ></textarea>
+
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex items-center gap-3">
+                <span class="text-xs text-theme-text-muted">
+                  {{ forumShoutContent.length }} / 500
+                </span>
+                <span v-if="canManage" class="text-xs font-medium text-theme-accent">💰 50 Gold (Synod Vault: {{ synod.synodInfo?.vault_gold || 0 }})</span>
+                <span v-else class="text-xs font-medium text-theme-accent">💰 100 Gold</span>
+              </div>
+              <button
+                type="submit"
+                :disabled="!forumShoutContent.trim() || forumShouts.submitting || (canManage ? (synod.synodInfo?.vault_gold || 0) < 50 : economy.gold < 100)"
+                class="btn-primary px-6 py-2 text-sm"
+              >
+                {{ forumShouts.submitting ? 'Crier is announcing...' : '📢 Post to Forum' }}
+              </button>
+            </div>
+
+            <p v-if="canManage && (synod.synodInfo?.vault_gold || 0) < 50" class="text-xs text-theme-purgatory-dark">Synod vault has insufficient gold (need 50).</p>
+            <p v-else-if="!canManage && economy.gold < 100" class="text-xs text-theme-purgatory-dark">Insufficient gold (need 100).</p>
+          </form>
+        </div>
+
+        <!-- Forum Shouts Feed -->
+        <div v-if="forumShouts.loading && forumShouts.shouts.length === 0" class="glass-panel glass-panel-soft p-12 text-center text-theme-text-dim">
+          <div class="mb-3 text-4xl animate-pulse">📢</div>
+          <p>Loading forum...</p>
+        </div>
+
+        <div v-else-if="forumShouts.shouts.length === 0 && !forumShouts.loading" class="glass-panel glass-panel-strong glass-gloss border-2 border-dashed border-theme-border p-12 text-center">
+          <div class="mb-4 text-6xl">📯</div>
+          <h3 class="mb-2 text-lg font-medium text-theme-text">No Posts Yet</h3>
+          <p class="text-theme-text-dim">Be the first to post in your Synod's forum!</p>
+        </div>
+
+        <div v-else class="grid gap-3 sm:grid-cols-2">
+          <ShoutCard
+            v-for="shout in forumShouts.shouts"
+            :key="shout.id"
+            :shout="shout"
+            @select="openForumShoutDetail"
+          />
+        </div>
+
+        <!-- Load More -->
+        <div v-if="forumShouts.hasMore" class="pt-2 text-center">
+          <button
+            @click="forumShouts.loadMoreShouts()"
+            :disabled="forumShouts.loading"
+            class="btn-secondary px-6 py-3 text-sm disabled:opacity-50"
+          >
+            {{ forumShouts.loading ? 'Loading...' : 'Load More' }}
+          </button>
+        </div>
+
+        <!-- Shout Detail Modal (reusing for forum) -->
+        <ShoutDetailModal
+          :visible="forumDetailVisible"
+          :shout="forumShouts.currentShout"
+          :replies="forumShouts.replies"
+          :total-replies="forumShouts.totalReplies"
+          :has-more-replies="forumShouts.repliesHasMore"
+          :loading="forumDetailLoading"
+          :replies-loading="forumShouts.repliesLoading"
+          :submitting="forumShouts.submitting"
+          :submit-error="forumShouts.submitError"
+          :blessing-loading="forumShouts.blessingLoading"
+          :blessing-error="forumShouts.blessingError"
+          :blessing-types="blessings.blessingTypes"
+          @close="forumDetailVisible = false"
+          @submit-reply="handleForumReplySubmit"
+          @grant-blessing="handleForumBlessing"
+          @load-more-replies="forumShouts.loadMoreReplies()"
+        />
       </div>
 
       <!-- ==================== RELIQUARY TAB ==================== -->
@@ -780,6 +893,10 @@ import { useIndulgences } from '@/composables/useIndulgences'
 import { useHolyWar } from '@/composables/useHolyWar'
 import { useSynodRankings } from '@/composables/useSynodRankings'
 import { useAuth } from '@/composables/useAuth'
+import { useShouts } from '@/composables/useShouts'
+import { useBlessings } from '@/composables/useBlessings'
+import ShoutCard from '@/components/molecules/ShoutCard.vue'
+import ShoutDetailModal from '@/components/organisms/ShoutDetailModal.vue'
 
 const synod = useSynod()
 const economy = useEconomy()
@@ -788,6 +905,8 @@ const indulgences = useIndulgences()
 const hw = useHolyWar()
 const sr = useSynodRankings()
 const auth = useAuth()
+const forumShouts = useShouts()
+const blessings = useBlessings()
 
 const forceEvilTheme = inject('forceEvilTheme', ref(false))
 const forceWarTheme = inject('forceWarTheme', ref(false))
@@ -795,6 +914,9 @@ const activeTab = ref('synod')
 
 const newSynodName = ref('')
 const newSynodPrivacy = ref('public')
+const forumShoutContent = ref('')
+const forumDetailVisible = ref(false)
+const forumDetailLoading = ref(false)
 const newSynodMessage = ref('')
 const editMessage = ref('')
 const confirmAction = ref(null)
@@ -828,6 +950,7 @@ function factionLabel(key) {
 // Header computed props
 const headerTitle = computed(() => {
   switch (activeTab.value) {
+    case 'forum': return 'Synod Forum'
     case 'reliquary': return 'Reliquary'
     case 'war': return 'Holy Wars'
     case 'rankings': return 'Synod Rankings'
@@ -839,6 +962,7 @@ const headerTitle = computed(() => {
 
 const headerSubtitle = computed(() => {
   switch (activeTab.value) {
+    case 'forum': return 'Private Synod messaging. Shouts are permanent and blessed by the Town Crier.'
     case 'reliquary': return 'Ten Sacred Relics. Hold them or steal them.'
     case 'war': return '30-day sieges. One attack at a time. Vanquish to destroy enemy Synods.'
     case 'rankings': return 'Every Synod, ranked by power and devotion.'
@@ -851,11 +975,15 @@ const headerSubtitle = computed(() => {
 // Theme management — only synod/war/rankings use war-shell; reliquary uses evil-shell
 watch(activeTab, (tab) => {
   forceEvilTheme.value = (tab === 'reliquary')
-  forceWarTheme.value = (tab === 'synod' || tab === 'war' || tab === 'rankings')
+  forceWarTheme.value = (tab === 'synod' || tab === 'war' || tab === 'rankings' || tab === 'forum')
 }, { immediate: true })
 
-// Poll holy wars when watching the war tab
+// Poll holy wars when watching the war tab; fetch forum when switching to forum
 watch(activeTab, (tab) => {
+  if (tab === 'forum') {
+    forumShouts.fetchShouts(false, 'synod')
+    blessings.fetchBlessingTypes()
+  }
   if (tab === 'war') {
     hw.startPolling()
     sr.fetchDefenseStatus()
@@ -901,6 +1029,42 @@ function rankBadgeClass(rank) {
   if (rank === 2) return 'rank-silver rank-badge-sm'
   if (rank === 3) return 'rank-bronze rank-badge-sm'
   return 'rank-default rank-badge-sm'
+}
+
+// -- Forum actions --
+async function handleForumShoutSubmit() {
+  if (!forumShoutContent.value.trim()) return
+  const result = await forumShouts.submitShout(forumShoutContent.value.trim(), 'synod')
+  if (result?.success) {
+    forumShoutContent.value = ''
+    await forumShouts.fetchShouts(false, 'synod')
+    await economy.fetchEconomy()
+    // Refresh synod info to update vault gold display
+    await synod.fetchSynodInfo()
+  }
+}
+
+async function openForumShoutDetail(shout) {
+  forumDetailVisible.value = true
+  forumDetailLoading.value = true
+  await forumShouts.fetchShoutDetail(shout.id)
+  forumDetailLoading.value = false
+}
+
+async function handleForumReplySubmit(content) {
+  if (!forumShouts.currentShout) return
+  const result = await forumShouts.submitReply(forumShouts.currentShout.id, content)
+  if (result?.success) {
+    await economy.fetchEconomy()
+  }
+}
+
+async function handleForumBlessing({ blessingTypeId, replyId }) {
+  if (!forumShouts.currentShout) return
+  const result = await forumShouts.grantShoutBlessing(forumShouts.currentShout.id, blessingTypeId, replyId)
+  if (result?.success) {
+    // No karma toast needed in synod context, just refresh
+  }
 }
 
 // -- Synod actions --

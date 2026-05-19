@@ -29,6 +29,13 @@
             📿 Prayers
           </button>
           <button
+            @click="switchToShouts"
+            class="pill-tab"
+            :class="activeSubTab === 'shouts' ? 'pill-tab-active' : 'pill-tab-inactive'"
+          >
+            📢 Shouts
+          </button>
+          <button
             @click="switchToSinners"
             class="pill-tab"
             :class="activeSubTab === 'sinners' ? 'pill-tab-active' : 'pill-tab-inactive'"
@@ -98,6 +105,102 @@
             class="btn-secondary px-6 py-3 text-sm disabled:opacity-50"
           >
             {{ akashic.loading ? 'Loading...' : 'Load More Prayers' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- ==================== SHOUTS TAB ==================== -->
+      <div v-if="activeSubTab === 'shouts'" class="space-y-6">
+        <!-- Shout Sub-tabs: Global / Sect -->
+        <div class="glass-panel glass-panel-soft glass-gloss flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <p class="text-sm text-theme-text-muted">
+            Messages from the faithful, filtered through the Town Crier
+          </p>
+          <div class="segmented-shell self-start sm:self-auto">
+            <button
+              @click="shoutFilter = 'global'; shouts.fetchShouts(false, 'global')"
+              class="pill-tab"
+              :class="shoutFilter === 'global' ? 'pill-tab-active' : 'pill-tab-inactive'"
+            >
+              🌍 Global
+            </button>
+            <button
+              @click="shoutFilter = 'sect'; shouts.fetchShouts(false, 'sect')"
+              class="pill-tab"
+              :class="shoutFilter === 'sect' ? 'pill-tab-active' : 'pill-tab-inactive'"
+            >
+              ⛪ My Sect
+            </button>
+          </div>
+        </div>
+
+        <!-- Shout Submission Form -->
+        <div class="glass-panel glass-panel-strong glass-gloss p-5 sm:p-6">
+          <div v-if="shouts.submitError" class="mb-3 rounded-xl border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark">
+            {{ shouts.submitError }}
+          </div>
+
+          <form @submit.prevent="handleShoutSubmit" class="flex flex-col gap-3">
+            <textarea
+              v-model="shoutContent"
+              :disabled="shouts.submitting"
+              rows="3"
+              class="form-field resize-none px-4 py-3 text-sm"
+              placeholder="Hear ye, hear ye! What tidings do you bring?"
+              maxlength="500"
+            ></textarea>
+
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex items-center gap-3">
+                <span class="text-xs text-theme-text-muted">
+                  {{ shoutContent.length }} / 500
+                </span>
+                <span class="text-xs font-medium text-theme-accent">
+                  💰 100 Gold
+                </span>
+              </div>
+              <button
+                type="submit"
+                :disabled="!shoutContent.trim() || shouts.submitting || economy.gold < 100"
+                class="btn-primary px-6 py-2 text-sm"
+              >
+                {{ shouts.submitting ? 'Crier is announcing...' : '📢 Shout It!' }}
+              </button>
+            </div>
+
+            <p v-if="economy.gold < 100" class="text-xs text-theme-purgatory-dark">Insufficient gold (need 100).</p>
+          </form>
+        </div>
+
+        <!-- Shouts Feed -->
+        <div v-if="shouts.loading && shouts.shouts.length === 0" class="glass-panel glass-panel-soft p-12 text-center text-theme-text-dim">
+          <div class="mb-3 text-4xl animate-pulse">📢</div>
+          <p>Hark! The Town Crier approaches...</p>
+        </div>
+
+        <div v-else-if="shouts.shouts.length === 0 && !shouts.loading" class="glass-panel glass-panel-strong glass-gloss border-2 border-dashed border-theme-border p-12 text-center">
+          <div class="mb-4 text-6xl">🔔</div>
+          <h3 class="mb-2 text-lg font-medium text-theme-text">No Shouts Yet</h3>
+          <p class="text-theme-text-dim">The town square is quiet. Be the first to make your voice heard!</p>
+        </div>
+
+        <div v-else class="grid gap-3 sm:grid-cols-2">
+          <ShoutCard
+            v-for="shout in shouts.shouts"
+            :key="shout.id"
+            :shout="shout"
+            @select="openShoutDetail"
+          />
+        </div>
+
+        <!-- Load More -->
+        <div v-if="shouts.hasMore" class="pt-2 text-center">
+          <button
+            @click="shouts.loadMoreShouts()"
+            :disabled="shouts.loading"
+            class="btn-secondary px-6 py-3 text-sm disabled:opacity-50"
+          >
+            {{ shouts.loading ? 'Loading...' : 'Load More Shouts' }}
           </button>
         </div>
       </div>
@@ -202,6 +305,26 @@
       :blessings="blessingDetailData"
       @close="blessingDetailVisible = false"
     />
+
+    <!-- Shout Detail Modal -->
+    <ShoutDetailModal
+      :visible="shoutDetailVisible"
+      :shout="shouts.currentShout"
+      :replies="shouts.replies"
+      :total-replies="shouts.totalReplies"
+      :has-more-replies="shouts.repliesHasMore"
+      :loading="shoutDetailLoading"
+      :replies-loading="shouts.repliesLoading"
+      :submitting="shouts.submitting"
+      :submit-error="shouts.submitError"
+      :blessing-loading="shouts.blessingLoading"
+      :blessing-error="shouts.blessingError"
+      :blessing-types="blessings.blessingTypes"
+      @close="shoutDetailVisible = false"
+      @submit-reply="handleShoutReplySubmit"
+      @grant-blessing="handleShoutBlessing"
+      @load-more-replies="shouts.loadMoreReplies()"
+    />
   </div>
 </template>
 
@@ -213,11 +336,15 @@ import { usePrayerCounter } from '@/composables/usePrayerCounter'
 import { useBlessings } from '@/composables/useBlessings'
 import { useKarmaShop } from '@/composables/useKarmaShop'
 import { useAuth } from '@/composables/useAuth'
+import { useShouts } from '@/composables/useShouts'
+import { useEconomy } from '@/composables/useEconomy'
 import AkashicPrayerCard from '@/components/organisms/AkashicPrayerCard.vue'
 import SinnerCard from '@/components/organisms/SinnerCard.vue'
 import KarmaToast from '@/components/molecules/KarmaToast.vue'
 import BlessingPicker from '@/components/organisms/BlessingPicker.vue'
 import BlessingDetailModal from '@/components/organisms/BlessingDetailModal.vue'
+import ShoutCard from '@/components/molecules/ShoutCard.vue'
+import ShoutDetailModal from '@/components/organisms/ShoutDetailModal.vue'
 
 // Inject forceEvilTheme from App.vue for sinners tab
 const forceEvilTheme = inject('forceEvilTheme', ref(false))
@@ -227,6 +354,8 @@ const akashic = useAkashicRecords()
 const blessings = useBlessings()
 const shop = useKarmaShop()
 const auth = useAuth()
+const shouts = useShouts()
+const economy = useEconomy()
 
 const activeSubTab = ref('prayers')
 const sinnerPrayerLoading = ref(null) // sinner ID being loaded
@@ -242,6 +371,12 @@ const counterAnimating = ref(false)
 const karmaToastAmount = ref(0)
 const karmaToastType = ref('positive')
 const karmaToastLabel = ref('')
+
+// Shout state
+const shoutContent = ref('')
+const shoutFilter = ref('global')
+const shoutDetailVisible = ref(false)
+const shoutDetailLoading = ref(false)
 
 // Blessing state
 const blessingPickerVisible = ref(false)
@@ -327,6 +462,53 @@ function getSinnerCycleProgress(sinnerId) {
 async function switchToSinners() {
   activeSubTab.value = 'sinners'
   await akashic.fetchSinners()
+}
+
+// Switch to shouts tab and load data
+async function switchToShouts() {
+  activeSubTab.value = 'shouts'
+  await shouts.fetchShouts(false, shoutFilter.value)
+  await economy.fetchEconomy()
+}
+
+// Handle shout submission
+async function handleShoutSubmit() {
+  if (!shoutContent.value.trim()) return
+  const result = await shouts.submitShout(shoutContent.value.trim(), 'global')
+  if (result?.success) {
+    shoutContent.value = ''
+    await shouts.fetchShouts(false, shoutFilter.value)
+    await economy.fetchEconomy()
+  }
+}
+
+// Open shout detail modal
+async function openShoutDetail(shout) {
+  shoutDetailVisible.value = true
+  shoutDetailLoading.value = true
+  await shouts.fetchShoutDetail(shout.id)
+  shoutDetailLoading.value = false
+}
+
+// Handle shout reply submission
+async function handleShoutReplySubmit(content) {
+  if (!shouts.currentShout) return
+  const result = await shouts.submitReply(shouts.currentShout.id, content)
+  if (result?.success) {
+    await economy.fetchEconomy()
+  }
+}
+
+// Handle shout blessing
+async function handleShoutBlessing({ blessingTypeId, replyId }) {
+  if (!shouts.currentShout) return
+  const result = await shouts.grantShoutBlessing(shouts.currentShout.id, blessingTypeId, replyId)
+  if (result?.success) {
+    karmaToastAmount.value = 1
+    karmaToastType.value = 'positive'
+    karmaToastLabel.value = '✨ Blessing granted!'
+    await prayers.fetchProfile()
+  }
 }
 
 // Load more prayers and refresh blessing data for new prayers
@@ -506,8 +688,11 @@ watch(() => counter.sinnerRedeemed?.value, (val) => {
 onMounted(async () => {
   await akashic.fetchPublicPrayers()
   await prayers.fetchProfile()
+  await economy.fetchEconomy()
   // Fetch blessing data for loaded prayers
   await refreshBlessingData()
+  // Fetch blessing types (for shout blessings too)
+  await blessings.fetchBlessingTypes()
   // Subscribe to realtime updates for sinners and intercessory prayers
   akashic.subscribeToRealtime()
 })

@@ -143,11 +143,14 @@ serve(async (req: Request) => {
     }
 
     // Parse request body
-    const { message, user_id } = await req.json()
+    const { message, user_id, shout_id, reply_id } = await req.json()
 
     if (!message || !user_id) {
       throw new Error('Missing required fields: message, user_id')
     }
+
+    // shout_id or reply_id are optional — when provided, the function will
+    // update the DB record after translation (for shouts/replies workflow)
 
     // Get Supabase client from environment
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
@@ -211,6 +214,14 @@ serve(async (req: Request) => {
 
     if (!crierResponse.ok) {
       const errorText = await crierResponse.text()
+
+      // If shout_id/reply_id provided, mark as failed
+      if (shout_id) {
+        await supabase.from('shouts').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', shout_id)
+      } else if (reply_id) {
+        await supabase.from('shout_replies').update({ status: 'failed' }).eq('id', reply_id)
+      }
+
       throw new Error(`Venice API error: ${crierResponse.status} - ${errorText}`)
     }
 
@@ -221,6 +232,14 @@ serve(async (req: Request) => {
 
     if (!crierContent) {
       console.error('Venice API unexpected response:', JSON.stringify(crierData))
+
+      // If shout_id/reply_id provided, mark as failed
+      if (shout_id) {
+        await supabase.from('shouts').update({ status: 'failed', updated_at: new Date().toISOString() }).eq('id', shout_id)
+      } else if (reply_id) {
+        await supabase.from('shout_replies').update({ status: 'failed' }).eq('id', reply_id)
+      }
+
       throw new Error(`No response content from Venice API. Raw response: ${JSON.stringify(crierData)}`)
     }
 
@@ -240,13 +259,45 @@ serve(async (req: Request) => {
     }
 
     // ==========================================
-    // STEP 3: RETURN THE TRANSLATED MESSAGE
+    // STEP 3: UPDATE DATABASE (if shout_id or reply_id provided)
+    // ==========================================
+    if (shout_id) {
+      const { error: updateError } = await supabase
+        .from('shouts')
+        .update({
+          crier_content: translatedMessage.response,
+          status: 'posted',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', shout_id)
+
+      if (updateError) {
+        console.error('[town-crier] Failed to update shout:', updateError)
+      }
+    } else if (reply_id) {
+      const { error: updateError } = await supabase
+        .from('shout_replies')
+        .update({
+          crier_content: translatedMessage.response,
+          status: 'posted'
+        })
+        .eq('id', reply_id)
+
+      if (updateError) {
+        console.error('[town-crier] Failed to update reply:', updateError)
+      }
+    }
+
+    // ==========================================
+    // STEP 4: RETURN THE TRANSLATED MESSAGE
     // ==========================================
     return new Response(
       JSON.stringify({
         success: true,
         response: translatedMessage.response,
         faction: faction.name,
+        shout_id: shout_id || null,
+        reply_id: reply_id || null,
       }),
       {
         status: 200,
