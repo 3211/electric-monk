@@ -132,11 +132,11 @@
                     filter: `blur(${Math.min(index + 1, 2) * 0.4}px)`
                   }"
                 >
-                  <div class="glass-panel glass-panel-soft stacked-prayer-shadow-card h-32 rounded-[20px] border border-theme-border/30 sm:rounded-[24px]"></div>
+                  <div class="glass-panel glass-panel-soft stacked-prayer-shadow-card h-32 rounded-xl border border-theme-border/30 sm:rounded-xl"></div>
                 </div>
 
                 <!-- Selected (front) card with full detail -->
-                <div v-if="selectedPrayer" class="active-prayer-card glass-panel glass-panel-strong glass-gloss relative z-10 rounded-[22px] border border-theme-accent/45 p-6 shadow-glow-accent sm:rounded-[28px] sm:p-7">
+                <div v-if="selectedPrayer" class="active-prayer-card glass-panel glass-panel-strong glass-gloss relative z-10 rounded-xl border border-theme-accent/45 p-5 shadow-glow-accent sm:rounded-xl sm:p-6">
                   <!-- Delete/Archive Button -->
                   <button
                     @click="handleArchive(selectedPrayer.id)"
@@ -203,7 +203,7 @@
             </div>
 
             <!-- Single Active Prayer Card (original layout, no stacking) -->
-            <div v-else-if="prayers.currentActivePrayer" class="active-prayer-card glass-panel glass-panel-strong glass-gloss relative rounded-[22px] border border-theme-accent/45 p-6 shadow-glow-accent sm:rounded-[28px] sm:p-7">
+            <div v-else-if="prayers.currentActivePrayer" class="active-prayer-card glass-panel glass-panel-strong glass-gloss relative rounded-xl border border-theme-accent/45 p-5 shadow-glow-accent sm:rounded-xl sm:p-6">
               <!-- Delete/Archive Button -->
               <button
                 @click="handleArchive(prayers.currentActivePrayer.id)"
@@ -401,7 +401,7 @@
 
         <!-- Prayer Submission Form -->
         <aside class="lg:sticky lg:top-28">
-          <div class="submission-panel glass-panel glass-panel-strong glass-gloss mb-8 p-6 sm:p-7">
+          <div class="submission-panel glass-panel glass-panel-strong glass-gloss mb-6 p-5 sm:p-6">
             <div class="mb-5 flex flex-col items-center">
               <div class="submission-logo-shell mb-2">
                 <div class="submission-logo-halo"></div>
@@ -425,12 +425,12 @@
             </div>
             
             <!-- Error Message -->
-            <div v-if="prayers.error" class="mb-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
+            <div v-if="prayers.error" class="mb-4 rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
               {{ prayers.error }}
             </div>
 
             <!-- Slot Warning -->
-            <div v-if="!prayers.canSubmitPrayer" class="mb-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-4 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
+            <div v-if="!prayers.canSubmitPrayer" class="mb-4 rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/10 p-4 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
               All prayer slots occupied. Pause or archive an active prayer to free up a slot.
             </div>
             
@@ -1198,7 +1198,7 @@ async function handleAetherContinue() {
 .aether-error-content {
   margin: 1.25rem 0;
   text-align: left;
-  border-radius: 24px;
+  border-radius: 12px;
 }
 
 .aether-response-content {
@@ -1238,11 +1238,11 @@ async function handleAetherContinue() {
 
 @media (max-width: 640px) {
   .active-prayer-card {
-    border-radius: 22px;
+    border-radius: 12px;
   }
 
   .stacked-prayer-shadow-card {
-    border-radius: 20px;
+    border-radius: 12px;
   }
 
   .stacked-cards-container {

@@ -253,11 +253,25 @@ export function useAkashicRecords() {
    * Subscribe to realtime updates for sinners (purgatory) and intercessory prayers.
    * This allows live updates without manual refreshing.
    */
+/**
+   * Subscribe to realtime updates for sinners (purgatory) and intercessory prayers.
+   * Idempotent protection prevents subscribing multiple times or adding callbacks post-subscribe.
+   */
   function subscribeToRealtime() {
-    // Unsubscribe from existing channels first
+    // Check global channels list to ensure we don't double-subscribe or mutate a live channel
+    const activeChannels = supabase.getChannels()
+    const hasSinners = activeChannels.some(c => c.name === 'akashic-sinners')
+    const hasPrayers = activeChannels.some(c => c.name === 'akashic-prayers')
+
+    if (hasSinners && hasPrayers && sinnersChannel && prayersChannel) {
+      console.log('[Realtime] Channels already active and subscribed. Skipping safely.')
+      return
+    }
+
+    // Clean up any stale local reference remnants before building
     unsubscribeFromRealtime()
 
-    // Subscribe to profiles table changes (for ban_until updates = sinner redemption)
+    // 1. Build and bind ALL callbacks to sinners channel BEFORE calling .subscribe()
     sinnersChannel = supabase
       .channel('akashic-sinners')
       .on(
@@ -266,11 +280,10 @@ export function useAkashicRecords() {
           event: 'UPDATE',
           schema: 'public',
           table: 'profiles',
-          filter: 'ban_until=IS.NULL.*', // Catch when ban_until becomes NULL
+          filter: 'ban_until=IS.NULL.*',
         },
         (payload) => {
           console.log('[Realtime] Sinner redeemed:', payload.new)
-          // Remove the redeemed sinner from the list
           sinners.value = sinners.value.filter(s => s.id !== payload.new.id)
         }
       )
@@ -282,21 +295,18 @@ export function useAkashicRecords() {
           table: 'profiles',
         },
         (payload) => {
-          // Check if ban_until was cleared (redemption)
           if (payload.old?.ban_until && !payload.new?.ban_until) {
             console.log('[Realtime] Sinner redeemed (ban cleared):', payload.new.username)
             sinners.value = sinners.value.filter(s => s.id !== payload.new.id)
           }
-          // Update existing sinner data if they're still in the list
           const existingIndex = sinners.value.findIndex(s => s.id === payload.new.id)
           if (existingIndex !== -1) {
             sinners.value[existingIndex] = { ...sinners.value[existingIndex], ...payload.new }
           }
         }
       )
-      .subscribe()
 
-    // Subscribe to prayers table changes (for intercessory prayer updates)
+    // 2. Build and bind ALL callbacks to prayers channel BEFORE calling .subscribe()
     prayersChannel = supabase
       .channel('akashic-prayers')
       .on(
@@ -308,19 +318,18 @@ export function useAkashicRecords() {
           filter: 'prayer_type=intercessory',
         },
         async (payload) => {
-          // When an intercessory prayer is updated, refresh sinners list
-          // to show updated prayer counts
           if (payload.new.is_praying === false && payload.old?.is_praying) {
-            // Prayer just stopped - sinner might be redeemed
             console.log('[Realtime] Intercessory prayer stopped:', payload.new)
-            // Refresh sinners to check if any were redeemed
             await fetchSinners()
           }
         }
       )
-      .subscribe()
 
-    console.log('[Realtime] Subscribed to akashic-sinners and akashic-prayers channels')
+    // 3. Now that both channels are completely configured with their callbacks, safely open the sockets
+    sinnersChannel.subscribe()
+    prayersChannel.subscribe()
+
+    console.log('[Realtime] Channels safely built, bound, and subscribed cleanly.')
   }
 
   /**

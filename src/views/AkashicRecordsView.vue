@@ -686,15 +686,21 @@ watch(() => counter.sinnerRedeemed?.value, (val) => {
 
 // Load data on mount and subscribe to realtime
 onMounted(async () => {
+  // CRITICAL: Initialize the realtime channels FIRST. 
+  // This ensures the channel object exists and callbacks are locked in before async fetches fire 
+  // and trigger reactive UI changes or component watchers.
+  akashic.subscribeToRealtime()
+
+  // Execute data fetches safely in the background
   await akashic.fetchPublicPrayers()
   await prayers.fetchProfile()
   await economy.fetchEconomy()
+  
   // Fetch blessing data for loaded prayers
   await refreshBlessingData()
+  
   // Fetch blessing types (for shout blessings too)
   await blessings.fetchBlessingTypes()
-  // Subscribe to realtime updates for sinners and intercessory prayers
-  akashic.subscribeToRealtime()
 })
 
 // Cleanup on unmount - stop counting and unsubscribe from realtime
