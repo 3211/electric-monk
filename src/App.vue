@@ -1,5 +1,5 @@
 <script setup>
-import { computed, provide, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { useAuth } from './composables/useAuth'
 import { useBanTimer } from './composables/useBanTimer'
 import { useEconomy } from './composables/useEconomy'
@@ -28,6 +28,34 @@ const synod = useSynod()
 // Tab navigation
 const currentTab = ref('altar')
 
+// Mobile navigation drawer state
+const isMobileNavOpen = ref(false)
+
+const tabLabels = {
+  altar: '⚜ Altar',
+  akashic: '📜 Records',
+  factions: '🏛 Sects',
+  vatican: '🏰 Vatican',
+  synod: '⚔ Synod',
+  scriptorium: '📋 Scriptorium',
+  shop: '🛒 Shop',
+}
+const currentTabLabel = computed(() => tabLabels[currentTab.value] || 'Altar')
+
+// Close mobile nav on Escape key
+function handleEscapeKey(e) {
+  if (e.key === 'Escape' && isMobileNavOpen.value) {
+    isMobileNavOpen.value = false
+  }
+}
+onMounted(() => document.addEventListener('keydown', handleEscapeKey))
+onUnmounted(() => document.removeEventListener('keydown', handleEscapeKey))
+
+// Lock body scroll when mobile nav is open
+watch(isMobileNavOpen, (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+})
+
 // Force evil theme — injected by child views for conditional dark mode (Scriptorium, Records, Vatican)
 const forceEvilTheme = ref(false)
 provide('forceEvilTheme', forceEvilTheme)
@@ -55,6 +83,7 @@ const isWarView = computed(() => forceWarTheme.value)
 
 // Reset theme overrides when navigating to a non-toggleable view
 watch(currentTab, (tab) => {
+  isMobileNavOpen.value = false
   if (!toggleableViews.has(tab)) {
     forceEvilTheme.value = false
   }
@@ -104,14 +133,72 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
 
 <template>
   <div :class="['app-shell min-h-screen flex flex-col', { 'app-shell--evil': isEvilView && !isWarView, 'app-shell--war': isWarView, 'app-shell--holy': !isEvilView && !isWarView }]">
-    <!-- Tab Navigation (only when authenticated and not banned) -->
-    <nav v-if="auth.isAuthenticated && !banTimer.isBanned" class="global-nav sticky top-0 z-40 border-b backdrop-blur-[18px]">
+    <!-- ===== Mobile Top Bar (visible < md, hidden on desktop) ===== -->
+    <div v-if="auth.isAuthenticated && !banTimer.isBanned" class="mobile-top-bar md:hidden sticky top-0 z-40 border-b backdrop-blur-[18px]" :class="{ 'mobile-top-bar--evil': isEvilView && !isWarView, 'mobile-top-bar--war': isWarView }">
+      <div class="app-frame flex items-center justify-between py-3">
+        <div class="flex items-center gap-2">
+          <button @click="isMobileNavOpen = true" class="hamburger-btn" aria-label="Open navigation menu">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span class="text-sm font-semibold text-theme-accent truncate max-w-[180px]">{{ currentTabLabel }}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <ShieldTimer v-if="economy.shieldActive" :shield-until="economy.divineShieldUntil" />
+          <button
+            @click="showUsernameChangeModal = true"
+            class="nav-account-btn"
+            title="Change Username (costs 1000 Karma)"
+            aria-label="Change Username"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Mobile Navigation Drawer Overlay ===== -->
+    <Transition name="mobile-drawer">
+      <div v-if="isMobileNavOpen && auth.isAuthenticated && !banTimer.isBanned" class="mobile-drawer-overlay" @click="isMobileNavOpen = false">
+        <div class="mobile-drawer-panel" :class="{ 'mobile-drawer-panel--evil': isEvilView && !isWarView, 'mobile-drawer-panel--war': isWarView }" @click.stop>
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="ritual-heading text-lg font-bold text-theme-accent">Navigation</h2>
+            <button @click="isMobileNavOpen = false" class="hamburger-btn" aria-label="Close navigation menu">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <nav class="flex flex-col gap-1.5">
+            <button
+              v-for="(label, key) in tabLabels"
+              :key="key"
+              @click="currentTab = key"
+              :class="[currentTab === key ? 'mobile-nav-item-active' : 'mobile-nav-item-inactive']"
+            >
+              {{ label }}
+            </button>
+          </nav>
+          <div class="mt-6 pt-4 border-t border-current/10">
+            <button @click="auth.signOut()" class="mobile-nav-item-inactive w-full">
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- ===== Desktop Navigation (visible md+, hidden on mobile) ===== -->
+    <nav v-if="auth.isAuthenticated && !banTimer.isBanned" class="global-nav hidden md:block sticky top-0 z-40 border-b backdrop-blur-[18px]">
       <div class="app-frame">
         <div class="relative py-3 sm:py-4">
           <div :class="['global-nav-veil', isWarView ? 'global-nav-veil--war' : (isEvilView ? 'global-nav-veil--evil' : 'global-nav-veil--holy')]"></div>
           <div class="global-nav-row relative flex flex-wrap items-center gap-2 sm:gap-3">
             <!-- Primary tabs cluster (flex-grows to consume slack) -->
-            <div class="global-nav-shell mobile-shell-safe segmented-shell flex-1 min-w-0 flex flex-wrap items-center justify-start gap-1">
+            <div class="global-nav-shell segmented-shell flex-1 min-w-0 flex flex-wrap items-center justify-start gap-1">
               <button
                 @click="currentTab = 'altar'"
                 :class="currentTab === 'altar' ? 'nav-tab-active' : 'nav-tab-inactive'"
@@ -157,12 +244,12 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
             </div>
 
             <!-- Shield indicator (global, always visible when shield active) -->
-            <div v-if="economy.shieldActive" class="global-nav-shield mobile-shell-safe">
+            <div v-if="economy.shieldActive" class="global-nav-shield">
               <ShieldTimer :shield-until="economy.divineShieldUntil" />
             </div>
 
             <!-- Account cluster: change-username (icon) + logout (pill, matches nav buttons) -->
-            <div class="global-nav-account mobile-shell-safe segmented-shell flex items-center gap-1 flex-none ml-auto">
+            <div class="global-nav-account segmented-shell flex items-center gap-1 flex-none ml-auto">
               <button
                 @click="showUsernameChangeModal = true"
                 class="nav-account-btn"
@@ -315,68 +402,207 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
   min-height: 100%;
 }
 
-@media (max-width: 640px) {
-  .global-nav-row {
-    gap: 0.6rem;
-    align-items: stretch;
-  }
+/* ─── Mobile Top Bar ─── */
+.mobile-top-bar {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 250, 241, 0.58);
+  border-color: rgba(139, 125, 91, 0.16);
+  box-shadow: 0 18px 36px rgba(48, 38, 21, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.58);
+  transition: background 420ms var(--ease-ritual-lift), border-color 420ms var(--ease-ritual-lift);
+}
 
-  .global-nav-shell,
-  .global-nav-account,
-  .global-nav-shield {
-    width: 100%;
-    max-width: 100%;
-  }
+.mobile-top-bar--evil {
+  background: linear-gradient(180deg, rgba(13, 10, 20, 0.92), rgba(17, 12, 28, 0.88));
+  border-color: rgba(137, 108, 178, 0.36);
+  box-shadow: 0 22px 52px rgba(1, 1, 6, 0.42), 0 0 0 1px rgba(177, 128, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
 
-  .global-nav-shell,
-  .global-nav-account {
-    justify-content: center;
-  }
+.mobile-top-bar--war {
+  background: linear-gradient(180deg, rgba(14, 18, 23, 0.94), rgba(18, 23, 29, 0.92));
+  border-color: rgba(164, 176, 189, 0.16);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
 
-  .global-nav-shield {
-    display: flex;
-    justify-content: center;
-  }
+.hamburger-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  color: var(--theme-text-muted);
+  background: rgba(255, 253, 248, 0.45);
+  backdrop-filter: blur(10px);
+  transition: all var(--dur-standard) var(--ease-ritual-lift);
+}
 
-  .global-nav-account {
-    margin-left: 0;
-    flex-wrap: wrap;
-  }
+.hamburger-btn:hover {
+  color: var(--theme-text);
+  border-color: rgba(213, 154, 23, 0.18);
+  background: rgba(255, 251, 243, 0.72);
+  transform: translateY(-1px);
+}
 
-  .global-nav-account .nav-tab-inactive {
-    flex: 0 1 auto;
-  }
+.app-shell--evil .hamburger-btn {
+  color: #a9b6c4;
+  border-color: rgba(137, 108, 178, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+}
 
-  .nav-tab-active,
-  .nav-tab-inactive {
-    flex: 1 1 calc(50% - 0.35rem);
-    max-width: 100%;
-    justify-content: center;
-    padding: 0.45rem 0.7rem;
-    font-size: 0.78rem;
-    min-height: 2.25rem;
-    text-align: center;
-    white-space: normal;
-  }
+.app-shell--evil .hamburger-btn:hover {
+  color: #d5ffe0;
+  border-color: rgba(126, 255, 161, 0.18);
+  background: rgba(126, 255, 161, 0.08);
+}
 
-  .nav-account-btn {
-    width: 2.25rem;
-    height: 2.25rem;
-  }
+.app-shell--war .hamburger-btn {
+  color: #8291a0;
+  border-color: rgba(164, 176, 189, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+}
 
-  .global-nav-veil {
-    border-radius: 28px;
+.app-shell--war .hamburger-btn:hover {
+  color: #b9c5cf;
+  border-color: rgba(182, 144, 91, 0.18);
+  background: rgba(182, 144, 91, 0.06);
+}
+
+/* ─── Mobile Navigation Drawer ─── */
+.mobile-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: flex-start;
+}
+
+.mobile-drawer-panel {
+  position: relative;
+  width: min(280px, 85vw);
+  height: 100%;
+  overflow-y: auto;
+  padding: 1.5rem;
+  background: linear-gradient(180deg, rgba(255, 250, 241, 0.97), rgba(255, 246, 228, 0.95));
+  box-shadow: 18px 0 52px rgba(48, 38, 21, 0.18), 0 0 0 1px rgba(139, 125, 91, 0.12);
+}
+
+.mobile-drawer-panel--evil {
+  background: linear-gradient(180deg, rgba(13, 10, 20, 0.98), rgba(22, 15, 35, 0.97));
+  box-shadow: 18px 0 52px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(137, 108, 178, 0.2);
+}
+
+.mobile-drawer-panel--war {
+  background: linear-gradient(180deg, rgba(14, 18, 23, 0.98), rgba(20, 25, 32, 0.97));
+  box-shadow: 18px 0 52px rgba(0, 0, 0, 0.46), 0 0 0 1px rgba(164, 176, 189, 0.14);
+}
+
+.mobile-nav-item-active,
+.mobile-nav-item-inactive {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-button);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  transition: all var(--dur-standard) var(--ease-ritual-lift);
+}
+
+.mobile-nav-item-active {
+  color: var(--theme-accent-dark);
+  border: 1px solid rgba(213, 154, 23, 0.26);
+  background: linear-gradient(180deg, rgba(255, 251, 240, 0.95), rgba(248, 232, 194, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 10px 24px rgba(213, 154, 23, 0.18);
+}
+
+.mobile-nav-item-inactive {
+  color: var(--theme-text-dim);
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.mobile-nav-item-inactive:hover {
+  color: var(--theme-text);
+  background: rgba(255, 251, 243, 0.56);
+  border-color: rgba(139, 125, 91, 0.12);
+}
+
+.app-shell--evil .mobile-nav-item-active {
+  color: #f2f5f7;
+  border-color: rgba(126, 255, 161, 0.24);
+  background: linear-gradient(180deg, rgba(233, 241, 247, 0.16), rgba(233, 241, 247, 0.06)), linear-gradient(180deg, rgba(38, 40, 48, 0.94), rgba(21, 24, 31, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 14px 28px rgba(0, 0, 0, 0.32), 0 0 22px rgba(126, 255, 161, 0.08);
+}
+
+.app-shell--evil .mobile-nav-item-inactive {
+  color: #a9b6c4;
+}
+
+.app-shell--evil .mobile-nav-item-inactive:hover {
+  color: #d5ffe0;
+  background: rgba(126, 255, 161, 0.08);
+  border-color: rgba(126, 255, 161, 0.12);
+}
+
+.app-shell--war .mobile-nav-item-active {
+  color: #d7e0e8;
+  border-color: rgba(182, 144, 91, 0.24);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)), linear-gradient(180deg, rgba(40, 48, 56, 0.94), rgba(24, 30, 37, 0.94));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 14px 28px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(182, 144, 91, 0.06);
+}
+
+.app-shell--war .mobile-nav-item-inactive {
+  color: #8291a0;
+}
+
+.app-shell--war .mobile-nav-item-inactive:hover {
+  color: #b9c5cf;
+  background: rgba(182, 144, 91, 0.06);
+  border-color: rgba(164, 176, 189, 0.14);
+}
+
+/* ─── Mobile Drawer Transition ─── */
+.mobile-drawer-enter-active {
+  transition: opacity 220ms var(--ease-ritual-lift);
+}
+
+.mobile-drawer-leave-active {
+  transition: opacity 180ms var(--ease-standard);
+}
+
+.mobile-drawer-enter-from,
+.mobile-drawer-leave-to {
+  opacity: 0;
+}
+
+.mobile-drawer-enter-active .mobile-drawer-panel {
+  animation: drawer-slide-in 280ms var(--ease-ritual-lift);
+}
+
+.mobile-drawer-leave-active .mobile-drawer-panel {
+  animation: drawer-slide-out 180ms var(--ease-standard);
+}
+
+@keyframes drawer-slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
   }
 }
 
-@media (max-width: 420px) {
-  .nav-tab-active,
-  .nav-tab-inactive {
-    flex-basis: 100%;
+@keyframes drawer-slide-out {
+  from {
+    transform: translateX(0);
   }
-
-  .global-nav-veil {
-    border-radius: 24px;
+  to {
+    transform: translateX(-100%);
   }
 }
 .app-shell {

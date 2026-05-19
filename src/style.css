@@ -1285,7 +1285,7 @@
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   :root {
     --radius-panel: 22px;
     --radius-panel-soft: 20px;
@@ -1294,16 +1294,17 @@
   }
 
   .app-frame {
-    padding-inline: clamp(0.8rem, 4vw, 1rem);
+    padding-inline: clamp(0.75rem, 4vw, 1rem);
   }
 
   .glass-panel,
   .glass-panel-soft,
   .glass-panel-strong,
   .floating-console {
-    border-radius: min(var(--radius-panel), calc(100vw - 1.6rem));
+    border-radius: min(var(--radius-panel), calc(100vw - 1.5rem));
   }
 
+  /* Segmented shells wrap on mobile */
   .segmented-shell {
     width: 100%;
     max-width: 100%;
@@ -1328,11 +1329,11 @@
     padding-inline: 0.65rem;
   }
 
+  /* Buttons stay inline on larger mobile but go full-width on very small screens */
   .btn-primary,
   .btn-secondary,
   .btn-ghost,
   .btn-danger {
-    width: 100%;
     max-width: 100%;
   }
 
@@ -1341,10 +1342,18 @@
     height: 2rem;
   }
 
-  .mobile-shell-safe {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
+  /* View headers stack vertically on mobile */
+  .factions-stage-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .faction-diamond-wrapper {
+    display: none;
+  }
+
+  .faction-roster-card {
+    padding: 0.75rem;
   }
 }
 

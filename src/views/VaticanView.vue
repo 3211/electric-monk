@@ -174,7 +174,7 @@
                 </div>
               </div>
 
-              <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs overflow-x-auto">
                 <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                   <div class="font-semibold text-theme-text">{{ combat.myAttack.attacker_workers }}</div>
                   <div class="text-theme-text-dim">Your Workers</div>

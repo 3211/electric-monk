@@ -142,7 +142,7 @@
               </div>
             </div>
 
-            <div class="grid grid-cols-4 gap-2 text-xs text-theme-text-muted">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-theme-text-muted">
               <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                 <div class="font-semibold text-theme-text">{{ war.attacker_workers }}</div><div>Atk Workers</div>
               </div>
