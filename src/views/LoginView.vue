@@ -11,12 +11,12 @@
 
     <div class="login-card max-w-md w-full glass-panel glass-panel-strong glass-gloss p-6 sm:p-8">
       <!-- Error Message -->
-      <div v-if="auth.error && typeof auth.error === 'string' && auth.error.trim()" class="mb-5 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
+      <div v-if="auth.error && typeof auth.error === 'string' && auth.error.trim()" class="mb-5 rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
         {{ auth.error }}
       </div>
 
       <!-- Success Message (Email Confirmation) -->
-      <div v-if="auth.needsConfirmation" class="mb-5 rounded-[20px] border border-theme-accent/25 bg-theme-accent/10 p-3 text-sm text-theme-text-dim shadow-[0_10px_24px_rgba(213,154,23,0.08)]">
+      <div v-if="auth.needsConfirmation" class="mb-5 rounded-lg border border-theme-accent/25 bg-theme-accent/10 p-3 text-sm text-theme-text-dim shadow-[0_10px_24px_rgba(213,154,23,0.08)]">
         <p class="mb-1 font-semibold text-theme-accent-dark">Account created successfully!</p>
         <p>Please check your email at <strong>{{ email }}</strong> and click the confirmation link to activate your account.</p>
         <p class="mt-2 text-xs text-theme-text-muted">After confirming, you can sign in below.</p>

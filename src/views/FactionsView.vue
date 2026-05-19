@@ -5,7 +5,7 @@
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="relative min-w-0">
             <div class="merged-header-glow" aria-hidden="true"></div>
-            <h1 class="faction-page-title ritual-heading relative text-4xl font-bold text-theme-accent sm:text-5xl">🏛️ Sects</h1>
+            <h1 class="faction-page-title ritual-heading relative text-4xl font-bold text-theme-accent sm:text-5xl">🏛�E�ESects</h1>
             <p class="faction-page-subtitle relative mt-1 text-sm text-theme-text-muted">Know thy allies. Fear thy enemies.</p>
           </div>
           <div v-if="playerSect && factionData[playerSect]" class="flex items-center gap-3">
@@ -25,7 +25,7 @@
             @click="activeTab = 'overview'"
             :class="activeTab === 'overview' ? 'nav-tab-active' : 'nav-tab-inactive'"
           >
-            🏛️ Overview
+            🏛�E�EOverview
           </button>
           <button
             @click="activeTab = 'rankings'"
@@ -38,12 +38,12 @@
 
       <div v-if="activeTab === 'overview'">
         <div v-if="loading" class="glass-panel glass-panel-soft faction-state-card p-12 text-center">
-          <div class="text-4xl mb-4" style="animation: ritual-breathe 3s ease-in-out infinite">🏛️</div>
+          <div class="text-4xl mb-4" style="animation: ritual-breathe 3s ease-in-out infinite">🏛�E�E/div>
           <p class="text-theme-text-dim">Consulting the archives...</p>
         </div>
 
         <div v-else-if="error" class="glass-panel faction-state-card faction-state-card--error p-8 text-center border border-theme-purgatory/25">
-          <div class="text-4xl mb-4">⚠️</div>
+          <div class="text-4xl mb-4">⚠�E�E/div>
           <p class="text-theme-purgatory-dark">{{ error }}</p>
           <button @click="fetchFactions()" class="btn-secondary faction-action-button mt-4 px-6 py-2">Try Again</button>
         </div>
@@ -90,7 +90,7 @@
                 <div class="faction-diamond-shell">
                   <div class="faction-diamond-aura" aria-hidden="true"></div>
                   <div class="faction-core-seal" aria-hidden="true">
-                    <span class="faction-core-seal-icon">{{ FACTION_ICONS[focusFactionKey] || '🏛️' }}</span>
+                    <span class="faction-core-seal-icon">{{ FACTION_ICONS[focusFactionKey] || '🏛�E�E }}</span>
                     <span v-if="focusFactionKey && factionData[focusFactionKey]" class="chip text-[0.65rem] px-2 py-0.5">
                       {{ factionData[focusFactionKey].member_count || 0 }} members
                     </span>
@@ -280,19 +280,19 @@
                       <span class="chip faction-relation-badge faction-relation-badge--ally text-xs py-2 px-3">
                         🟢 Ally: {{ FACTION_NAMES[factionData[selectedFaction].ally] }}
                       </span>
-                      <span v-if="factionData[selectedFaction].rationale_ally" class="text-xs text-theme-text-muted">— {{ factionData[selectedFaction].rationale_ally }}</span>
+                      <span v-if="factionData[selectedFaction].rationale_ally" class="text-xs text-theme-text-muted"> E{{ factionData[selectedFaction].rationale_ally }}</span>
                     </div>
                     <div class="faction-relationship-card faction-relationship-card--enemy">
                       <span class="chip faction-relation-badge faction-relation-badge--enemy text-xs py-2 px-3">
                         🔴 Enemy: {{ FACTION_NAMES[factionData[selectedFaction].enemy] }}
                       </span>
-                      <span v-if="factionData[selectedFaction].rationale_enemy" class="text-xs text-theme-text-muted">— {{ factionData[selectedFaction].rationale_enemy }}</span>
+                      <span v-if="factionData[selectedFaction].rationale_enemy" class="text-xs text-theme-text-muted"> E{{ factionData[selectedFaction].rationale_enemy }}</span>
                     </div>
                     <div class="faction-relationship-card faction-relationship-card--neutral">
                       <span class="chip faction-relation-badge faction-relation-badge--neutral text-xs py-2 px-3">
                         🟡 Neutral: {{ FACTION_NAMES[factionData[selectedFaction].neutral] }}
                       </span>
-                      <span v-if="factionData[selectedFaction].rationale_neutral" class="text-xs text-theme-text-muted">— {{ factionData[selectedFaction].rationale_neutral }}</span>
+                      <span v-if="factionData[selectedFaction].rationale_neutral" class="text-xs text-theme-text-muted"> E{{ factionData[selectedFaction].rationale_neutral }}</span>
                     </div>
                   </div>
                 </div>
@@ -315,7 +315,7 @@
 
         <!-- Error State -->
         <div v-else-if="leaderboard.error" class="glass-panel faction-state-card faction-state-card--error p-8 text-center border border-theme-purgatory/25">
-          <div class="text-4xl mb-4">⚠️</div>
+          <div class="text-4xl mb-4">⚠�E�E/div>
           <p class="font-semibold text-red-500 mb-2">Failed to load rankings</p>
           <p class="text-sm text-theme-text-muted">{{ leaderboard.error }}</p>
           <button @click="handleRefreshRankings" class="btn-secondary faction-action-button mt-4 px-4 py-2 text-sm">Try Again</button>
@@ -976,7 +976,7 @@ onBeforeUnmount(() => {
   gap: 0.8rem;
   width: 100%;
   padding: 0.8rem 0.95rem;
-  border-radius: 1.45rem;
+  border-radius: 8px;
   border: 1px solid rgba(167, 179, 190, 0.14);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 38%, rgba(255, 255, 255, 0.01) 100%),
@@ -1043,7 +1043,7 @@ onBeforeUnmount(() => {
 .faction-diamond-shell {
   position: relative;
   padding: clamp(0.9rem, 2.5vw, 1.35rem);
-  border-radius: 2.25rem;
+  border-radius: 12px;
   background:
     radial-gradient(circle at 50% 44%, rgba(181, 191, 201, 0.08), transparent 36%),
     linear-gradient(145deg, rgba(29, 36, 43, 0.98), rgba(18, 24, 30, 0.98) 52%, rgba(11, 15, 20, 1));
@@ -1098,7 +1098,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   width: clamp(3.65rem, 7.7vw, 4.7rem);
   height: clamp(3.65rem, 7.7vw, 4.7rem);
-  border-radius: 1.4rem;
+  border-radius: 8px;
   border: 1px solid rgba(183, 193, 202, 0.18);
   background:
     radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.025) 38%, rgba(255, 255, 255, 0) 62%),
@@ -1160,7 +1160,7 @@ onBeforeUnmount(() => {
   position: relative;
   min-height: 6.3rem;
   overflow: hidden;
-  border-radius: 1.45rem;
+  border-radius: 8px;
   border: 1px solid rgba(171, 182, 192, 0.14);
   background:
     radial-gradient(circle at 50% 12%, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 42%, rgba(255, 255, 255, 0) 68%),
@@ -1203,7 +1203,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   width: 2.45rem;
   height: 2.45rem;
-  border-radius: 0.9rem;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 rgba(255, 255, 255, 0.025);
 }
@@ -1264,7 +1264,7 @@ onBeforeUnmount(() => {
 .faction-detail-header {
   position: relative;
   padding: 1.2rem 1.25rem;
-  border-radius: 1.75rem;
+  border-radius: 10px;
   border: 1px solid rgba(172, 183, 193, 0.14);
   background:
     radial-gradient(circle at top right, rgba(182, 194, 204, 0.08), transparent 34%),
@@ -1282,7 +1282,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   width: 4rem;
   height: 4rem;
-  border-radius: 1.3rem;
+  border-radius: 8px;
   border: 1px solid rgba(174, 184, 194, 0.16);
   background:
     radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.03) 36%, rgba(255, 255, 255, 0) 62%),
@@ -1295,7 +1295,7 @@ onBeforeUnmount(() => {
 
 .faction-section-card {
   padding: 1.15rem;
-  border-radius: 1.5rem;
+  border-radius: 10px;
   border: 1px solid rgba(169, 180, 190, 0.14);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02) 38%, rgba(255, 255, 255, 0.01) 100%),
@@ -1314,7 +1314,7 @@ onBeforeUnmount(() => {
 
 .faction-metric-card {
   padding: 0.95rem 1rem;
-  border-radius: 1.2rem;
+  border-radius: 8px;
   border: 1px solid rgba(169, 180, 190, 0.12);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.015) 42%, rgba(255, 255, 255, 0.01) 100%),
@@ -1331,7 +1331,7 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 0.55rem;
   padding: 1rem;
-  border-radius: 1.3rem;
+  border-radius: 8px;
   border: 1px solid rgba(169, 180, 190, 0.14);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02) 36%, rgba(255, 255, 255, 0.01) 100%),
@@ -1391,7 +1391,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 0.8rem;
   padding: 0.85rem 1rem;
-  border-radius: 1.15rem;
+  border-radius: 8px;
   border: 1px solid rgba(169, 180, 190, 0.12);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.015) 42%, rgba(255, 255, 255, 0.01) 100%),
@@ -1609,7 +1609,7 @@ onBeforeUnmount(() => {
 
   .faction-diamond-shell {
     padding: 0.7rem;
-    border-radius: 28px;
+    border-radius: 12px;
   }
 
   .faction-node {

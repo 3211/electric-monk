@@ -14,9 +14,9 @@
       </div>
 
       <!-- Intercessory Prayer Count -->
-      <div v-if="intercessoryCount > 0" class="glass-panel glass-panel-soft glass-gloss evil-purgatory-support mb-5 rounded-[20px] border border-theme-accent/20 p-4 sm:rounded-[24px]">
+      <div v-if="intercessoryCount > 0" class="glass-panel glass-panel-soft glass-gloss evil-purgatory-support mb-5 rounded-lg border border-theme-accent/20 p-4 sm:rounded-lg">
         <p class="text-sm font-medium text-theme-accent">
-          ğŸ•¯ï¸ {{ intercessoryCount }} {{ intercessoryCount === 1 ? 'person is' : 'people are' }} praying for your redemption
+          ğŸ•¯EE{{ intercessoryCount }} {{ intercessoryCount === 1 ? 'person is' : 'people are' }} praying for your redemption
         </p>
         <p class="mt-1 text-xs text-theme-text-muted">Each completed prayer cycle reduces your time by 1 minute</p>
       </div>
@@ -54,7 +54,7 @@
 
         <!-- Ad Placeholder -->
         <div v-else class="mt-5 space-y-4">
-          <div class="glass-panel glass-panel-soft evil-purgatory-ad aspect-video rounded-[20px] border border-theme-border p-5 sm:rounded-[24px] sm:p-6">
+          <div class="glass-panel glass-panel-soft evil-purgatory-ad aspect-video rounded-lg border border-theme-border p-5 sm:rounded-lg sm:p-6">
             <div class="flex h-full flex-col items-center justify-center text-center">
               <div class="mb-2 animate-pulse text-theme-accent">
                 <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -87,7 +87,7 @@
           <div
             v-for="c in combat.activeCombats"
             :key="c.session_id"
-            class="p-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/5"
+            class="p-4 rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/5"
           >
             <div class="flex items-center justify-between mb-2">
               <div class="font-medium text-theme-text text-sm">
@@ -315,7 +315,7 @@ function karmaClass() {
   content: "";
   position: absolute;
   inset: 1rem;
-  border-radius: 24px;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   background: radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.03), transparent 54%);
   pointer-events: none;
@@ -324,7 +324,7 @@ function karmaClass() {
 @media (max-width: 640px) {
   .purgatory-timer::before {
     inset: 0.8rem;
-    border-radius: 20px;
+    border-radius: 10px;
   }
 
   .purgatory-timer-halo {

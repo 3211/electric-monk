@@ -56,7 +56,7 @@
             </button>
           </div>
 
-          <div v-if="hw.warTarget?.found" class="rounded-[20px] border border-theme-accent/30 bg-theme-accent/5 p-5">
+          <div v-if="hw.warTarget?.found" class="rounded-lg border border-theme-accent/30 bg-theme-accent/5 p-5">
             <div class="flex items-center justify-between">
               <div>
                 <div class="font-semibold text-theme-text text-lg">{{ hw.warTarget.name }}</div>
@@ -77,7 +77,7 @@
           </div>
         </template>
 
-        <div v-if="hw.lastResult?.success" class="mt-4 rounded-[16px] border border-theme-accent/30 bg-theme-accent/5 p-4 text-sm text-theme-text">
+        <div v-if="hw.lastResult?.success" class="mt-4 rounded-lg border border-theme-accent/30 bg-theme-accent/5 p-4 text-sm text-theme-text">
           Crusade declared! {{ hw.lastResult.siege_days }}-day siege. {{ hw.lastResult.attacker_mana }} Mana / {{ hw.lastResult.attacker_workers }} Workers committed.
         </div>
       </div>
@@ -104,7 +104,7 @@
         </div>
 
         <div v-for="(war, idx) in [hw.activeWars[hw.defenseIndex]]" :key="war?.session_id || idx">
-          <div v-if="war" class="p-5 rounded-[20px] border"
+          <div v-if="war" class="p-5 rounded-lg border"
             :class="war.is_attacker ? 'border-theme-accent/25 bg-theme-accent/5' : 'border-theme-purgatory/25 bg-theme-purgatory/5'">
             <div class="flex items-center justify-between mb-3">
               <div>
@@ -143,16 +143,16 @@
             </div>
 
             <div class="grid grid-cols-4 gap-2 text-xs text-theme-text-muted">
-              <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+              <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                 <div class="font-semibold text-theme-text">{{ war.attacker_workers }}</div><div>Atk Workers</div>
               </div>
-              <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+              <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                 <div class="font-semibold text-theme-text">{{ war.defender_workers }}</div><div>Def Workers</div>
               </div>
-              <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+              <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                 <div class="font-semibold text-theme-text">{{ war.ticks_remaining }}/{{ war.ticks_total }}</div><div>Ticks</div>
               </div>
-              <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+              <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                 <div class="font-semibold text-yellow-500">{{ war.gold_stolen || 0 }}</div><div>Gold Stolen</div>
               </div>
             </div>

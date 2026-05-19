@@ -1,6 +1,6 @@
 <template>
   <div>
-    <header class="shop-header border-b surface-divider bg-theme-panel/55 backdrop-blur-[16px]">
+    <header class=shop-header border-b surface-divider bg-theme-panel/50 backdrop-blur-sm">
       <div class="app-frame py-6">
         <div class="flex flex-col gap-5">
           <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -34,7 +34,7 @@
               class="pill-tab"
               :class="shop.activeTab === 'mana' ? 'pill-tab-active' : 'pill-tab-inactive'"
             >
-              üïØÔ∏è Estates
+              üïØÅEÅEEstates
             </button>
             <button
               @click="shop.activeTab = 'food'"
@@ -115,7 +115,7 @@
               </div>
 
               <div class="mb-3 flex items-center gap-3">
-                <span class="flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-400/20 bg-blue-50/55 text-3xl shadow-[0_10px_20px_rgba(59,130,246,0.12)] backdrop-blur-sm">
+                <span class="flex h-14 w-14 items-center justify-center rounded-lg border border-blue-400/20 bg-blue-50/55 text-3xl shadow-[0_10px_20px_rgba(59,130,246,0.12)] backdrop-blur-sm">
                   {{ item.emoji_icon }}
                 </span>
                 <div class="min-w-0">
@@ -205,7 +205,7 @@
               </div>
 
               <div class="mb-3 flex items-center gap-3">
-                <span class="flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-50/55 text-3xl shadow-[0_10px_20px_rgba(16,185,129,0.12)] backdrop-blur-sm">
+                <span class="flex h-14 w-14 items-center justify-center rounded-lg border border-emerald-400/20 bg-emerald-50/55 text-3xl shadow-[0_10px_20px_rgba(16,185,129,0.12)] backdrop-blur-sm">
                   {{ item.emoji_icon }}
                 </span>
                 <div class="min-w-0">
@@ -290,7 +290,7 @@
               </div>
 
               <div class="mb-3 flex items-center gap-3">
-                <span class="flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-50/55 text-3xl shadow-[0_10px_20px_rgba(213,154,23,0.12)] backdrop-blur-sm">
+                <span class="flex h-14 w-14 items-center justify-center rounded-lg border border-amber-400/20 bg-amber-50/55 text-3xl shadow-[0_10px_20px_rgba(213,154,23,0.12)] backdrop-blur-sm">
                   {{ item.emoji_icon }}
                 </span>
                 <div class="min-w-0">
@@ -367,7 +367,7 @@
 
             <div class="relative">
               <div class="mb-3 flex items-center gap-3">
-                <span class="flex h-12 w-12 items-center justify-center rounded-2xl border border-theme-accent/20 bg-white/55 text-2xl shadow-[0_10px_20px_rgba(213,154,23,0.12)] backdrop-blur-sm">
+                <span class="flex h-12 w-12 items-center justify-center rounded-lg border border-theme-accent/20 bg-white/55 text-2xl shadow-[0_10px_20px_rgba(213,154,23,0.12)] backdrop-blur-sm">
                   {{ item.emoji_icon }}
                 </span>
                 <div class="min-w-0">
@@ -429,7 +429,7 @@
 
             <div class="relative">
               <div class="mb-3 flex items-center gap-3">
-                <span class="flex h-12 w-12 items-center justify-center rounded-2xl border border-theme-accent/20 bg-white/55 text-2xl shadow-[0_10px_20px_rgba(213,154,23,0.12)] backdrop-blur-sm">{{ blessing.emoji }}</span>
+                <span class="flex h-12 w-12 items-center justify-center rounded-lg border border-theme-accent/20 bg-white/55 text-2xl shadow-[0_10px_20px_rgba(213,154,23,0.12)] backdrop-blur-sm">{{ blessing.emoji }}</span>
                 <div class="min-w-0">
                   <h3 class="truncate text-sm font-semibold text-theme-text">{{ blessing.name }}</h3>
                   <div class="chip mt-0.5 gap-1 px-2 py-0.5 text-[0.65rem] font-semibold text-theme-accent">

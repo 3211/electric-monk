@@ -40,7 +40,7 @@
             class="pill-tab"
             :class="activeSubTab === 'sinners' ? 'pill-tab-active' : 'pill-tab-inactive'"
           >
-            😈 Sinners
+            �E Sinners
           </button>
         </div>
       </div>
@@ -74,7 +74,7 @@
         </div>
 
         <div v-else-if="akashic.publicPrayers.length === 0 && !akashic.loading" class="glass-panel glass-panel-strong glass-gloss border-2 border-dashed border-theme-border p-12 text-center">
-          <div class="mb-4 text-6xl">🕊️</div>
+          <div class="mb-4 text-6xl">🕊�E�E/div>
           <h3 class="mb-2 text-lg font-medium text-theme-text">No Prayers Yet</h3>
           <p class="text-theme-text-dim">The Akashic Records are empty. Be the first to submit a prayer.</p>
         </div>
@@ -207,12 +207,12 @@
 
       <div v-if="activeSubTab === 'sinners'" class="space-y-6">
         <div v-if="akashic.sinnersLoading && akashic.sinners.length === 0" class="glass-panel glass-panel-soft p-12 text-center text-theme-text-dim">
-          <div class="mb-3 text-4xl animate-pulse">😈</div>
+          <div class="mb-3 text-4xl animate-pulse">�E</div>
           <p>Scanning for souls in purgatory...</p>
         </div>
 
         <div v-else-if="akashic.sinners.length === 0 && !akashic.sinnersLoading" class="glass-panel glass-panel-strong glass-gloss border-2 border-dashed border-theme-border p-12 text-center">
-          <div class="mb-4 text-6xl">😇</div>
+          <div class="mb-4 text-6xl">�E</div>
           <h3 class="mb-2 text-lg font-medium text-theme-text">No Souls in Purgatory</h3>
           <p class="text-theme-text-dim">All is well in the spiritual realm. No one is currently condemned.</p>
         </div>
@@ -255,7 +255,7 @@
                 <p v-if="activeTargetName" class="truncate text-xs text-theme-text-muted">{{ activeTargetName }}</p>
               </div>
             </div>
-            <div class="rounded-[18px] border border-theme-accent/20 bg-white/55 px-3 py-2 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm">
+            <div class="rounded-lg border border-theme-accent/20 bg-white/55 px-3 py-2 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm">
               <span class="block text-2xl font-bold text-theme-accent font-mono">{{ counterDisplayedCount }}</span>
               <span class="text-[0.7rem] uppercase tracking-[0.18em] text-theme-text-muted">prays</span>
             </div>
@@ -385,7 +385,7 @@ const blessingDetailVisible = ref(false)
 const blessingDetailData = ref([])
 
 // Computed: blessing type IDs the CURRENT USER has already granted to the target prayer
-// (not all blessings — other users' blessings should NOT block the current user from also blessing)
+// (not all blessings  Eother users' blessings should NOT block the current user from also blessing)
 const existingBlessingTypeIds = computed(() => {
   if (!blessingTargetPrayer.value) return []
   return blessings.getMyBlessingTypeIdsForPrayer(blessingTargetPrayer.value.id)
@@ -408,7 +408,7 @@ watch(counter.isAnimating, (val) => {
 const activePrayerTypeIcon = computed(() => {
   const prayer = akashic.activeAltruisticPrayer
   if (!prayer) return ''
-  if (prayer.prayer_type === 'intercessory') return '🕯️'
+  if (prayer.prayer_type === 'intercessory') return '🕯�E�E
   return '🙏'
 })
 
@@ -528,7 +528,7 @@ function getBlessingsForPrayer(prayerId) {
   return blessings.getBlessingsForPrayer(prayerId)
 }
 
-// Handle "Bless" button click on prayer card — open BlessingPicker
+// Handle "Bless" button click on prayer card  Eopen BlessingPicker
 function handleBlessPrayer(prayer) {
   blessingTargetPrayer.value = prayer
   blessingPickerVisible.value = true
@@ -628,7 +628,7 @@ async function handleStopPraying() {
     if (!akashic.activeAltruisticPrayer) return
 
     // finalSync() calls deactivate_prayer RPC which handles both
-    // the final count sync AND deactivation — no need for a second call
+    // the final count sync AND deactivation  Eno need for a second call
     const finalResult = await counter.finalSync()
 
     // Clear local active prayer state (no second deactivate call)
@@ -777,7 +777,7 @@ function karmaClass() {
 .active-overlay-card {
   position: relative;
   overflow: hidden;
-  border-radius: 26px;
+  border-radius: 12px;
   pointer-events: auto;
 }
 

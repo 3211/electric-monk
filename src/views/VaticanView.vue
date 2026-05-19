@@ -15,7 +15,7 @@
           <div class="flex flex-wrap items-center justify-start gap-3 xl:justify-end">
             <template v-if="activeTab === 'light'">
               <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-                <span class="text-purple-500">✝</span>
+                <span class="text-purple-500">✁E/span>
                 <span>Heresy: <span class="font-semibold text-purple-500">{{ economy.heresy }}</span></span>
               </div>
               <ShieldTimer :shield-until="economy.divineShieldUntil" />
@@ -23,7 +23,7 @@
             </template>
             <template v-else>
               <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-                <span class="text-purple-400 text-lg">✝</span>
+                <span class="text-purple-400 text-lg">✁E/span>
                 <span>Heresy: <span class="font-semibold text-theme-accent">{{ catacombs.heresy }}</span><span class="text-theme-text-muted">/{{ catacombs.heresyCap }}</span></span>
               </div>
               <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
@@ -51,7 +51,7 @@
             @click="activeTab = 'dark'"
             :class="activeTab === 'dark' ? 'nav-tab-active' : 'nav-tab-inactive'"
           >
-            ✝ Catacombs
+            ✁ECatacombs
           </button>
         </div>
       </div>
@@ -63,7 +63,7 @@
             Your Liege Lord
           </h2>
           <div class="mt-4">
-            <div v-if="vassalage.isVassal" class="rounded-[22px] border border-theme-border bg-theme-panel/35 p-4 sm:p-5">
+            <div v-if="vassalage.isVassal" class="rounded-lg border border-theme-border bg-theme-panel/35 p-4 sm:p-5">
               <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div class="flex-1">
                   <p class="text-sm leading-relaxed text-theme-text">
@@ -84,7 +84,7 @@
               </div>
             </div>
 
-            <div v-else class="rounded-[22px] border border-theme-border bg-theme-panel/35 p-4 sm:p-5">
+            <div v-else class="rounded-lg border border-theme-border bg-theme-panel/35 p-4 sm:p-5">
               <p class="text-sm font-medium text-emerald-600">You are a free soul. No suzerain commands you.</p>
               <p v-if="vassalage.hasVassals" class="mt-2 text-xs text-theme-text-muted">But others bow to you...</p>
             </div>
@@ -93,7 +93,7 @@
 
         <section class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
           <h2 class="text-lg font-semibold text-theme-text flex items-center gap-2">
-            <span class="text-amber-500">⚔</span>
+            <span class="text-amber-500">⚁E/span>
             Your Vassals
             <span v-if="vassalage.vassalCount > 0" class="chip gap-1 px-2 py-0.5 text-xs font-semibold text-amber-600">
               {{ vassalage.vassalCount }}
@@ -104,7 +104,7 @@
             <div
               v-for="vassal in vassalage.vassals"
               :key="vassal.id"
-              class="rounded-[20px] border border-theme-border bg-theme-panel/35 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-theme-accent/20"
+              class="rounded-lg border border-theme-border bg-theme-panel/35 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-theme-accent/20"
             >
               <div class="flex items-center justify-between gap-4">
                 <div>
@@ -115,7 +115,7 @@
               </div>
             </div>
 
-            <div class="rounded-[20px] border border-theme-border bg-theme-panel/35 p-4">
+            <div class="rounded-lg border border-theme-border bg-theme-panel/35 p-4">
               <p class="text-xs text-theme-text-muted">Daily tithes received:</p>
               <div class="mt-3 flex flex-wrap gap-2">
                 <span v-if="vassalage.dailyTithes.mana_per_day > 0" class="chip text-xs">+{{ vassalage.dailyTithes.mana_per_day }} mana</span>
@@ -126,7 +126,7 @@
             </div>
           </div>
 
-          <div v-else class="mt-4 rounded-[20px] border border-theme-border bg-theme-panel/35 p-4">
+          <div v-else class="mt-4 rounded-lg border border-theme-border bg-theme-panel/35 p-4">
             <p class="text-sm text-theme-text-dim">You have no vassals. Crusade to subjugate other players.</p>
           </div>
         </section>
@@ -134,17 +134,17 @@
         <!-- Active Siege Card (shown when you have an active combat) -->
         <section v-if="combat.myCombatTargetId || combat.attackersOnMe.length > 0" class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
           <h2 class="text-lg font-semibold text-theme-text flex items-center gap-2">
-            <span class="text-red-500">⚔</span>
+            <span class="text-red-500">⚁E/span>
             Active Siege
-            <span class="chip gap-1 px-2 py-0.5 text-xs font-semibold text-green-500">● Live</span>
+            <span class="chip gap-1 px-2 py-0.5 text-xs font-semibold text-green-500">◁ELive</span>
           </h2>
 
           <div v-if="combat.myAttack" class="mt-4 space-y-4">
             <!-- Attacker view -->
-            <div class="rounded-[20px] border border-theme-accent/25 bg-theme-accent/5 p-4">
+            <div class="rounded-lg border border-theme-accent/25 bg-theme-accent/5 p-4">
               <p class="text-xs text-theme-text-muted mb-2">
                 Sieging <span class="font-semibold text-red-400">{{ combat.myAttack.defender_name }}</span>
-                — <span class="text-theme-text-dim">{{ siegeProgressText(combat.myAttack) }}</span>
+                 E<span class="text-theme-text-dim">{{ siegeProgressText(combat.myAttack) }}</span>
               </p>
 
               <div class="space-y-3">
@@ -175,20 +175,20 @@
               </div>
 
               <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                   <div class="font-semibold text-theme-text">{{ combat.myAttack.attacker_workers }}</div>
                   <div class="text-theme-text-dim">Your Workers</div>
                 </div>
-                <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                   <div class="font-semibold text-theme-text">{{ combat.myAttack.defender_workers }}</div>
                   <div class="text-theme-text-dim">Enemy Workers</div>
                 </div>
-                <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                   <div class="font-semibold text-theme-text">{{ combat.myAttack.ticks_total - combat.myAttack.ticks_remaining }} / {{ combat.myAttack.ticks_total }}</div>
                   <div class="text-theme-text-dim">Ticks</div>
                 </div>
-                <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
-                  <div class="font-semibold text-yellow-500">{{ combat.myAttack.gold_stolen || 0 }} ⚜</div>
+                <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                  <div class="font-semibold text-yellow-500">{{ combat.myAttack.gold_stolen || 0 }} ⚁E/div>
                   <div class="text-theme-text-dim">Gold Leech</div>
                 </div>
               </div>
@@ -204,10 +204,10 @@
           </div>
 
           <!-- Defender view: under attack -->
-          <div v-for="atk in combat.attackersOnMe" :key="atk.session_id" class="mt-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/5 p-4">
+          <div v-for="atk in combat.attackersOnMe" :key="atk.session_id" class="mt-4 rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/5 p-4">
             <p class="text-xs text-theme-text-muted mb-2">
               🛡 <span class="font-semibold text-red-400">{{ atk.attacker_name }}</span> is sieging you!
-              — <span class="text-theme-text-dim">{{ siegeProgressText(atk) }}</span>
+               E<span class="text-theme-text-dim">{{ siegeProgressText(atk) }}</span>
             </p>
 
             <div class="space-y-3">
@@ -238,15 +238,15 @@
             </div>
 
             <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-              <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+              <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                 <div class="font-semibold text-theme-text">{{ atk.attacker_workers }}</div>
                 <div class="text-theme-text-dim">Enemy Workers</div>
               </div>
-              <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
-                <div class="font-semibold text-yellow-500">{{ atk.gold_stolen || 0 }} ⚜</div>
+              <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                <div class="font-semibold text-yellow-500">{{ atk.gold_stolen || 0 }} ⚁E/div>
                 <div class="text-theme-text-dim">Gold Leech</div>
               </div>
-              <div class="rounded-[12px] border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+              <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                 <div class="font-semibold text-theme-text">{{ atk.ticks_total - atk.ticks_remaining }} / {{ atk.ticks_total }}</div>
                 <div class="text-theme-text-dim">Ticks</div>
               </div>
@@ -265,11 +265,11 @@
         <!-- Launch Siege (shown when NOT in combat AND not attacking) -->
         <section v-if="!combat.myCombatTargetId && combat.attackersOnMe.length === 0" class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
           <h2 class="text-lg font-semibold text-theme-text flex items-center gap-2">
-            <span class="text-red-500">⚔</span>
+            <span class="text-red-500">⚁E/span>
             Launch Siege
           </h2>
 
-          <div class="mt-4 rounded-[20px] border border-theme-border bg-theme-panel/35 p-4">
+          <div class="mt-4 rounded-lg border border-theme-border bg-theme-panel/35 p-4">
             <p class="text-xs text-theme-text-muted leading-relaxed">
               <span class="font-semibold text-theme-text">3-day siege</span> (4,320 ticks, one per minute).
               Your <span class="font-semibold text-blue-400">Workers</span> deal damage to their <span class="font-semibold text-blue-400">Mana</span> pool each tick.
@@ -319,7 +319,7 @@
             <div
               v-for="player in targetSearchResults"
               :key="player.id"
-              class="rounded-[20px] border border-theme-border bg-theme-panel/35 p-4"
+              class="rounded-lg border border-theme-border bg-theme-panel/35 p-4"
             >
               <div class="flex items-center justify-between gap-4">
                 <div>
@@ -339,12 +339,12 @@
             </div>
           </div>
 
-          <div v-if="combat.lastResult && combat.lastResult.type === 'initiated'" class="mt-5 rounded-[20px] border border-theme-accent/25 bg-theme-accent/10 p-4">
+          <div v-if="combat.lastResult && combat.lastResult.type === 'initiated'" class="mt-5 rounded-lg border border-theme-accent/25 bg-theme-accent/10 p-4">
             <p class="text-sm font-semibold text-theme-accent-light">Siege Launched!</p>
             <p class="text-xs text-theme-text-muted mt-1">{{ combat.lastResult.siege_days }} days. {{ combat.lastResult.max_ticks }} ticks. Check the Active Siege card above.</p>
           </div>
 
-          <div v-if="combat.error" class="mt-4 rounded-[20px] border border-red-500/25 bg-red-500/10 p-4">
+          <div v-if="combat.error" class="mt-4 rounded-lg border border-red-500/25 bg-red-500/10 p-4">
             <p class="text-xs text-red-600">{{ combat.error }}</p>
           </div>
         </section>
@@ -352,13 +352,13 @@
         <!-- Subjugation Progress -->
         <section v-if="vassalage.isSubjugatingSomeone || vassalage.isBeingSubjugated" class="glass-panel glass-panel-soft glass-gloss p-5 sm:p-6">
           <h2 class="text-lg font-semibold text-theme-text flex items-center gap-2">
-            <span class="text-purple-500">⛓</span>
+            <span class="text-purple-500">⛁E/span>
             Subjugation Progress
           </h2>
 
           <div v-if="vassalage.isSubjugatingSomeone" class="mt-4 space-y-3">
             <div v-for="sub in vassalage.subjugationAsLiege" :key="sub.vassal_id"
-              class="rounded-[20px] border border-theme-accent/20 bg-theme-panel/35 p-4">
+              class="rounded-lg border border-theme-accent/20 bg-theme-panel/35 p-4">
               <div class="flex items-center justify-between mb-2">
                 <p class="text-sm font-medium text-theme-text">{{ sub.vassal_name }}</p>
                 <span class="text-xs text-theme-text-dim">{{ Math.floor(sub.accumulated_hours) }} / 168 hours</span>
@@ -373,7 +373,7 @@
 
           <div v-if="vassalage.isBeingSubjugated" class="mt-4 space-y-3">
             <div v-for="sub in vassalage.subjugationAsVassal" :key="sub.liege_id"
-              class="rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/5 p-4">
+              class="rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/5 p-4">
               <p class="text-xs text-theme-text-muted mb-2">
                 <span class="font-semibold text-red-400">{{ sub.liege_name }}</span> is subjugating you
               </p>
@@ -392,7 +392,7 @@
                   class="btn-secondary flex-1 py-1.5 text-xs"
                   title="Pay 1000 Gold to reduce timer by 24 hours"
                 >
-                  <span class="relative z-10 font-medium">Resist (1000 ⚜ → -24h)</span>
+                  <span class="relative z-10 font-medium">Resist (1000 ⚁EↁE-24h)</span>
                 </button>
                 <button
                   @click="vassalage.attemptRebellion()"
@@ -413,7 +413,7 @@
             Akashic Records
           </h2>
 
-          <div v-if="vassalage.akashicLogs.length === 0" class="mt-4 rounded-[20px] border border-theme-border bg-theme-panel/35 p-4">
+          <div v-if="vassalage.akashicLogs.length === 0" class="mt-4 rounded-lg border border-theme-border bg-theme-panel/35 p-4">
             <p class="text-sm text-theme-text-dim">No recorded events yet.</p>
           </div>
 
@@ -421,11 +421,11 @@
             <div
               v-for="log in vassalage.akashicLogs"
               :key="log.id"
-              class="rounded-[20px] border border-theme-border bg-theme-panel/35 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-theme-accent/20"
+              class="rounded-lg border border-theme-border bg-theme-panel/35 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-theme-accent/20"
             >
               <div class="flex items-start gap-3">
                 <div class="mt-0.5 flex-shrink-0">
-                  <span v-if="log.action_type === 'crusade'" class="text-red-500">⚔</span>
+                  <span v-if="log.action_type === 'crusade'" class="text-red-500">⚁E/span>
                   <span v-else-if="log.action_type === 'schism'" class="text-purple-500">✨</span>
                   <span v-else-if="log.action_type === 'plague'" class="text-emerald-500">☠</span>
                 </div>
@@ -498,7 +498,7 @@
               </div>
 
               <div class="mb-3 flex items-center gap-3">
-                <span class="flex h-14 w-14 items-center justify-center rounded-2xl border border-theme-accent/20 bg-theme-panel/60 text-3xl shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
+                <span class="flex h-14 w-14 items-center justify-center rounded-lg border border-theme-accent/20 bg-theme-panel/60 text-3xl shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
                   {{ item.emoji_icon }}
                 </span>
                 <div class="min-w-0">
@@ -552,7 +552,7 @@
             </div>
           </div>
 
-          <div v-if="catacombs.purchaseError" class="mt-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-3">
+          <div v-if="catacombs.purchaseError" class="mt-4 rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/10 p-3">
             <p class="text-xs text-theme-purgatory-dark">{{ catacombs.purchaseError }}</p>
             <button @click="catacombs.clearPurchaseError()" class="mt-2 text-xs text-theme-purgatory-dark hover:text-theme-text">Dismiss</button>
           </div>
@@ -593,7 +593,7 @@
             <div
               v-for="player in plagueSearchResults"
               :key="player.id"
-              class="rounded-[20px] border border-theme-border bg-theme-panel/35 p-3"
+              class="rounded-lg border border-theme-border bg-theme-panel/35 p-3"
             >
               <div class="flex items-center justify-between gap-4">
                 <div>
@@ -613,12 +613,12 @@
             </div>
           </div>
 
-          <div v-if="vassalage.combatResult && vassalage.combatResult.type === 'plague'" class="mt-4 rounded-[20px] border border-emerald-500/25 bg-emerald-500/10 p-4">
+          <div v-if="vassalage.combatResult && vassalage.combatResult.type === 'plague'" class="mt-4 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-4">
             <p class="text-sm font-semibold text-emerald-400">Curse Cast Successfully!</p>
             <p class="text-xs text-theme-text-muted mt-1">{{ vassalage.combatResult.food_destroyed }} food destroyed. Your identity remains hidden.</p>
           </div>
 
-          <div v-if="vassalage.combatError && !showPlagueConfirm" class="mt-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-3">
+          <div v-if="vassalage.combatError && !showPlagueConfirm" class="mt-4 rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/10 p-3">
             <p class="text-xs text-theme-purgatory-dark">{{ vassalage.combatError }}</p>
           </div>
         </section>
@@ -635,7 +635,7 @@
             Cost scales exponentially with each schism.
           </p>
 
-          <div class="rounded-[20px] border border-theme-border bg-theme-panel/35 p-4">
+          <div class="rounded-lg border border-theme-border bg-theme-panel/35 p-4">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p class="text-sm font-medium text-theme-text">Schism Cost: <span class="font-bold text-theme-accent">{{ vassalage.schismCost }} heresy</span></p>
@@ -651,7 +651,7 @@
             </div>
           </div>
 
-          <div v-if="vassalage.combatResult && vassalage.combatResult.type === 'schism'" class="mt-4 rounded-[20px] border border-theme-accent/25 bg-theme-accent/10 p-4">
+          <div v-if="vassalage.combatResult && vassalage.combatResult.type === 'schism'" class="mt-4 rounded-lg border border-theme-accent/25 bg-theme-accent/10 p-4">
             <p class="text-sm font-semibold text-theme-accent-light">Schism Declared!</p>
             <p class="text-xs text-theme-text-muted mt-1">
               You are free! Divine Shield active until {{ new Date(vassalage.combatResult.shield_until).toLocaleString() }}
@@ -666,15 +666,15 @@
           </h2>
 
           <div class="grid gap-4 sm:grid-cols-3">
-            <div class="rounded-[20px] border border-theme-border bg-theme-panel/35 p-4">
+            <div class="rounded-lg border border-theme-border bg-theme-panel/35 p-4">
               <p class="text-xs text-theme-text-muted">Generation</p>
               <p class="text-lg font-semibold text-theme-accent">+{{ catacombs.heresyPerDay }}/day</p>
             </div>
-            <div class="rounded-[20px] border border-theme-border bg-theme-panel/35 p-4">
+            <div class="rounded-lg border border-theme-border bg-theme-panel/35 p-4">
               <p class="text-xs text-theme-text-muted">Capacity</p>
               <p class="text-lg font-semibold text-theme-accent">{{ catacombs.heresyCap }}</p>
             </div>
-            <div class="rounded-[20px] border border-theme-border bg-theme-panel/35 p-4">
+            <div class="rounded-lg border border-theme-border bg-theme-panel/35 p-4">
               <p class="text-xs text-theme-text-muted">Schisms Declared</p>
               <p class="text-lg font-semibold text-theme-accent">{{ economy.schismCount || 0 }}</p>
             </div>
@@ -686,18 +686,18 @@
     <div v-if="showCrusadeConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" @click.self="showCrusadeConfirm = false">
       <div class="glass-panel glass-panel-strong glass-gloss w-full max-w-md p-6 space-y-4">
         <h3 class="text-lg font-semibold text-theme-text">Confirm Siege</h3>
-        <div v-if="selectedTarget && isPlayerShielded(selectedTarget)" class="rounded-[20px] border border-amber-500/25 bg-amber-500/10 p-3">
+        <div v-if="selectedTarget && isPlayerShielded(selectedTarget)" class="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3">
           <p class="text-xs text-amber-600">🛡 This player is protected by Divine Shield and cannot be attacked.</p>
         </div>
         <p class="text-sm text-theme-text-muted">
           Launch a 3-day siege against <span class="font-semibold text-red-500">{{ selectedTarget?.username }}</span>?
         </p>
-        <div class="rounded-[20px] border border-theme-border bg-theme-panel/35 p-3 space-y-1 text-xs text-theme-text-muted">
+        <div class="rounded-lg border border-theme-border bg-theme-panel/35 p-3 space-y-1 text-xs text-theme-text-muted">
           <p>💰 <span class="font-semibold text-yellow-500">50 Gold</span> to initiate + 2 Gold per minute</p>
           <p>🛠 Your Workers: <span class="font-semibold text-blue-400">{{ workerCount }}</span> ({{ workerCount }} DPS/tick)</p>
           <p>💎 Your Mana: <span class="font-semibold text-blue-400">{{ economy.mana }}</span> (HP pool)</p>
-          <p>⚔ If victorious, they become your Vassal (10% tithe)</p>
-          <p>⚙ You can withdraw at any time (50% remaining gold cost + -5 Karma)</p>
+          <p>⚁EIf victorious, they become your Vassal (10% tithe)</p>
+          <p>⚁EYou can withdraw at any time (50% remaining gold cost + -5 Karma)</p>
         </div>
         <div class="flex gap-3">
           <button
@@ -721,7 +721,7 @@
     <div v-if="showPlagueConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" @click.self="showPlagueConfirm = false">
       <div class="glass-panel glass-panel-strong glass-gloss w-full max-w-md p-6 space-y-4">
         <h3 class="text-lg font-semibold text-theme-text">Confirm Curse</h3>
-        <div v-if="selectedPlagueTarget && isPlayerShielded(selectedPlagueTarget)" class="rounded-[20px] border border-amber-500/25 bg-amber-500/10 p-3">
+        <div v-if="selectedPlagueTarget && isPlayerShielded(selectedPlagueTarget)" class="rounded-lg border border-amber-500/25 bg-amber-500/10 p-3">
           <p class="text-xs text-amber-600">🛡 This player is protected by Divine Shield and cannot be cursed.</p>
         </div>
         <p class="text-sm text-theme-text-muted">
@@ -852,7 +852,7 @@ async function handleSurrenderSiege(sessionId) {
   }
 }
 
-// Filter blessing_shield out of MiracleBuffBar — ShieldTimer handles that display
+// Filter blessing_shield out of MiracleBuffBar  EShieldTimer handles that display
 const nonShieldMiracles = computed(() =>
   economy.activeMiracles.filter(m => m.miracle_type !== 'blessing_shield')
 )

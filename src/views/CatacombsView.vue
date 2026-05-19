@@ -191,7 +191,7 @@ function formatNextCost(item) {
               </div>
 
               <div class="mb-3 flex items-center gap-3">
-                <span class="flex h-14 w-14 items-center justify-center rounded-2xl border border-purple-500/20 bg-purple-500/10 text-3xl shadow-[0_10px_20px_rgba(139,92,246,0.12)]">
+                <span class="flex h-14 w-14 items-center justify-center rounded-lg border border-purple-500/20 bg-purple-500/10 text-3xl shadow-[0_10px_20px_rgba(139,92,246,0.12)]">
                   {{ item.emoji_icon }}
                 </span>
                 <div class="min-w-0">
