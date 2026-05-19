@@ -13,26 +13,7 @@
             </p>
           </div>
           <div class="flex flex-wrap items-center justify-start gap-3 xl:justify-end">
-            <template v-if="activeTab === 'light'">
-              <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-                <span class="text-purple-500">✝️</span>
-                <span>Heresy: <span class="font-semibold text-purple-500">{{ economy.heresy }}</span></span>
-              </div>
-              <ShieldTimer :shield-until="economy.divineShieldUntil" />
-              <MiracleBuffBar :miracles="nonShieldMiracles" />
-            </template>
-            <template v-else>
-              <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-                <span class="text-purple-400 text-lg">✝️</span>
-                <span>Heresy: <span class="font-semibold text-theme-accent">{{ catacombs.heresy }}</span><span class="text-theme-text-muted">/{{ catacombs.heresyCap }}</span></span>
-              </div>
-              <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-                <span class="text-amber-400">💰</span>
-                <span>Gold: <span class="font-semibold text-amber-400">{{ catacombs.gold }}</span></span>
-              </div>
-              <ShieldTimer :shield-until="economy.divineShieldUntil" variant="dark" />
-              <MiracleBuffBar :miracles="nonShieldMiracles" />
-            </template>
+            <MiracleBuffBar :miracles="nonShieldMiracles" />
           </div>
         </div>
       </div>
@@ -782,7 +763,6 @@ import { useVassalage } from '@/composables/useVassalage'
 import { useCatacombs } from '@/composables/useCatacombs'
 import { useEconomy } from '@/composables/useEconomy'
 import { useCombat } from '@/composables/useCombat'
-import ShieldTimer from '@/components/molecules/ShieldTimer.vue'
 import MiracleBuffBar from '@/components/molecules/MiracleBuffBar.vue'
 
 const vassalage = useVassalage()

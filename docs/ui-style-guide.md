@@ -58,10 +58,38 @@ All view headers use consistent vertical padding:
 - Inner card padding: `p-4` for content cards
 - Grid gaps: `gap-5` for card grids, `gap-3` for tight lists
 
-### Resource Chips (Header)
+### Resource Bar (Global)
+
+Resource indicators (Karma, Mana, Gold, Food, Dogma, Heresy) are now displayed globally in the navigation bar via the `ResourceBar.vue` component, not in individual view headers.
+
+**Component**: `src/components/molecules/ResourceBar.vue`
+
+**Display order**: Karma → Mana → Gold → Food → Dogma → Heresy → (Acres)
+
+**Scale**: `text-xs` (0.7rem) with `font-semibold` values — matches the compact indicator style from the Karma Shop.
+
+**Mobile layout**: 3-column grid (`grid-cols-3`) collapsing into 2 rows.
+
+**Desktop layout**: Horizontal flex row with `flex-wrap` and `gap-0.375rem`.
+
+**Props**:
+- `showAcres` (Boolean, default: `false`) — Shows Sacred Acres indicator. Only passed as `true` on Altar and Shop tabs.
+
+**Theme support**: Includes `.app-shell--evil` and `.app-shell--war` color overrides.
+
+**What stays view-specific**:
+- Indulgences & Papal Bull — remain on AltarView only
+- Synod name capsules — remain on SynodHallView
+- Sect name capsules — remain on FactionsView
+- Relic count / War status — remain on SynodHallView
+- MiracleBuffBar — remains on AltarView and VaticanView (view-specific combat/prayer buffs)
+- ShieldTimer — moved to global nav (App.vue), stacked under the Logout button
+
+### Resource Chip (Legacy — view-specific only)
 ```html
 <div class="chip gap-2 px-4 py-2 text-sm ...">
 ```
+Used only for view-specific indicators that are NOT part of the global resource bar.
 
 ### Stat Cells (Small inner cards)
 ```html

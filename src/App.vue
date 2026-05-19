@@ -8,6 +8,7 @@ import { useShouts } from './composables/useShouts'
 import { useOnboarding } from './composables/useOnboarding'
 import { useSynod } from './composables/useSynod'
 import ShieldTimer from './components/molecules/ShieldTimer.vue'
+import ResourceBar from './components/molecules/ResourceBar.vue'
 import LoginView from './views/LoginView.vue'
 import AltarView from './views/AltarView.vue'
 import PurgatoryView from './views/PurgatoryView.vue'
@@ -43,6 +44,9 @@ const tabLabels = {
   shop: '🛒 Shop',
 }
 const currentTabLabel = computed(() => tabLabels[currentTab.value] || 'Altar')
+
+// Show Sacred Acres only on Altar and Shop tabs
+const showAcres = computed(() => ['altar', 'shop'].includes(currentTab.value))
 
 // Close mobile nav on Escape key
 function handleEscapeKey(e) {
@@ -152,7 +156,7 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
   <div :class="['app-shell min-h-screen flex flex-col', { 'app-shell--evil': isEvilView && !isWarView, 'app-shell--war': isWarView, 'app-shell--holy': !isEvilView && !isWarView }]">
     <!-- ===== Mobile Top Bar (visible < md, hidden on desktop) ===== -->
     <div v-if="auth.isAuthenticated && !banTimer.isBanned" class="mobile-top-bar md:hidden sticky top-0 z-40 border-b backdrop-blur-[18px]" :class="{ 'mobile-top-bar--evil': isEvilView && !isWarView, 'mobile-top-bar--war': isWarView }">
-      <div class="app-frame flex items-center justify-between py-3">
+      <div class="app-frame flex items-center justify-between py-2.5">
         <div class="flex items-center gap-2">
           <button @click="isMobileNavOpen = true" class="hamburger-btn" aria-label="Open navigation menu">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -161,19 +165,24 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
           </button>
           <span class="text-sm font-semibold text-theme-accent truncate max-w-[180px]">{{ currentTabLabel }}</span>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-col items-center gap-1">
+          <div class="flex items-center gap-2">
+            <button
+              @click="showUsernameChangeModal = true"
+              class="nav-account-btn"
+              title="Change Username (costs 1000 Karma)"
+              aria-label="Change Username"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </button>
+          </div>
           <ShieldTimer v-if="economy.shieldActive" :shield-until="economy.divineShieldUntil" />
-          <button
-            @click="showUsernameChangeModal = true"
-            class="nav-account-btn"
-            title="Change Username (costs 1000 Karma)"
-            aria-label="Change Username"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-          </button>
         </div>
+      </div>
+      <div class="app-frame pb-2.5 pt-0">
+        <ResourceBar :show-acres="showAcres" />
       </div>
     </div>
 
@@ -260,30 +269,31 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
               </button>
             </div>
 
-            <!-- Shield indicator (global, always visible when shield active) -->
-            <div v-if="economy.shieldActive" class="global-nav-shield">
-              <ShieldTimer :shield-until="economy.divineShieldUntil" />
-            </div>
+            <!-- Global resource indicators (always visible) -->
+            <ResourceBar :show-acres="showAcres" />
 
-            <!-- Account cluster: change-username (icon) + logout (pill, matches nav buttons) -->
-            <div class="global-nav-account segmented-shell flex items-center gap-1 flex-none ml-auto">
-              <button
-                @click="showUsernameChangeModal = true"
-                class="nav-account-btn"
-                title="Change Username (costs 1000 Karma)"
-                aria-label="Change Username"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </button>
-              <button
-                @click="auth.signOut()"
-                class="nav-tab-inactive"
-                title="Logout"
-              >
-                Logout
-              </button>
+            <!-- Account cluster: change-username (icon) + logout (pill) + shield stacked below -->
+            <div class="global-nav-account segmented-shell flex flex-col items-center gap-1 flex-none ml-auto py-1">
+              <div class="flex items-center gap-1">
+                <button
+                  @click="showUsernameChangeModal = true"
+                  class="nav-account-btn"
+                  title="Change Username (costs 1000 Karma)"
+                  aria-label="Change Username"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </button>
+                <button
+                  @click="auth.signOut()"
+                  class="nav-tab-inactive"
+                  title="Logout"
+                >
+                  Logout
+                </button>
+              </div>
+              <ShieldTimer v-if="economy.shieldActive" :shield-until="economy.divineShieldUntil" />
             </div>
           </div>
         </div>
@@ -405,6 +415,7 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
 .global-nav-account {
   padding: 0.25rem;
   flex: 0 0 auto;
+  min-width: 0;
 }
 
 .app-view-stage {

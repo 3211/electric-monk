@@ -8,12 +8,7 @@
               <div class="akashic-header-glow"></div>
               <h1 class="ritual-heading relative text-3xl font-bold text-theme-accent sm:text-4xl">📜 Akashic Records</h1>
             </div>
-            <div class="chip gap-2 self-start px-4 py-2 text-sm text-theme-text-dim shadow-[0_12px_24px_rgba(48,38,21,0.08)] lg:self-auto">
-              <span class="text-lg">{{ prayers.karmaEmoji }}</span>
-              <span>Karma: <span :class="karmaClass" class="font-semibold">{{ prayers.karma }}</span></span>
-            </div>
           </div>
-
         </div>
       </div>
     </header>
@@ -882,11 +877,6 @@ onUnmounted(() => {
   akashic.unsubscribeFromRealtime()
 })
 
-function karmaClass() {
-  if (prayers.karma > 0) return 'text-theme-accent'
-  if (prayers.karma < 0) return 'text-theme-purgatory'
-  return 'text-theme-text-dim'
-}
 </script>
 
 <style scoped>

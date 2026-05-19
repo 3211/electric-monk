@@ -462,7 +462,7 @@ serve(async (req: Request) => {
       // Set ban_until to 2 hours from now — the client will detect this
       // via useBanTimer.checkBanStatus() and switch to PurgatoryView
       // During onboarding, we skip the ban so new users can retry their first prayer
-      const banUntil = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
+      const banUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString()
       const { error: banError } = await supabase
         .from('profiles')
         .update({ ban_until: banUntil })

@@ -7,46 +7,18 @@
           <div>
             <h1 class="ritual-heading text-4xl font-bold text-theme-accent sm:text-5xl">The Altar</h1>
           </div>
+          <!-- View-specific indicators: Indulgences, Papal Bull, Miracle Buffs -->
           <div class="flex flex-wrap items-center justify-start gap-3 xl:justify-end">
-            <!-- Resource Bar -->
-            <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-              <span class="text-lg">{{ prayers.karmaEmoji }}</span>
-              <span>Karma: <span :class="karmaClass" class="font-semibold">{{ prayers.karma }}</span></span>
-            </div>
-            <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-              <span class="text-lg">&#x1F4A7;</span>
-              <span>Mana: <span class="font-semibold text-blue-400">{{ economy.mana }}</span></span>
-            </div>
-            <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-              <span class="text-lg">&#x1F4B0;</span>
-              <span>Gold: <span class="font-semibold text-yellow-500">{{ economy.gold }}</span></span>
-            </div>
-            <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-              <span class="text-lg">&#x1F33E;</span>
-              <span>Food: <span class="font-semibold text-green-600">{{ economy.food }}</span></span>
-            </div>
-            <!-- Dogma (Rapture Update) -->
-            <div v-if="economy.dogma > 0 || economy.sectType" class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-              <span class="text-lg">&#x1F4D1;</span>
-              <span>Dogma: <span class="font-semibold text-amber-600">{{ economy.dogma }}</span></span>
-            </div>
-            <!-- Sacred Acres (Rapture Update) -->
-            <div v-if="economy.sectType" class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-              <span class="text-lg">&#x1F3D8;</span>
-              <span>Acres: <span class="font-semibold text-emerald-600">{{ economy.sacredAcresFree }}</span><span class="text-theme-text-muted">/{{ economy.sacredAcres }}</span></span>
-            </div>
-            <!-- Indulgences (Rapture Update) -->
+            <!-- Indulgences (Altar-specific) -->
             <div v-if="economy.indulgences > 0 || economy.papalBullActive" class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
               <span class="text-lg">✨</span>
               <span>Indulgences: <span class="font-semibold text-purple-500">{{ economy.indulgences }}</span></span>
             </div>
-            <!-- Papal Bull Active (Rapture Update) -->
+            <!-- Papal Bull Active (Altar-specific) -->
             <div v-if="economy.papalBullActive" class="chip status-chip gap-2 px-4 py-2 text-sm">
               <span>🐂</span>
               <span class="font-semibold">Bull Active</span>
             </div>
-            <!-- Divine Shield (from Blessings or Schism) -->
-            <ShieldTimer :shield-until="economy.divineShieldUntil" />
             <!-- Active Miracle Buffs (excluding blessing_shield — ShieldTimer handles that) -->
             <MiracleBuffBar :miracles="nonShieldMiracles" />
           </div>
@@ -601,7 +573,6 @@ import { useBanTimer } from '@/composables/useBanTimer'
 import { useEconomy } from '@/composables/useEconomy'
 import { useSects } from '@/composables/useSects'
 import KarmaToast from '@/components/molecules/KarmaToast.vue'
-import ShieldTimer from '@/components/molecules/ShieldTimer.vue'
 import MiracleBuffBar from '@/components/molecules/MiracleBuffBar.vue'
 import PrayerHistoryModal from '@/components/organisms/PrayerHistoryModal.vue'
 
@@ -860,12 +831,6 @@ async function handleDeactivate(prayerId) {
   } catch (err) {
     console.error('[AltarView] Deactivate error:', err)
   }
-}
-
-function karmaClass() {
-  if (prayers.karma > 0) return 'text-theme-accent'
-  if (prayers.karma < 0) return 'text-theme-purgatory'
-  return 'text-theme-text-dim'
 }
 
 // Handle Continue button click in Aether modal

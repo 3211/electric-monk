@@ -8,16 +8,6 @@
             <h1 class="ritual-heading text-4xl font-bold text-theme-accent sm:text-5xl">Scriptorium</h1>
             <p class="mt-1 text-sm text-theme-text-muted">Illuminate the darkness, or embrace it.</p>
           </div>
-          <div class="flex flex-wrap items-center justify-start gap-3 xl:justify-end">
-            <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-              <span class="text-lg">📑</span>
-              <span>Dogma: <span class="font-semibold text-amber-600">{{ economy.dogma }}</span></span>
-            </div>
-            <div class="chip gap-2 px-4 py-2 text-sm text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-              <span class="text-lg">✝</span>
-              <span>Heresy: <span class="font-semibold text-red-500">{{ economy.heresy }}</span></span>
-            </div>
-          </div>
         </div>
       </div>
     </header>

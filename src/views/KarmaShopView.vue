@@ -8,24 +8,6 @@
               <div class="shop-header-glow"></div>
               <h1 class="ritual-heading relative text-3xl font-bold text-theme-accent sm:text-4xl">Karma Shop</h1>
             </div>
-            <div class="flex flex-wrap items-center gap-3">
-              <div class="chip gap-2 self-start px-4 py-2 text-sm text-theme-text-dim shadow-[0_12px_24px_rgba(48,38,21,0.08)] lg:self-auto">
-                <span class="text-lg">{{ prayers.karmaEmoji }}</span>
-                <span>Karma: <span :class="karmaClass" class="font-semibold">{{ prayers.karma }}</span></span>
-              </div>
-              <div class="chip gap-2 px-3 py-2 text-xs text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-                <span class="text-blue-500">💧</span>
-                <span>Mana: <span class="font-semibold text-blue-500">{{ economy.mana }}</span></span>
-              </div>
-              <div class="chip gap-2 px-3 py-2 text-xs text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-                <span>💰</span>
-                <span>Gold: <span class="font-semibold text-amber-600">{{ economy.gold }}</span></span>
-              </div>
-              <div class="chip gap-2 px-3 py-2 text-xs text-theme-text-dim shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
-                <span class="text-emerald-600">🌾</span>
-                <span>Food: <span class="font-semibold text-emerald-600">{{ economy.food }}</span></span>
-              </div>
-            </div>
           </div>
 
           <div class="segmented-shell self-start flex-wrap">
@@ -507,12 +489,6 @@ const visibleInfrastructureItems = computed(() => {
     return item.id === nextSlotId
   })
 })
-
-function karmaClass() {
-  if (prayers.karma > 0) return 'text-theme-accent'
-  if (prayers.karma < 0) return 'text-theme-purgatory'
-  return 'text-theme-text-dim'
-}
 
 // Get production rate for a building type from game config
 function buildingProduction(buildingType, configKey) {
