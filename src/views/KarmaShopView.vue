@@ -356,9 +356,15 @@
           <div class="mb-3 text-4xl animate-pulse">Loading slots...</div>
         </div>
 
+        <div v-else-if="prayerSlotsMaxed" class="glass-panel glass-panel-soft glass-gloss flex flex-col items-center gap-3 p-8 text-center">
+          <span class="flex h-16 w-16 items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-50/55 text-4xl shadow-[0_10px_20px_rgba(16,185,129,0.12)] backdrop-blur-sm">🙏</span>
+          <h3 class="text-lg font-semibold text-emerald-600">All Prayer Slots Unlocked</h3>
+          <p class="text-sm text-theme-text-muted">You have the maximum number of prayer slots ({{ prayers.maxPrayerSlots }}). No further upgrades available.</p>
+        </div>
+
         <div v-else class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <div
-            v-for="item in shop.infrastructureItems"
+            v-for="item in visibleInfrastructureItems"
             :key="item.id"
             class="glass-panel glass-panel-soft glass-gloss group relative overflow-hidden border border-theme-border p-5 transition-all duration-300 hover:-translate-y-1 hover:border-theme-accent/30 hover:shadow-[0_18px_32px_rgba(48,38,21,0.12)]"
             :class="{ 'opacity-60': !canAfford(item) }"
@@ -478,6 +484,29 @@ const prayers = usePrayers()
 const blessings = useBlessings()
 const shop = useShop()
 const economy = useEconomy()
+
+// Prayer slot filtering: only show the next purchasable slot
+const maxPrayerSlotsAvailable = computed(() => {
+  const slotItems = shop.infrastructureItems.filter(i => i.effect_type === 'add_prayer_slot')
+  return 1 + slotItems.length // start with 1 slot + number of purchasable slot items
+})
+
+const prayerSlotsMaxed = computed(() => {
+  return prayers.maxPrayerSlots >= maxPrayerSlotsAvailable.value
+})
+
+const visibleInfrastructureItems = computed(() => {
+  const currentSlots = prayers.maxPrayerSlots
+  return shop.infrastructureItems.filter(item => {
+    // Always show non-prayer-slot infrastructure items
+    if (item.effect_type !== 'add_prayer_slot') return true
+    // If maxed, hide all prayer slot items
+    if (prayerSlotsMaxed.value) return false
+    // Only show the next purchasable slot (prayer-slot-N where N = currentSlots + 1)
+    const nextSlotId = `prayer-slot-${currentSlots + 1}`
+    return item.id === nextSlotId
+  })
+})
 
 function karmaClass() {
   if (prayers.karma > 0) return 'text-theme-accent'
