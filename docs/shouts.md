@@ -20,14 +20,21 @@ Shouts are social messages posted through the Town Crier — an AI edge function
 
 ## Flow
 
+**Classification + Generation (mirrors process-prayer pattern):**
+
 1. Player writes a message and clicks "Shout It!" (or "Post to Forum" for synod)
 2. `submit_shout` RPC deducts gold, creates a `shouts` row with `status='pending'`
-3. Frontend invokes `town-crier` edge function with `shout_id`
-4. Town Crier translates the message to faction-appropriate style
-5. Town Crier updates the `shouts` row: sets `crier_content` and `status='posted'` (or `status='failed'`)
-6. Frontend refreshes the shout feed
+3. Frontend shows the **Town Crier modal** (`isCrierProcessing=true`) — this keeps the client connected so the edge function doesn't get orphaned (`EarlyDrop`)
+4. Frontend invokes `town-crier` edge function with `shout_id`
+5. Town Crier **classifies** the message through the faction classifier (GPT-OSS-120B): approved or rejected
+6. If **approved**: Town Crier generates a faction-appropriate proclamation (Gemma-4-Uncensored), updates DB (`crier_content` + `status='posted'`), returns result to client
+7. If **rejected**: Town Crier generates an admonishment/penance decree, updates DB (`crier_content` + `status='failed'`), applies **-1 karma** + **15-minute ban** (purgatory), returns result to client
+8. Modal displays the result with typewriter effect (same as Aether modal for prayers)
+9. On "Continue": feed refreshes, economy refreshes, ban status checked (redirects to Purgatory if rejected)
 
 For replies, the same flow applies using `submit_shout_reply` RPC and `reply_id` parameter.
+
+**Why this pattern:** The original town-crier design attempted to update the DB directly from the edge function after AI generation, but Supabase's edge runtime would `EarlyDrop` the function because the frontend had already disconnected (no modal keeping the connection alive). By mirroring process-prayer — where the client stays connected via a modal, receives the AI result, and the edge function updates the DB while the client waits — the function completes fully.
 
 ## Tables
 
@@ -88,7 +95,7 @@ UNIQUE(shout_id, COALESCE(reply_id, nil), blessing_type_id, giver_id). RLS: SELE
 
 | Function | Purpose |
 |----------|---------|
-| `town-crier` | Translates shouts/replies into faction-appropriate language. Accepts `shout_id` or `reply_id` to update DB after translation. Soft-censors slurs, threats, doxxing. |
+| `town-crier` | Classifies messages through faction classifier (approved/rejected), then generates faction-appropriate Town Crier proclamation (approved) or penance decree (rejected). Updates DB, applies -1 karma + 15-min ban on rejection. Returns result to waiting client modal. |
 
 ## Views
 
@@ -103,6 +110,7 @@ UNIQUE(shout_id, COALESCE(reply_id, nil), blessing_type_id, giver_id). RLS: SELE
 |-----------|------|---------|
 | `ShoutCard.vue` | Molecule | Shout card with author, crier content, blessing badges, reply count |
 | `ShoutDetailModal.vue` | Organism | Full shout detail with replies, reply form, and inline blessing picker |
+| Town Crier modal (inline) | Organism | Processing/result overlay with Town Crier icon, typewriter effect, judgment display. Mirrors Aether modal in [`AltarView.vue`](src/views/AltarView.vue:489). Embedded in both [`AkashicRecordsView.vue`](src/views/AkashicRecordsView.vue) and [`SynodHallView.vue`](src/views/SynodHallView.vue). |
 
 ## Composables
 

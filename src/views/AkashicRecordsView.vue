@@ -325,6 +325,83 @@
       @grant-blessing="handleShoutBlessing"
       @load-more-replies="shouts.loadMoreReplies()"
     />
+
+    <!-- Town Crier Aether Modal (mirrors AltarView's Aether modal) -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="shouts.isCrierProcessing || shouts.crierResult" class="aether-modal-overlay">
+          <div class="aether-modal-container glass-panel glass-panel-strong glass-gloss">
+            <!-- Processing State -->
+            <div v-if="shouts.isCrierProcessing" class="aether-processing-state">
+              <div class="aether-icon animate-pulse">
+                <img
+                  src="@/assets/icons/town_crier_icon.png"
+                  alt="The Town Crier"
+                  class="crier-icon-img"
+                />
+              </div>
+              <h3 class="aether-title text-theme-accent">Hear ye, hear ye!</h3>
+              <p class="aether-description text-theme-text-dim">The Town Crier is proclaiming your message...</p>
+              <div class="aether-loader">
+                <div class="aether-loader-bar"></div>
+              </div>
+            </div>
+
+            <!-- Result State -->
+            <div v-else-if="shouts.crierResult" class="aether-result-state">
+              <!-- Judgment Icon -->
+              <div class="aether-judgment-icon" :class="shouts.crierResult.success ? (shouts.crierResult.judgment === 'approved' ? 'approved' : 'rejected') : 'error'">
+                <svg v-if="shouts.crierResult.success && shouts.crierResult.judgment === 'approved'" class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <svg v-else-if="shouts.crierResult.success && shouts.crierResult.judgment === 'rejected'" class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <svg v-else class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+              </div>
+
+              <!-- Title -->
+              <h3 class="aether-title font-bold" :class="shouts.crierResult.success ? (shouts.crierResult.judgment === 'approved' ? 'text-theme-accent' : 'text-theme-purgatory') : 'text-theme-accent-dark'">
+                {{ crierStatusTitle }}
+              </h3>
+
+              <!-- Response Content (Success) — typewriter reveal -->
+              <div v-if="shouts.crierResult.response" class="aether-response-content glass-panel glass-gloss p-4 my-4">
+                <p class="text-theme-text font-semibold leading-relaxed">
+                  {{ displayedCrierResponse }}<span v-if="!crierTypewriterFinished" class="typewriter-cursor">▊</span>
+                </p>
+              </div>
+
+              <!-- Error Content (Failure) -->
+              <div v-else class="aether-error-content glass-panel glass-gloss p-4 my-4 border-2 border-theme-purgatory">
+                <p class="text-theme-purgatory-dark font-bold mb-2">⚠️ Town Crier Unavailable</p>
+                <p class="text-theme-text text-sm leading-relaxed">
+                  {{ shouts.crierResult.error || 'The Town Crier could not proclaim your message.' }}
+                </p>
+              </div>
+
+              <!-- Rejection Reason (if applicable) -->
+              <div v-if="shouts.crierResult.rejection_reason" class="aether-rejection-reason text-sm text-theme-purgatory mb-3">
+                <span class="font-semibold">Reason:</span> {{ shouts.crierResult.rejection_reason }}
+              </div>
+
+              <!-- Continue Button -->
+              <button
+                @click="handleCrierContinue"
+                :disabled="!crierTypewriterFinished"
+                class="btn-primary w-full mt-2"
+              >
+                <span class="relative z-10 font-medium">
+                  {{ crierTypewriterFinished ? 'Continue' : 'The Crier is speaking...' }}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -345,6 +422,7 @@ import BlessingPicker from '@/components/organisms/BlessingPicker.vue'
 import BlessingDetailModal from '@/components/organisms/BlessingDetailModal.vue'
 import ShoutCard from '@/components/molecules/ShoutCard.vue'
 import ShoutDetailModal from '@/components/organisms/ShoutDetailModal.vue'
+import { useBanTimer } from '@/composables/useBanTimer'
 
 // Inject forceEvilTheme from App.vue for sinners tab
 const forceEvilTheme = inject('forceEvilTheme', ref(false))
@@ -356,6 +434,7 @@ const shop = useKarmaShop()
 const auth = useAuth()
 const shouts = useShouts()
 const economy = useEconomy()
+const banTimer = useBanTimer()
 
 const activeSubTab = ref('prayers')
 const sinnerPrayerLoading = ref(null) // sinner ID being loaded
@@ -377,6 +456,17 @@ const shoutContent = ref('')
 const shoutFilter = ref('global')
 const shoutDetailVisible = ref(false)
 const shoutDetailLoading = ref(false)
+
+// Town Crier typewriter state
+const displayedCrierResponse = ref('')
+const crierTypewriterFinished = ref(false)
+let crierTypewriterInterval = null
+
+const crierStatusTitle = computed(() => {
+  if (!shouts.crierResult?.success) return 'Town Crier Unavailable'
+  if (shouts.crierResult.judgment === 'approved') return 'Proclamation Announced!'
+  return 'Proclamation Rejected'
+})
 
 // Blessing state
 const blessingPickerVisible = ref(false)
@@ -471,14 +561,60 @@ async function switchToShouts() {
   await economy.fetchEconomy()
 }
 
-// Handle shout submission
+// Watch for crier result to trigger typewriter effect (mirrors AltarView's aetherResult watcher)
+watch(() => shouts.crierResult, (result) => {
+  if (crierTypewriterInterval) {
+    clearInterval(crierTypewriterInterval)
+    crierTypewriterInterval = null
+  }
+  displayedCrierResponse.value = ''
+  crierTypewriterFinished.value = false
+
+  if (result?.response) {
+    let i = 0
+    const text = result.response
+    crierTypewriterInterval = setInterval(() => {
+      if (i < text.length) {
+        displayedCrierResponse.value += text[i]
+        i++
+      } else {
+        clearInterval(crierTypewriterInterval)
+        crierTypewriterInterval = null
+        crierTypewriterFinished.value = true
+      }
+    }, 25)
+  } else {
+    crierTypewriterFinished.value = true
+  }
+})
+
+// Handle Continue button in Town Crier modal
+async function handleCrierContinue() {
+  if (crierTypewriterInterval) {
+    clearInterval(crierTypewriterInterval)
+    crierTypewriterInterval = null
+  }
+  const result = shouts.crierResult
+  shouts.clearCrierResult()
+
+  // Refresh the feed to show the new shout (approved -> posted, rejected -> failed)
+  await shouts.fetchShouts(false, shoutFilter.value)
+  await economy.fetchEconomy()
+  await prayers.fetchProfile()
+
+  // If rejected, check ban status for Purgatory redirect
+  if (result?.judgment === 'rejected') {
+    await banTimer.checkBanStatus()
+  }
+}
+
+// Handle shout submission (modal handles the result display now)
 async function handleShoutSubmit() {
   if (!shoutContent.value.trim()) return
   const result = await shouts.submitShout(shoutContent.value.trim(), 'global')
   if (result?.success) {
     shoutContent.value = ''
-    await shouts.fetchShouts(false, shoutFilter.value)
-    await economy.fetchEconomy()
+    // Feed refresh and economy update happen in handleCrierContinue after modal dismiss
   }
 }
 
@@ -709,6 +845,11 @@ onUnmounted(() => {
   if (akashic.activeAltruisticPrayer) {
     counter.stopCounting()
   }
+  // Clean up typewriter interval
+  if (crierTypewriterInterval) {
+    clearInterval(crierTypewriterInterval)
+    crierTypewriterInterval = null
+  }
   // Unsubscribe from realtime channels to prevent memory leaks and conflicts
   akashic.unsubscribeFromRealtime()
 })
@@ -819,5 +960,12 @@ function karmaClass() {
     opacity: 0;
     transform: translateY(1rem) scale(0.98);
   }
+}
+
+.crier-icon-img {
+  width: 5rem;
+  height: 5rem;
+  object-fit: contain;
+  border-radius: 999px;
 }
 </style>

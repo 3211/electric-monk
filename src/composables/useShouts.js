@@ -98,7 +98,10 @@ export function useShouts() {
   /**
    * Submit a new shout.
    * 1. Calls submit_shout RPC (deducts gold, creates pending row)
-   * 2. Invokes town-crier edge function for translation
+   * 2. Shows Town Crier modal (isCrierProcessing=true)
+   * 3. Invokes town-crier edge function for classification + translation
+   * 4. Edge function returns result to waiting client (modal), updates DB
+   * 5. Modal displays result (approved crier translation or rejection decree)
    * @param {string} content - The raw shout text
    * @param {string} context - 'global' or 'synod'
    */
@@ -106,7 +109,6 @@ export function useShouts() {
     try {
       submitting.value = true
       submitError.value = null
-      isCrierProcessing.value = false
       crierResult.value = null
 
       // Step 1: Create the shout via RPC (deducts gold)
@@ -124,7 +126,9 @@ export function useShouts() {
 
       const shoutId = rpcData.shout_id
 
-      // Step 2: Invoke town-crier to translate
+      // Step 2: Show modal, invoke town-crier
+      // IMPORTANT: isCrierProcessing keeps the modal open so the edge function
+      // doesn't get orphaned (EarlyDrop). The client stays connected.
       isCrierProcessing.value = true
 
       const { data: { user } } = await supabase.auth.getUser()
@@ -138,19 +142,35 @@ export function useShouts() {
         },
       })
 
+      isCrierProcessing.value = false
+
       if (crierFnError) {
         console.error('[useShouts] Town crier error:', crierFnError)
-        // Shout was created but crier failed — still return success
-        // The row is marked as 'failed' by the edge function
+        crierResult.value = {
+          success: false,
+          error: crierFnError.message || 'Town Crier unavailable',
+          shout_id: shoutId,
+        }
+        return rpcData
       }
 
-      isCrierProcessing.value = false
-      crierResult.value = crierData || null
+      // Set the result for the Crier modal to display
+      crierResult.value = {
+        success: crierData?.success !== false,
+        judgment: crierData?.judgment || 'error',
+        response: crierData?.response || null,
+        rejection_reason: crierData?.rejection_reason || null,
+        shout_id: shoutId,
+        error: crierData?.error || null,
+        // For approved shouts: DB already updated by edge function.
+        // For rejected shouts: DB marked as 'failed', user gets -1 karma + 15-min ban.
+      }
 
       return rpcData
     } catch (err) {
       submitError.value = err.message
       console.error('[useShouts] Submit shout error:', err)
+      isCrierProcessing.value = false
       return { success: false, error: err.message }
     } finally {
       submitting.value = false
@@ -211,7 +231,9 @@ export function useShouts() {
   /**
    * Submit a reply to a shout.
    * 1. Calls submit_shout_reply RPC (deducts gold, creates pending row)
-   * 2. Invokes town-crier edge function for translation
+   * 2. Shows Town Crier modal (isCrierProcessing=true)
+   * 3. Invokes town-crier edge function for classification + translation
+   * 4. Edge function returns result to waiting client (modal), updates DB
    * @param {string} shoutId
    * @param {string} content
    */
@@ -219,6 +241,7 @@ export function useShouts() {
     try {
       submitting.value = true
       submitError.value = null
+      crierResult.value = null
 
       const { data: rpcData, error: rpcError } = await supabase.rpc('submit_shout_reply', {
         p_shout_id: shoutId,
@@ -234,7 +257,9 @@ export function useShouts() {
 
       const replyId = rpcData.reply_id
 
-      // Invoke town-crier
+      // Show modal, invoke town-crier
+      isCrierProcessing.value = true
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
@@ -246,17 +271,34 @@ export function useShouts() {
         },
       })
 
+      isCrierProcessing.value = false
+
       if (crierFnError) {
         console.error('[useShouts] Town crier reply error:', crierFnError)
+        crierResult.value = {
+          success: false,
+          error: crierFnError.message || 'Town Crier unavailable',
+          reply_id: replyId,
+        }
+      } else {
+        crierResult.value = {
+          success: crierData?.success !== false,
+          judgment: crierData?.judgment || 'error',
+          response: crierData?.response || null,
+          rejection_reason: crierData?.rejection_reason || null,
+          reply_id: replyId,
+          error: crierData?.error || null,
+        }
       }
 
-      // Refresh replies after submission
+      // Refresh replies after submission (DB already updated by edge function)
       await fetchShoutDetail(shoutId, false)
 
       return rpcData
     } catch (err) {
       submitError.value = err.message
       console.error('[useShouts] Submit reply error:', err)
+      isCrierProcessing.value = false
       return { success: false, error: err.message }
     } finally {
       submitting.value = false

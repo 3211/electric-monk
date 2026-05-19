@@ -509,6 +509,77 @@
         />
       </div>
 
+      <!-- Town Crier Aether Modal (mirrors AkashicRecordsView's crier modal) -->
+      <Teleport to="body">
+        <Transition name="fade">
+          <div v-if="forumShouts.isCrierProcessing || forumShouts.crierResult" class="aether-modal-overlay">
+            <div class="aether-modal-container glass-panel glass-panel-strong glass-gloss">
+              <!-- Processing State -->
+              <div v-if="forumShouts.isCrierProcessing" class="aether-processing-state">
+                <div class="aether-icon animate-pulse">
+                  <img
+                    src="@/assets/icons/town_crier_icon.png"
+                    alt="The Town Crier"
+                    class="crier-icon-img"
+                  />
+                </div>
+                <h3 class="aether-title text-theme-accent">Hear ye, hear ye!</h3>
+                <p class="aether-description text-theme-text-dim">The Town Crier is proclaiming your message...</p>
+                <div class="aether-loader">
+                  <div class="aether-loader-bar"></div>
+                </div>
+              </div>
+
+              <!-- Result State -->
+              <div v-else-if="forumShouts.crierResult" class="aether-result-state">
+                <div class="aether-judgment-icon" :class="forumShouts.crierResult.success ? (forumShouts.crierResult.judgment === 'approved' ? 'approved' : 'rejected') : 'error'">
+                  <svg v-if="forumShouts.crierResult.success && forumShouts.crierResult.judgment === 'approved'" class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  <svg v-else-if="forumShouts.crierResult.success && forumShouts.crierResult.judgment === 'rejected'" class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  <svg v-else class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                  </svg>
+                </div>
+
+                <h3 class="aether-title font-bold" :class="forumCrierStatusTitle">
+                  {{ forumCrierStatusTitleText }}
+                </h3>
+
+                <div v-if="forumShouts.crierResult.response" class="aether-response-content glass-panel glass-gloss p-4 my-4">
+                  <p class="text-theme-text font-semibold leading-relaxed">
+                    {{ displayedForumCrierResponse }}<span v-if="!forumCrierTypewriterFinished" class="typewriter-cursor">▊</span>
+                  </p>
+                </div>
+
+                <div v-else class="aether-error-content glass-panel glass-gloss p-4 my-4 border-2 border-theme-purgatory">
+                  <p class="text-theme-purgatory-dark font-bold mb-2">⚠️ Town Crier Unavailable</p>
+                  <p class="text-theme-text text-sm leading-relaxed">
+                    {{ forumShouts.crierResult.error || 'The Town Crier could not proclaim your message.' }}
+                  </p>
+                </div>
+
+                <div v-if="forumShouts.crierResult.rejection_reason" class="aether-rejection-reason text-sm text-theme-purgatory mb-3">
+                  <span class="font-semibold">Reason:</span> {{ forumShouts.crierResult.rejection_reason }}
+                </div>
+
+                <button
+                  @click="handleForumCrierContinue"
+                  :disabled="!forumCrierTypewriterFinished"
+                  class="btn-primary w-full mt-2"
+                >
+                  <span class="relative z-10 font-medium">
+                    {{ forumCrierTypewriterFinished ? 'Continue' : 'The Crier is speaking...' }}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
       <!-- ==================== RELIQUARY TAB ==================== -->
       <div v-if="activeTab === 'reliquary' && synod.inSynod">
         <div v-if="relics.loading" class="glass-panel glass-panel-soft p-12 text-center">
@@ -895,6 +966,7 @@ import { useSynodRankings } from '@/composables/useSynodRankings'
 import { useAuth } from '@/composables/useAuth'
 import { useShouts } from '@/composables/useShouts'
 import { useBlessings } from '@/composables/useBlessings'
+import { useBanTimer } from '@/composables/useBanTimer'
 import ShoutCard from '@/components/molecules/ShoutCard.vue'
 import ShoutDetailModal from '@/components/organisms/ShoutDetailModal.vue'
 
@@ -907,6 +979,7 @@ const sr = useSynodRankings()
 const auth = useAuth()
 const forumShouts = useShouts()
 const blessings = useBlessings()
+const banTimer = useBanTimer()
 
 const forceEvilTheme = inject('forceEvilTheme', ref(false))
 const forceWarTheme = inject('forceWarTheme', ref(false))
@@ -921,6 +994,23 @@ const newSynodMessage = ref('')
 const editMessage = ref('')
 const confirmAction = ref(null)
 const warTargetName = ref('')
+
+// Town Crier typewriter state
+const displayedForumCrierResponse = ref('')
+const forumCrierTypewriterFinished = ref(false)
+let forumCrierTypewriterInterval = null
+
+const forumCrierStatusTitle = computed(() => {
+  if (!forumShouts.crierResult?.success) return 'text-theme-accent-dark'
+  if (forumShouts.crierResult.judgment === 'approved') return 'text-theme-accent'
+  return 'text-theme-purgatory'
+})
+
+const forumCrierStatusTitleText = computed(() => {
+  if (!forumShouts.crierResult?.success) return 'Town Crier Unavailable'
+  if (forumShouts.crierResult.judgment === 'approved') return 'Proclamation Announced!'
+  return 'Proclamation Rejected'
+})
 
 const currentUserId = computed(() => auth.user?.id)
 const myRelicCount = computed(() => relics.heldRelics(currentUserId.value)?.length || 0)
@@ -1032,15 +1122,57 @@ function rankBadgeClass(rank) {
 }
 
 // -- Forum actions --
+// Watch for crier result to trigger typewriter effect
+watch(() => forumShouts.crierResult, (result) => {
+  if (forumCrierTypewriterInterval) {
+    clearInterval(forumCrierTypewriterInterval)
+    forumCrierTypewriterInterval = null
+  }
+  displayedForumCrierResponse.value = ''
+  forumCrierTypewriterFinished.value = false
+
+  if (result?.response) {
+    let i = 0
+    const text = result.response
+    forumCrierTypewriterInterval = setInterval(() => {
+      if (i < text.length) {
+        displayedForumCrierResponse.value += text[i]
+        i++
+      } else {
+        clearInterval(forumCrierTypewriterInterval)
+        forumCrierTypewriterInterval = null
+        forumCrierTypewriterFinished.value = true
+      }
+    }, 25)
+  } else {
+    forumCrierTypewriterFinished.value = true
+  }
+})
+
+async function handleForumCrierContinue() {
+  if (forumCrierTypewriterInterval) {
+    clearInterval(forumCrierTypewriterInterval)
+    forumCrierTypewriterInterval = null
+  }
+  const wasRejected = forumShouts.crierResult?.judgment === 'rejected'
+  forumShouts.clearCrierResult()
+
+  await forumShouts.fetchShouts(false, 'synod')
+  await economy.fetchEconomy()
+  await synod.fetchSynodInfo()
+
+  // If rejected, check ban status for Purgatory redirect
+  if (wasRejected) {
+    await banTimer.checkBanStatus()
+  }
+}
+
 async function handleForumShoutSubmit() {
   if (!forumShoutContent.value.trim()) return
   const result = await forumShouts.submitShout(forumShoutContent.value.trim(), 'synod')
   if (result?.success) {
     forumShoutContent.value = ''
-    await forumShouts.fetchShouts(false, 'synod')
-    await economy.fetchEconomy()
-    // Refresh synod info to update vault gold display
-    await synod.fetchSynodInfo()
+    // Feed/economy refresh happens in handleForumCrierContinue after modal dismiss
   }
 }
 
@@ -1179,6 +1311,10 @@ onMounted(() => {
 
 onUnmounted(() => {
   hw.stopPolling()
+  if (forumCrierTypewriterInterval) {
+    clearInterval(forumCrierTypewriterInterval)
+    forumCrierTypewriterInterval = null
+  }
 })
 </script>
 
@@ -1391,5 +1527,11 @@ onUnmounted(() => {
     justify-content: center;
     text-align: center;
   }
+}
+.crier-icon-img {
+  width: 5rem;
+  height: 5rem;
+  object-fit: contain;
+  border-radius: 999px;
 }
 </style>
