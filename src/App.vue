@@ -4,6 +4,7 @@ import { useAuth } from './composables/useAuth'
 import { useBanTimer } from './composables/useBanTimer'
 import { useEconomy } from './composables/useEconomy'
 import { usePrayers } from './composables/usePrayers'
+import { useShouts } from './composables/useShouts'
 import { useOnboarding } from './composables/useOnboarding'
 import { useSynod } from './composables/useSynod'
 import ShieldTimer from './components/molecules/ShieldTimer.vue'
@@ -22,6 +23,7 @@ const auth = useAuth()
 const banTimer = useBanTimer()
 const economy = useEconomy()
 const prayers = usePrayers()
+const shouts = useShouts()
 const onboarding = useOnboarding()
 const synod = useSynod()
 
@@ -68,9 +70,24 @@ provide('forceWarTheme', forceWarTheme)
 const showUsernameChangeModal = ref(false)
 
 // Determine which view to show
+// Suppress ban redirect while an Aether / Town Crier modal is active so the
+// player can finish reading the Monk's or Crier's message before being sent
+// to Purgatory.  The edge function sets the ban in the DB immediately on
+// rejection, so the 10-second poll in useBanTimer can fire *before* the
+// client has received the result.  We therefore suppress the redirect both
+// while the modal is processing (spinner visible) AND while a rejection
+// result is being displayed.  Once the modal is dismissed (the result is
+// cleared), the computed re-evaluates and the redirect kicks in.
+const isRejectionModalActive = computed(() =>
+  prayers.isAetherProcessing ||
+  (prayers.aetherResult && prayers.aetherResult.judgment === 'rejected') ||
+  shouts.isCrierProcessing ||
+  (shouts.crierResult && shouts.crierResult.judgment === 'rejected')
+)
+
 const currentView = computed(() => {
   if (!auth.isAuthenticated) return 'login'
-  if (banTimer.isBanned) return 'purgatory'
+  if (banTimer.isBanned && !isRejectionModalActive.value) return 'purgatory'
   return currentTab.value
 })
 

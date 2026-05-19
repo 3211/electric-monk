@@ -10,8 +10,20 @@ import { supabase } from '@/lib/supabase'
  * - Fetches shout detail + replies
  * - Submits replies (invokes town-crier edge function)
  * - Grants blessings on shouts/replies
+ *
+ * Crier result state (isCrierProcessing, crierResult) is shared across all
+ * instances via module-level refs. This allows App.vue to detect active
+ * rejection modals for ban-suppression logic, regardless of which view
+ * (AkashicRecords or SynodHall) triggered the crier flow.
  */
+
+// Module-level shared crier state — visible to App.vue for ban suppression
+// across all useShouts instances (AkashicRecords, SynodHall)
+const sharedIsCrierProcessing = ref(false)
+const sharedCrierResult = ref(null)
+
 export function useShouts() {
+  // Per-instance state (shouts list, filter, pagination, etc.)
   const shouts = ref([])
   const loading = ref(false)
   const error = ref(null)
@@ -29,11 +41,9 @@ export function useShouts() {
   const repliesPage = ref(1)
   const totalReplies = ref(0)
 
-  // Submission state
+  // Submission state (submitting/submitError are per-instance)
   const submitting = ref(false)
   const submitError = ref(null)
-  const isCrierProcessing = ref(false)
-  const crierResult = ref(null)
 
   // Blessing state
   const blessingLoading = ref(false)
@@ -109,7 +119,7 @@ export function useShouts() {
     try {
       submitting.value = true
       submitError.value = null
-      crierResult.value = null
+      sharedCrierResult.value = null
 
       // Step 1: Create the shout via RPC (deducts gold)
       const { data: rpcData, error: rpcError } = await supabase.rpc('submit_shout', {
@@ -130,7 +140,7 @@ export function useShouts() {
       // Step 2: Show modal, invoke town-crier
       // IMPORTANT: isCrierProcessing keeps the modal open so the edge function
       // doesn't get orphaned (EarlyDrop). The client stays connected.
-      isCrierProcessing.value = true
+      sharedIsCrierProcessing.value = true
 
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
@@ -147,17 +157,17 @@ export function useShouts() {
       // the modal from flickering off (the v-if checks isCrierProcessing || crierResult).
       if (crierFnError) {
         console.error('[useShouts] Town crier error:', crierFnError)
-        crierResult.value = {
+        sharedCrierResult.value = {
           success: false,
           error: crierFnError.message || 'Town Crier unavailable',
           shout_id: shoutId,
         }
-        isCrierProcessing.value = false
+        sharedIsCrierProcessing.value = false
         return rpcData
       }
 
       // Set the result for the Crier modal to display
-      crierResult.value = {
+      sharedCrierResult.value = {
         success: crierData?.success !== false,
         judgment: crierData?.judgment || 'error',
         response: crierData?.response || null,
@@ -167,13 +177,13 @@ export function useShouts() {
         // For approved shouts: DB already updated by edge function.
         // For rejected shouts: DB marked as 'failed', user gets -1 karma + 15-min ban.
       }
-      isCrierProcessing.value = false
+      sharedIsCrierProcessing.value = false
 
       return rpcData
     } catch (err) {
       submitError.value = err.message
       console.error('[useShouts] Submit shout error:', err)
-      isCrierProcessing.value = false
+      sharedIsCrierProcessing.value = false
       return { success: false, error: err.message }
     } finally {
       submitting.value = false
@@ -244,7 +254,7 @@ export function useShouts() {
     try {
       submitting.value = true
       submitError.value = null
-      crierResult.value = null
+      sharedCrierResult.value = null
 
       const { data: rpcData, error: rpcError } = await supabase.rpc('submit_shout_reply', {
         p_shout_id: shoutId,
@@ -261,7 +271,7 @@ export function useShouts() {
       const replyId = rpcData.reply_id
 
       // Show modal, invoke town-crier
-      isCrierProcessing.value = true
+      sharedIsCrierProcessing.value = true
 
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
@@ -278,13 +288,13 @@ export function useShouts() {
       // the modal from flickering off (the v-if checks isCrierProcessing || crierResult).
       if (crierFnError) {
         console.error('[useShouts] Town crier reply error:', crierFnError)
-        crierResult.value = {
+        sharedCrierResult.value = {
           success: false,
           error: crierFnError.message || 'Town Crier unavailable',
           reply_id: replyId,
         }
       } else {
-        crierResult.value = {
+        sharedCrierResult.value = {
           success: crierData?.success !== false,
           judgment: crierData?.judgment || 'error',
           response: crierData?.response || null,
@@ -293,7 +303,7 @@ export function useShouts() {
           error: crierData?.error || null,
         }
       }
-      isCrierProcessing.value = false
+      sharedIsCrierProcessing.value = false
 
       // Refresh replies after submission (DB already updated by edge function)
       await fetchShoutDetail(shoutId, false)
@@ -302,7 +312,7 @@ export function useShouts() {
     } catch (err) {
       submitError.value = err.message
       console.error('[useShouts] Submit reply error:', err)
-      isCrierProcessing.value = false
+      sharedIsCrierProcessing.value = false
       return { success: false, error: err.message }
     } finally {
       submitting.value = false
@@ -359,7 +369,7 @@ export function useShouts() {
    * Clear crier result (after modal dismissed).
    */
   function clearCrierResult() {
-    crierResult.value = null
+    sharedCrierResult.value = null
   }
 
   return reactive({
@@ -377,8 +387,9 @@ export function useShouts() {
     totalReplies,
     submitting,
     submitError,
-    isCrierProcessing,
-    crierResult,
+    // Shared crier state (module-level, visible to App.vue for ban suppression)
+    isCrierProcessing: sharedIsCrierProcessing,
+    crierResult: sharedCrierResult,
     blessingLoading,
     blessingError,
     // Methods
