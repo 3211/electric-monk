@@ -40,19 +40,19 @@ BEGIN
             s.id AS synod_id,
             s.name,
             pl.username AS leader_name,
-            (SELECT COUNT(*) FROM profiles WHERE synod_id = s.id)::INT AS member_count,
+            (SELECT COUNT(*) FROM public.profiles WHERE synod_id = s.id)::INT AS member_count,
             s.vault_gold,
             (s.active_war_id IS NOT NULL) AS has_active_war,
             s.privacy,
             ROW_NUMBER() OVER (
                 PARTITION BY s.sect_key
                 ORDER BY
-                    (SELECT COUNT(*) FROM profiles WHERE synod_id = s.id) DESC,
+                    (SELECT COUNT(*) FROM public.profiles WHERE synod_id = s.id) DESC,
                     s.vault_gold DESC,
                     s.created_at ASC
             )::INT AS rank
-        FROM synods s
-        LEFT JOIN profiles pl ON pl.id = s.leader_id
+        FROM public.synods s
+        LEFT JOIN public.profiles pl ON pl.id = s.leader_id
         WHERE s.sect_key IS NOT NULL
           AND s.sect_key IN ('gilded_path', 'holy_way', 'final_watch', 'black_tribunal')
         ORDER BY s.sect_key, rank
@@ -83,21 +83,21 @@ BEGIN
         RETURN jsonb_build_object('under_attack', false);
     END IF;
 
-    SELECT synod_id INTO v_synod_id FROM profiles WHERE id = v_user_id;
+    SELECT synod_id INTO v_synod_id FROM public.profiles WHERE id = v_user_id;
     IF v_synod_id IS NULL THEN
         RETURN jsonb_build_object('under_attack', false);
     END IF;
 
     SELECT EXISTS(
-        SELECT 1 FROM synod_wars sw
+        SELECT 1 FROM public.synod_wars sw
         WHERE sw.defender_synod_id = v_synod_id
           AND sw.is_active = true
     ) INTO v_under_attack;
 
     IF v_under_attack THEN
         SELECT s.name INTO v_attacker_name
-        FROM synod_wars sw
-        JOIN synods s ON s.id = sw.attacker_synod_id
+        FROM public.synod_wars sw
+        JOIN public.synods s ON s.id = sw.attacker_synod_id
         WHERE sw.defender_synod_id = v_synod_id
           AND sw.is_active = true
         LIMIT 1;

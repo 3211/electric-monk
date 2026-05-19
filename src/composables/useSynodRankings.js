@@ -31,10 +31,10 @@ let sharedState = null
 function createSynodRankingsState() {
   /** All synods flat list (for "All" view / fallback) */
   const allSynods = ref([])
-  /** Per-sect columns: { gilded_path: [...], holy_way: [...], ... } */
-  const sectColumns = reactive({})
+  /** Per-sect columns: { gilded_path: [], holy_way: [], ... } */
+  const sectColumns = ref({})
   for (const key of SECT_KEYS) {
-    sectColumns[key] = ref([])
+    sectColumns.value[key] = []
   }
 
   const loading = ref(false)
@@ -54,14 +54,14 @@ function createSynodRankingsState() {
       // Reset columns
       allSynods.value = []
       for (const key of SECT_KEYS) {
-        sectColumns[key].value = []
+        sectColumns.value[key] = []
       }
 
       // Distribute by sect_key
       for (const synod of rows) {
         allSynods.value.push(synod)
-        if (synod.sect_key && sectColumns[synod.sect_key]) {
-          sectColumns[synod.sect_key].value.push(synod)
+        if (synod.sect_key && sectColumns.value[synod.sect_key]) {
+          sectColumns.value[synod.sect_key].push(synod)
         }
       }
     } catch (err) {

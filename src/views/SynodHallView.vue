@@ -697,16 +697,17 @@
               <div
                 v-for="sectKey in sr.SECT_KEYS"
                 :key="sectKey"
-                class="glass-panel glass-panel-soft p-4 sm:p-5"
+                class="glass-panel glass-panel-soft p-4 sm:p-5 flex flex-col"
+                style="min-height: 320px;"
               >
                 <!-- Column Header -->
-                <h3 class="ritual-heading text-base font-bold text-theme-accent mb-3 text-center flex items-center justify-center gap-2">
+                <h3 class="ritual-heading text-base font-bold text-theme-accent mb-3 text-center flex items-center justify-center gap-2 flex-shrink-0">
                   <span class="text-lg">{{ sr.SECT_ICONS[sectKey] }}</span>
                   <span class="truncate">{{ sr.SECT_NAMES[sectKey] }}</span>
                 </h3>
 
                 <!-- Synod List -->
-                <div class="space-y-2">
+                <div class="space-y-2 flex-1 min-h-0 max-h-[340px] overflow-y-auto pr-1 synod-rankings-scroll">
                   <div
                     v-for="synodEntry in sr.sectColumns[sectKey]"
                     :key="synodEntry.synod_id"
@@ -1142,6 +1143,63 @@ onUnmounted(() => {
   color: var(--theme-text-dim);
   background: rgba(139, 125, 91, 0.12);
   border: 1px solid rgba(139, 125, 91, 0.14);
+}
+
+/* Scrollbar for ranking columns */
+.synod-rankings-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(185, 197, 207, 0.32) rgba(139, 125, 91, 0.06);
+}
+
+.synod-rankings-scroll::-webkit-scrollbar {
+  width: 7px;
+}
+
+.synod-rankings-scroll::-webkit-scrollbar-track {
+  background: rgba(139, 125, 91, 0.06);
+  border-radius: 999px;
+  margin: 4px 0;
+}
+
+.synod-rankings-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(185, 197, 207, 0.42),
+    rgba(161, 173, 183, 0.32) 35%,
+    rgba(139, 125, 91, 0.28) 65%,
+    rgba(185, 197, 207, 0.38)
+  );
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+    0 1px 3px rgba(0, 0, 0, 0.08);
+  min-height: 28px;
+}
+
+.synod-rankings-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(213, 154, 23, 0.30),
+    rgba(185, 197, 207, 0.42) 35%,
+    rgba(161, 173, 183, 0.36) 65%,
+    rgba(213, 154, 23, 0.26)
+  );
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+    0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.synod-rankings-scroll::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(
+    180deg,
+    rgba(213, 154, 23, 0.38),
+    rgba(185, 197, 207, 0.5) 40%,
+    rgba(213, 154, 23, 0.34)
+  );
 }
 
 @media (max-width: 640px) {
