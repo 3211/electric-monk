@@ -27,8 +27,8 @@
     </header>
 
     <main class="app-frame py-8 lg:py-10">
-      <div class="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] lg:items-start">
-        <section class="space-y-8">
+      <div class="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)] lg:items-start">
+        <section class="min-w-0 space-y-8">
           <!-- Active Prayers Section -->
           <div class="space-y-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -141,9 +141,9 @@
                   </div>
 
                   <!-- Prayer Content (monk's response only) -->
-                  <div class="flex flex-col gap-4 pr-0 sm:flex-row sm:items-start sm:justify-between sm:pr-12">
-                    <div class="flex-1">
-                      <p v-if="selectedPrayer.response_content" class="mb-1 text-base font-medium leading-7 text-theme-text sm:text-[1.05rem]">
+                  <div class="flex min-w-0 flex-col gap-4 pr-0 sm:flex-row sm:items-start sm:justify-between sm:pr-12">
+                    <div class="min-w-0 flex-1">
+                      <p v-if="selectedPrayer.response_content" class="mb-1 break-words text-base font-medium leading-7 text-theme-text sm:text-[1.05rem]">
                         {{ selectedPrayer.response_content }}
                       </p>
                       <p v-else class="text-sm italic text-theme-text-dim">
@@ -208,9 +208,9 @@
               </div>
 
               <!-- Prayer Content (monk's response only) -->
-              <div class="flex flex-col gap-4 pr-0 sm:flex-row sm:items-start sm:justify-between sm:pr-12">
-                <div class="flex-1">
-                  <p v-if="prayers.currentActivePrayer.response_content" class="mb-1 text-base font-medium leading-7 text-theme-text sm:text-[1.05rem]">
+              <div class="flex min-w-0 flex-col gap-4 pr-0 sm:flex-row sm:items-start sm:justify-between sm:pr-12">
+                <div class="min-w-0 flex-1">
+                  <p v-if="prayers.currentActivePrayer.response_content" class="mb-1 break-words text-base font-medium leading-7 text-theme-text sm:text-[1.05rem]">
                     {{ prayers.currentActivePrayer.response_content }}
                   </p>
                   <p v-else class="text-sm italic text-theme-text-dim">
@@ -265,10 +265,10 @@
                   </svg>
                 </button>
 
-                <div class="flex flex-col gap-4 pr-0 sm:pr-10">
+                <div class="flex min-w-0 flex-col gap-4 pr-0 sm:pr-10">
                   <!-- Prayer Content (monk's response only) -->
-                  <div class="flex-1">
-                    <p v-if="prayer.response_content" class="mb-1 text-theme-text font-medium leading-6">
+                  <div class="min-w-0 flex-1">
+                    <p v-if="prayer.response_content" class="mb-1 break-words text-theme-text font-medium leading-6">
                       {{ prayer.response_content }}
                     </p>
                     <p v-else class="text-sm italic text-theme-text-dim">
@@ -372,7 +372,7 @@
         </section>
 
         <!-- Prayer Submission Form -->
-        <aside class="lg:sticky lg:top-28">
+        <aside class="min-w-0 lg:sticky lg:top-28">
           <div class="submission-panel glass-panel glass-panel-strong glass-gloss mb-6 p-5 sm:p-6">
             <div class="mb-5 flex flex-col items-center">
               <div class="submission-logo-shell mb-2">
@@ -936,6 +936,23 @@ async function handleAetherContinue() {
   align-self: stretch;
   min-width: 11rem;
   padding-block: 0;
+}
+
+@media (max-width: 767px) {
+  .submission-send-btn {
+    min-width: 0;
+    flex: 1 1 0%;
+    align-self: auto;
+  }
+
+  .submission-send-row {
+    flex-direction: column;
+  }
+
+  .submission-logo-shell {
+    width: 10rem;
+    height: 10rem;
+  }
 }
 
 .submission-meta-stack {
