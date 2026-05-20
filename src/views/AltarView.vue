@@ -104,11 +104,11 @@
                     filter: `blur(${Math.min(index + 1, 2) * 0.4}px)`
                   }"
                 >
-                  <div class="glass-panel glass-panel-soft stacked-prayer-shadow-card h-32 rounded-xl border border-theme-border/30 sm:rounded-xl"></div>
+                  <div class="glass-panel glass-panel-soft stacked-prayer-shadow-card h-32 rounded-sm border border-theme-border/30 sm:rounded-sm"></div>
                 </div>
 
                 <!-- Selected (front) card with full detail -->
-                <div v-if="selectedPrayer" class="active-prayer-card glass-panel glass-panel-strong glass-gloss relative z-10 rounded-xl border border-theme-accent/45 p-5 shadow-glow-accent sm:rounded-xl sm:p-6">
+                <div v-if="selectedPrayer" class="active-prayer-card glass-panel glass-panel-strong glass-gloss relative z-10 rounded-sm border border-theme-accent/45 p-5 shadow-glow-accent sm:rounded-sm sm:p-6">
                   <!-- Delete/Archive Button -->
                   <button
                     @click="handleArchive(selectedPrayer.id)"
@@ -175,7 +175,7 @@
             </div>
 
             <!-- Single Active Prayer Card (original layout, no stacking) -->
-            <div v-else-if="prayers.currentActivePrayer" class="active-prayer-card glass-panel glass-panel-strong glass-gloss relative rounded-xl border border-theme-accent/45 p-5 shadow-glow-accent sm:rounded-xl sm:p-6">
+            <div v-else-if="prayers.currentActivePrayer" class="active-prayer-card glass-panel glass-panel-strong glass-gloss relative rounded-sm border border-theme-accent/45 p-5 shadow-glow-accent sm:rounded-sm sm:p-6">
               <!-- Delete/Archive Button -->
               <button
                 @click="handleArchive(prayers.currentActivePrayer.id)"
@@ -387,7 +387,7 @@
               </div>
               <div
                 v-if="currentSectInfo"
-                class="mb-2 rounded-full border px-3 py-1 text-center text-xs font-semibold uppercase tracking-[0.18em] shadow-[0_10px_18px_rgba(48,38,21,0.06)]"
+                class="mb-2 rounded-sm border px-3 py-1 text-center text-xs font-semibold uppercase tracking-[0.18em] shadow-[4px_4px_0px_rgba(0,0,0,0.15)]"
                 :class="[currentSectInfo.bg, currentSectInfo.color]"
               >
                 {{ currentSectInfo.name }}
@@ -397,12 +397,12 @@
             </div>
             
             <!-- Error Message -->
-            <div v-if="prayers.error" class="mb-4 rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
+            <div v-if="prayers.error" class="mb-4 rounded-sm border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
               {{ prayers.error }}
             </div>
 
             <!-- Slot Warning -->
-            <div v-if="!prayers.canSubmitPrayer" class="mb-4 rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/10 p-4 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
+            <div v-if="!prayers.canSubmitPrayer" class="mb-4 rounded-sm border border-theme-purgatory/25 bg-theme-purgatory/10 p-4 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
               All prayer slots occupied. Pause or archive an active prayer to free up a slot.
             </div>
             

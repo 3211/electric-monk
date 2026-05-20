@@ -131,7 +131,7 @@
 
         <!-- Shout Submission Form -->
         <div class="glass-panel glass-panel-strong glass-gloss p-5 sm:p-6">
-          <div v-if="shouts.submitError" class="mb-3 rounded-xl border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark">
+          <div v-if="shouts.submitError" class="mb-3 rounded-sm border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark">
             {{ shouts.submitError }}
           </div>
 
@@ -268,7 +268,7 @@
                 <p v-if="activeTargetName" class="truncate text-xs text-theme-text-muted">{{ activeTargetName }}</p>
               </div>
             </div>
-            <div class="rounded-lg border border-theme-accent/20 bg-white/55 px-3 py-2 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm">
+            <div class="rounded-sm border border-theme-accent/20 bg-white/55 px-3 py-2 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-sm">
               <span class="block text-2xl font-bold text-theme-accent font-mono">{{ counterDisplayedCount }}</span>
               <span class="text-[0.7rem] uppercase tracking-[0.18em] text-theme-text-muted">prays</span>
             </div>

@@ -97,7 +97,7 @@
               </div>
 
               <div class="mb-3 flex items-center gap-3">
-                <span class="flex h-14 w-14 items-center justify-center rounded-lg border border-blue-400/20 bg-blue-50/55 text-3xl shadow-[0_10px_20px_rgba(59,130,246,0.12)] backdrop-blur-sm">
+                <span class="flex h-14 w-14 items-center justify-center rounded-sm border border-blue-400/20 bg-blue-50/55 text-3xl shadow-[0_10px_20px_rgba(59,130,246,0.12)] backdrop-blur-sm">
                   {{ item.emoji_icon }}
                 </span>
                 <div class="min-w-0">
@@ -187,7 +187,7 @@
               </div>
 
               <div class="mb-3 flex items-center gap-3">
-                <span class="flex h-14 w-14 items-center justify-center rounded-lg border border-emerald-400/20 bg-emerald-50/55 text-3xl shadow-[0_10px_20px_rgba(16,185,129,0.12)] backdrop-blur-sm">
+                <span class="flex h-14 w-14 items-center justify-center rounded-sm border border-emerald-400/20 bg-emerald-50/55 text-3xl shadow-[0_10px_20px_rgba(16,185,129,0.12)] backdrop-blur-sm">
                   {{ item.emoji_icon }}
                 </span>
                 <div class="min-w-0">
@@ -272,7 +272,7 @@
               </div>
 
               <div class="mb-3 flex items-center gap-3">
-                <span class="flex h-14 w-14 items-center justify-center rounded-lg border border-amber-400/20 bg-amber-50/55 text-3xl shadow-[0_10px_20px_rgba(213,154,23,0.12)] backdrop-blur-sm">
+                <span class="flex h-14 w-14 items-center justify-center rounded-sm border border-amber-400/20 bg-amber-50/55 text-3xl shadow-[0_10px_20px_rgba(213,154,23,0.12)] backdrop-blur-sm">
                   {{ item.emoji_icon }}
                 </span>
                 <div class="min-w-0">
@@ -339,7 +339,7 @@
         </div>
 
         <div v-else-if="prayerSlotsMaxed" class="glass-panel glass-panel-soft glass-gloss flex flex-col items-center gap-3 p-8 text-center">
-          <span class="flex h-16 w-16 items-center justify-center rounded-xl border border-emerald-400/20 bg-emerald-50/55 text-4xl shadow-[0_10px_20px_rgba(16,185,129,0.12)] backdrop-blur-sm">🙏</span>
+          <span class="flex h-16 w-16 items-center justify-center rounded-sm border border-emerald-400/20 bg-emerald-50/55 text-4xl shadow-[0_10px_20px_rgba(16,185,129,0.12)] backdrop-blur-sm">🙏</span>
           <h3 class="text-lg font-semibold text-emerald-600">All Prayer Slots Unlocked</h3>
           <p class="text-sm text-theme-text-muted">You have the maximum number of prayer slots ({{ prayers.maxPrayerSlots }}). No further upgrades available.</p>
         </div>
@@ -355,7 +355,7 @@
 
             <div class="relative">
               <div class="mb-3 flex items-center gap-3">
-                <span class="flex h-12 w-12 items-center justify-center rounded-lg border border-theme-accent/20 bg-white/55 text-2xl shadow-[0_10px_20px_rgba(213,154,23,0.12)] backdrop-blur-sm">
+                <span class="flex h-12 w-12 items-center justify-center rounded-sm border border-theme-accent/20 bg-white/55 text-2xl shadow-[0_10px_20px_rgba(213,154,23,0.12)] backdrop-blur-sm">
                   {{ item.emoji_icon }}
                 </span>
                 <div class="min-w-0">
@@ -417,7 +417,7 @@
 
             <div class="relative">
               <div class="mb-3 flex items-center gap-3">
-                <span class="flex h-12 w-12 items-center justify-center rounded-lg border border-theme-accent/20 bg-white/55 text-2xl shadow-[0_10px_20px_rgba(213,154,23,0.12)] backdrop-blur-sm">{{ blessing.emoji }}</span>
+                <span class="flex h-12 w-12 items-center justify-center rounded-sm border border-theme-accent/20 bg-white/55 text-2xl shadow-[0_10px_20px_rgba(213,154,23,0.12)] backdrop-blur-sm">{{ blessing.emoji }}</span>
                 <div class="min-w-0">
                   <h3 class="truncate text-sm font-semibold text-theme-text">{{ blessing.name }}</h3>
                   <div class="chip mt-0.5 gap-1 px-2 py-0.5 text-[0.65rem] font-semibold text-theme-accent">
@@ -429,7 +429,7 @@
 
               <p class="mb-2 text-xs leading-relaxed text-theme-text-dim">{{ blessing.description }}</p>
 
-              <div class="mb-3 flex items-center gap-1.5 rounded-md border border-blue-400/20 bg-blue-50/30 px-2.5 py-1.5 text-[0.7rem] text-blue-600">
+              <div class="mb-3 flex items-center gap-1.5 rounded-sm border border-blue-400/20 bg-blue-50/30 px-2.5 py-1.5 text-[0.7rem] text-blue-600">
                 <span>🛡</span>
                 <span class="font-medium">{{ formatShieldDuration(blessing) }}</span>
                 <span class="text-blue-500/70">shield to both</span>

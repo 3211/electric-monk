@@ -1,12 +1,12 @@
 <template>
   <div
-    class="glass-panel glass-panel-soft glass-gloss relative cursor-pointer border border-theme-border p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-theme-accent/30"
+    class="glass-panel glass-panel-soft glass-gloss relative cursor-pointer border border-theme-border p-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-theme-accent/30 font-mono"
     @click="$emit('select', shout)"
   >
     <!-- Author Row -->
-    <div class="mb-3 flex items-center gap-3">
-      <!-- PFP -->
-      <div class="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border-2 border-theme-accent/20 bg-theme-panel">
+    <div class="mb-2 flex items-center gap-2">
+      <!-- PFP — Hard-Square: Durable Frame -->
+      <div class="h-9 w-9 flex-shrink-0 overflow-hidden rounded-sm border-2 border-theme-accent/30 ring-1 ring-inset ring-white/10 bg-theme-panel">
         <img
           v-if="shout.pfp_index != null"
           :src="`/pfp/${shout.pfp_index}.png`"
@@ -24,7 +24,7 @@
           <!-- Sect Badge -->
           <span
             v-if="shout.author_sect_type"
-            class="rounded-full px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider"
+            class="rounded-[2px] px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider"
             :class="sectBadgeClass(shout.author_sect_type)"
           >
             {{ sectLabel(shout.author_sect_type) }}
@@ -32,7 +32,7 @@
           <!-- Sect-Only Badge -->
           <span
             v-if="shout.is_sect_only"
-            class="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[0.65rem] font-medium text-amber-400"
+            class="rounded-[2px] border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[0.6rem] font-bold text-amber-400"
             title="Only visible to your sect"
           >
             🔒 Sect
@@ -40,17 +40,17 @@
           <!-- Synod Context Badge -->
           <span
             v-if="shout.context === 'synod'"
-            class="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[0.65rem] font-medium text-purple-400"
+            class="rounded-[2px] border border-purple-500/30 bg-purple-500/10 px-1.5 py-0.5 text-[0.6rem] font-bold text-purple-400"
           >
             Synod
           </span>
         </div>
-        <p class="text-xs text-theme-text-muted">{{ formatDate(shout.created_at) }}</p>
+        <p class="text-[0.65rem] text-theme-text-muted">{{ formatDate(shout.created_at) }}</p>
       </div>
     </div>
 
     <!-- Content -->
-    <p class="mb-3 text-sm leading-relaxed text-theme-text">
+    <p class="mb-2 text-sm leading-snug text-theme-text">
       {{ shout.crier_content || shout.content }}
     </p>
 

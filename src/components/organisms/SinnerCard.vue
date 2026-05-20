@@ -16,11 +16,11 @@
     </div>
 
     <!-- Rejection Reason -->
-    <div v-if="sinner.rejection_reason" class="mb-4 rounded-[20px] border border-theme-purgatory/20 bg-theme-purgatory/10 p-3">
+    <div v-if="sinner.rejection_reason" class="mb-4 rounded-sm border border-theme-purgatory/20 bg-theme-purgatory/10 p-3">
       <p class="mb-1 text-xs uppercase tracking-[0.14em] text-theme-text-muted">Transgression</p>
       <p class="text-sm italic text-theme-purgatory-dark">"{{ sinner.rejection_reason }}"</p>
     </div>
-    <div v-else class="mb-4 rounded-[20px] border border-theme-purgatory/20 bg-theme-purgatory/10 p-3">
+    <div v-else class="mb-4 rounded-sm border border-theme-purgatory/20 bg-theme-purgatory/10 p-3">
       <p class="text-sm italic text-theme-text-dim">The nature of their transgression is shrouded in mystery...</p>
     </div>
 

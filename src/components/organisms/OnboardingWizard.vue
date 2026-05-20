@@ -6,7 +6,7 @@
 
           <!-- Fallback indicator (shown when AI generation fails) -->
           <div v-if="onboarding.usedFallback && onboarding.step !== 'loading'" class="mb-3 text-center">
-            <span class="inline-flex items-center gap-1 rounded-full bg-theme-purgatory/10 border border-theme-purgatory/20 px-3 py-1 text-xs text-theme-purgatory-dark">
+            <span class="inline-flex items-center gap-1 rounded-sm bg-theme-purgatory/10 border border-theme-purgatory/20 px-3 py-1 text-xs text-theme-purgatory-dark">
               ⚠️ AI generation unavailable — using fallback text
             </span>
           </div>
@@ -65,7 +65,7 @@
             </div>
 
             <!-- Error Message -->
-            <div v-if="onboarding.error" class="mb-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
+            <div v-if="onboarding.error" class="mb-4 rounded-sm border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
               {{ onboarding.error }}
             </div>
 
@@ -110,7 +110,7 @@
                   :key="sect.key"
                   @click="localSect = sect.key"
                   :class="[
-                    'relative text-left p-4 rounded-[20px] border transition-all duration-[var(--dur-standard)]',
+                    'relative text-left p-4 rounded-sm border transition-all duration-[var(--dur-standard)]',
                     localSect === sect.key
                       ? 'border-theme-accent/50 bg-theme-accent/10 shadow-[0_10px_28px_rgba(213,154,23,0.18)] scale-[1.01]'
                       : 'border-theme-border bg-theme-panel/50 hover:border-theme-accent/25 hover:bg-theme-accent/5 hover:scale-[1.005]'
@@ -201,7 +201,7 @@
             </div>
 
             <!-- Error Message -->
-            <div v-if="onboarding.error" class="mb-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
+            <div v-if="onboarding.error" class="mb-4 rounded-sm border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
               {{ onboarding.error }}
             </div>
 

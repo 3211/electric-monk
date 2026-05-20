@@ -120,7 +120,7 @@ function formatNextCost(item) {
             </div>
             <div class="flex flex-wrap items-center gap-3">
               <!-- Heresy Display -->
-              <div class="chip evil-metric-chip flex items-center gap-2 px-4 py-2 rounded-lg">
+              <div class="chip evil-metric-chip flex items-center gap-2 px-4 py-2 rounded-sm">
                 <span class="text-purple-400 text-lg">&#x271D;</span>
                 <div>
                   <p class="text-xs text-theme-text-muted">Heresy</p>
@@ -135,7 +135,7 @@ function formatNextCost(item) {
                 ></div>
               </div>
               <!-- Gold Display -->
-              <div class="chip evil-metric-chip evil-metric-chip--gold flex items-center gap-2 px-3 py-2 rounded-lg">
+              <div class="chip evil-metric-chip evil-metric-chip--gold flex items-center gap-2 px-3 py-2 rounded-sm">
                 <span class="text-amber-400">&#x1F4B0;</span>
                 <span class="text-sm font-semibold text-theme-purgatory-dark">{{ catacombs.gold }}</span>
               </div>
@@ -171,7 +171,7 @@ function formatNextCost(item) {
           <div
             v-for="item in catacombs.allCatacombsItems"
             :key="item.id"
-            class="catacombs-card glass-panel glass-panel-soft glass-gloss group relative overflow-hidden rounded-xl p-5 transition-all duration-300 hover:-translate-y-1"
+            class="catacombs-card glass-panel glass-panel-soft glass-gloss group relative overflow-hidden rounded-sm p-5 transition-all duration-300 hover:-translate-y-1"
             :class="{
               'opacity-60': !canAffordItem(item),
               'ring-2 ring-purple-500/40': ownedCount(item.effect_data?.building_type) > 0
@@ -191,7 +191,7 @@ function formatNextCost(item) {
               </div>
 
               <div class="mb-3 flex items-center gap-3">
-                <span class="flex h-14 w-14 items-center justify-center rounded-lg border border-purple-500/20 bg-purple-500/10 text-3xl shadow-[0_10px_20px_rgba(139,92,246,0.12)]">
+                <span class="flex h-14 w-14 items-center justify-center rounded-sm border border-purple-500/20 bg-purple-500/10 text-3xl shadow-[0_10px_20px_rgba(139,92,246,0.12)]">
                   {{ item.emoji_icon }}
                 </span>
                 <div class="min-w-0">
@@ -238,7 +238,7 @@ function formatNextCost(item) {
               <button
                 @click="catacombs.purchaseItem(item.id)"
                 :disabled="!canAffordItem(item) || catacombs.purchasing"
-                class="w-full py-2 text-sm font-semibold rounded-lg transition-colors"
+                class="w-full py-2 text-sm font-semibold rounded-sm transition-colors"
                 :class="canAffordItem(item)
                   ? 'bg-purple-500/20 border border-purple-500/40 text-purple-300 hover:bg-purple-500/30'
                   : 'bg-gray-800/50 border border-gray-700/50 text-gray-500 cursor-not-allowed'"
@@ -285,7 +285,7 @@ function formatNextCost(item) {
           <button
             @click="searchPlagueTarget"
             :disabled="searchingPlague || !plagueTarget.trim()"
-            class="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            class="px-4 py-2 text-sm font-semibold rounded-sm bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {{ searchingPlague ? 'Searching...' : 'Search' }}
           </button>
@@ -296,7 +296,7 @@ function formatNextCost(item) {
           <div
             v-for="player in plagueSearchResults"
             :key="player.id"
-            class="catacombs-result-row flex items-center justify-between p-3 rounded-lg"
+            class="catacombs-result-row flex items-center justify-between p-3 rounded-sm"
           >
             <div>
               <p class="text-sm font-medium text-emerald-200">{{ player.username }}</p>
@@ -305,7 +305,7 @@ function formatNextCost(item) {
             <button
               @click="selectPlagueTarget(player)"
               :disabled="catacombs.heresy < plagueCost"
-              class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              class="px-3 py-1.5 text-xs font-semibold rounded-sm bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Target
             </button>
@@ -313,13 +313,13 @@ function formatNextCost(item) {
         </div>
 
         <!-- Plague result -->
-        <div v-if="vassalage.combatResult && vassalage.combatResult.type === 'plague'" class="evil-alert evil-alert--plague mt-4 p-4 rounded-lg">
+        <div v-if="vassalage.combatResult && vassalage.combatResult.type === 'plague'" class="evil-alert evil-alert--plague mt-4 p-4 rounded-sm">
           <p class="text-sm font-semibold text-emerald-400">Plague Cast Successfully!</p>
           <p class="text-xs text-emerald-300/60 mt-1">{{ vassalage.combatResult.food_destroyed }} food destroyed. Your identity remains hidden.</p>
         </div>
 
         <!-- Error display -->
-        <div v-if="vassalage.combatError && !showPlagueConfirm" class="evil-alert evil-alert--danger mt-4 p-3 rounded-lg">
+        <div v-if="vassalage.combatError && !showPlagueConfirm" class="evil-alert evil-alert--danger mt-4 p-3 rounded-sm">
           <p class="text-xs text-red-400">{{ vassalage.combatError }}</p>
         </div>
       </section>
@@ -337,7 +337,7 @@ function formatNextCost(item) {
           Cost scales exponentially with each schism.
         </p>
 
-        <div class="catacombs-stat-card flex items-center gap-4 p-3 rounded-lg">
+        <div class="catacombs-stat-card flex items-center gap-4 p-3 rounded-sm">
           <div class="flex-1">
             <p class="text-sm font-medium text-purple-200">Schism Cost: <span class="font-bold text-purple-400">{{ vassalage.schismCost }} heresy</span></p>
             <p class="text-xs text-purple-300/50 mt-1">Current heresy: {{ catacombs.heresy }}</p>
@@ -345,14 +345,14 @@ function formatNextCost(item) {
           <button
             @click="showSchismConfirm = true"
             :disabled="catacombs.heresy < vassalage.schismCost || vassalage.schismLoading"
-            class="px-4 py-2 text-sm font-semibold rounded-lg bg-purple-500/20 border border-purple-500/40 text-purple-300 hover:bg-purple-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            class="px-4 py-2 text-sm font-semibold rounded-sm bg-purple-500/20 border border-purple-500/40 text-purple-300 hover:bg-purple-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Declare Schism
           </button>
         </div>
 
         <!-- Schism result -->
-        <div v-if="vassalage.combatResult && vassalage.combatResult.type === 'schism'" class="evil-alert evil-alert--schism mt-4 p-4 rounded-lg">
+        <div v-if="vassalage.combatResult && vassalage.combatResult.type === 'schism'" class="evil-alert evil-alert--schism mt-4 p-4 rounded-sm">
           <p class="text-sm font-semibold text-purple-300">Schism Declared!</p>
           <p class="text-xs text-purple-300/60 mt-1">
             You are free! Divine Shield active until {{ new Date(vassalage.combatResult.shield_until).toLocaleString() }}
@@ -368,15 +368,15 @@ function formatNextCost(item) {
         </h2>
 
         <div class="grid gap-4 sm:grid-cols-3">
-          <div class="catacombs-stat-card p-3 rounded-lg">
+          <div class="catacombs-stat-card p-3 rounded-sm">
             <p class="text-xs text-purple-300/60">Generation</p>
             <p class="text-lg font-semibold text-purple-300">+{{ catacombs.heresyPerDay }}/day</p>
           </div>
-          <div class="catacombs-stat-card p-3 rounded-lg">
+          <div class="catacombs-stat-card p-3 rounded-sm">
             <p class="text-xs text-purple-300/60">Capacity</p>
             <p class="text-lg font-semibold text-purple-300">{{ catacombs.heresyCap }}</p>
           </div>
-          <div class="catacombs-stat-card p-3 rounded-lg">
+          <div class="catacombs-stat-card p-3 rounded-sm">
             <p class="text-xs text-purple-300/60">Schisms Declared</p>
             <p class="text-lg font-semibold text-purple-300">{{ economy.schismCount || 0 }}</p>
           </div>
@@ -397,13 +397,13 @@ function formatNextCost(item) {
           <button
             @click="executePlague"
             :disabled="vassalage.plagueLoading"
-            class="flex-1 px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 transition-colors disabled:opacity-40"
+            class="flex-1 px-4 py-2 text-sm font-semibold rounded-sm bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 transition-colors disabled:opacity-40"
           >
             {{ vassalage.plagueLoading ? 'Casting...' : 'Cast Plague' }}
           </button>
           <button
             @click="showPlagueConfirm = false"
-            class="flex-1 px-4 py-2 text-sm font-semibold rounded-lg bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:bg-gray-800/70 transition-colors"
+            class="flex-1 px-4 py-2 text-sm font-semibold rounded-sm bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:bg-gray-800/70 transition-colors"
           >
             Cancel
           </button>
@@ -424,13 +424,13 @@ function formatNextCost(item) {
           <button
             @click="executeSchism"
             :disabled="vassalage.schismLoading"
-            class="flex-1 px-4 py-2 text-sm font-semibold rounded-lg bg-purple-500/20 border border-purple-500/40 text-purple-300 hover:bg-purple-500/30 transition-colors disabled:opacity-40"
+            class="flex-1 px-4 py-2 text-sm font-semibold rounded-sm bg-purple-500/20 border border-purple-500/40 text-purple-300 hover:bg-purple-500/30 transition-colors disabled:opacity-40"
           >
             {{ vassalage.schismLoading ? 'Declaring...' : 'Declare Schism' }}
           </button>
           <button
             @click="showSchismConfirm = false"
-            class="flex-1 px-4 py-2 text-sm font-semibold rounded-lg bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:bg-gray-800/70 transition-colors"
+            class="flex-1 px-4 py-2 text-sm font-semibold rounded-sm bg-gray-800/50 border border-gray-700/50 text-gray-400 hover:bg-gray-800/70 transition-colors"
           >
             Cancel
           </button>

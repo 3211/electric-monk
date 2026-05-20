@@ -50,7 +50,7 @@
             <div
               v-for="player in leaderboard.globalTop5"
               :key="player.id"
-              class="flex items-center gap-3 py-2.5 px-3 rounded-xl transition-colors duration-200 hover:bg-theme-accent/5"
+              class="flex items-center gap-3 py-2.5 px-3 rounded-sm transition-colors duration-200 hover:bg-theme-accent/5"
               :class="{ 'bg-theme-accent/10 ring-1 ring-theme-accent/20': isCurrentUser(player.id) }"
             >
               <span class="leaderboard-rank-badge" :class="rankBadgeClass(player.rank)">
@@ -94,7 +94,7 @@
               <div
                 v-for="player in leaderboard.faithColumns[faith].entries"
                 :key="player.id"
-                class="flex items-center gap-2.5 py-2.5 px-3 rounded-xl transition-colors duration-200 hover:bg-theme-accent/5"
+                class="flex items-center gap-2.5 py-2.5 px-3 rounded-sm transition-colors duration-200 hover:bg-theme-accent/5"
                 :class="{ 'bg-theme-accent/10 ring-1 ring-theme-accent/20': isCurrentUser(player.id) }"
               >
                 <span class="leaderboard-rank-badge leaderboard-rank-badge--sm" :class="rankBadgeClass(player.faith_rank)">
@@ -148,7 +148,7 @@
               <div
                 v-for="player in leaderboard.globalTop5.slice(0, 5)"
                 :key="player.id"
-                class="flex items-center gap-3 py-2.5 px-4 rounded-xl transition-colors duration-200"
+                class="flex items-center gap-3 py-2.5 px-4 rounded-sm transition-colors duration-200"
                 :class="{ 'bg-theme-accent/15 ring-1 ring-theme-accent/35 scale-105': isCurrentUser(player.id) }"
               >
                 <span class="leaderboard-rank-badge" :class="rankBadgeClass(player.rank)">

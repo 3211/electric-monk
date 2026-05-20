@@ -4,43 +4,36 @@
       <!-- Karma -->
       <div class="resource-chip" title="Karma">
         <span class="resource-emoji">{{ prayers.karmaEmoji }}</span>
-        <span class="resource-label">Karma</span>
         <span class="resource-value" :class="karmaClass">{{ prayers.karma }}</span>
       </div>
       <!-- Mana -->
       <div class="resource-chip" title="Mana">
         <span class="resource-emoji">💧</span>
-        <span class="resource-label">Mana</span>
         <span class="resource-value resource-mana">{{ economy.mana }}</span>
       </div>
       <!-- Gold -->
       <div class="resource-chip" title="Gold">
         <span class="resource-emoji">💰</span>
-        <span class="resource-label">Gold</span>
         <span class="resource-value resource-gold">{{ economy.gold }}</span>
       </div>
       <!-- Food -->
       <div class="resource-chip" title="Food">
         <span class="resource-emoji">🌾</span>
-        <span class="resource-label">Food</span>
         <span class="resource-value resource-food">{{ economy.food }}</span>
       </div>
       <!-- Dogma -->
       <div v-if="economy.dogma > 0 || economy.sectType" class="resource-chip" title="Dogma">
         <span class="resource-emoji">📑</span>
-        <span class="resource-label">Dogma</span>
         <span class="resource-value resource-dogma">{{ economy.dogma }}</span>
       </div>
       <!-- Heresy -->
       <div v-if="economy.heresy > 0" class="resource-chip" title="Heresy">
         <span class="resource-emoji">✝️</span>
-        <span class="resource-label">Heresy</span>
         <span class="resource-value resource-heresy">{{ economy.heresy }}</span>
       </div>
       <!-- Sacred Acres (conditional) -->
       <div v-if="showAcres && economy.sectType" class="resource-chip" title="Sacred Acres">
         <span class="resource-emoji">🏘️</span>
-        <span class="resource-label">Acres</span>
         <span class="resource-value resource-acres">{{ economy.sacredAcresFree }}<span class="resource-value-muted">/{{ economy.sacredAcres }}</span></span>
       </div>
     </div>
@@ -76,7 +69,7 @@ const karmaClass = computed(() => {
 .resource-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem;
+  gap: 0.125rem;
   align-items: center;
 }
 
@@ -85,7 +78,7 @@ const karmaClass = computed(() => {
   .resource-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 0.375rem;
+    gap: 0.125rem;
     width: 100%;
   }
 
@@ -98,16 +91,17 @@ const karmaClass = computed(() => {
 .resource-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-chip, 999px);
+  gap: 0.125rem;
+  padding: 0.125rem 0.25rem;
+  border-radius: 2px;
   border: 1px solid rgba(139, 125, 91, 0.14);
   background: rgba(255, 253, 248, 0.55);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(4px);
+  font-family: var(--font-mono);
   font-size: 0.7rem;
-  line-height: 1.3;
+  line-height: 1.2;
   white-space: nowrap;
-  transition: all 180ms ease-out;
+  transition: all 120ms ease-out;
 }
 
 .resource-chip:hover {
@@ -116,17 +110,12 @@ const karmaClass = computed(() => {
 }
 
 .resource-emoji {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   line-height: 1;
 }
 
-.resource-label {
-  color: var(--theme-text-muted, #8b7d5b);
-  font-weight: 500;
-}
-
 .resource-value {
-  font-weight: 600;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 

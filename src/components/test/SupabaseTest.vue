@@ -54,7 +54,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full border border-gray-700">
+  <div class="bg-gray-800 rounded-sm p-6 max-w-md w-full border border-gray-700">
     <h2 class="text-xl font-semibold mb-4">Supabase Connection Test</h2>
     
     <div class="space-y-3">
@@ -85,7 +85,7 @@ onMounted(() => {
       <!-- Retry Button -->
       <button
         @click="testConnection"
-        class="w-full mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-medium transition-colors"
+        class="w-full mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-sm text-sm font-medium transition-colors"
         :disabled="status === 'connecting'"
       >
         {{ status === 'connecting' ? 'Testing...' : 'Test Again' }}

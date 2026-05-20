@@ -17,12 +17,12 @@
         </div>
 
         <!-- Error Message -->
-        <div v-if="error" class="mb-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
+        <div v-if="error" class="mb-4 rounded-sm border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark shadow-[0_10px_24px_rgba(168,93,50,0.08)]">
           {{ error }}
         </div>
 
         <!-- Success Message -->
-        <div v-if="successMessage" class="mb-4 rounded-[20px] border border-green-500/25 bg-green-500/10 p-3 text-sm text-green-700 shadow-[0_10px_24px_rgba(34,197,94,0.08)]">
+        <div v-if="successMessage" class="mb-4 rounded-sm border border-green-500/25 bg-green-500/10 p-3 text-sm text-green-700 shadow-[0_10px_24px_rgba(34,197,94,0.08)]">
           {{ successMessage }}
         </div>
 

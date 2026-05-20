@@ -45,7 +45,7 @@
             <div
               v-for="relic in economy.synodRelics"
               :key="relic.id"
-              class="flex items-center gap-3 p-3 rounded-lg border border-theme-accent/20 bg-theme-accent/5"
+              class="flex items-center gap-3 p-3 rounded-sm border border-theme-accent/20 bg-theme-accent/5"
             >
               <span class="text-2xl">🏺</span>
               <div class="min-w-0 flex-1">
@@ -66,7 +66,7 @@
           >
             <!-- Relic Icon & Name -->
             <div class="flex items-start gap-4 mb-4">
-              <div class="flex h-14 w-14 items-center justify-center rounded-lg border border-theme-border bg-theme-panel/60 text-3xl shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
+              <div class="flex h-14 w-14 items-center justify-center rounded-sm border border-theme-border bg-theme-panel/60 text-3xl shadow-[0_10px_20px_rgba(48,38,21,0.06)]">
                 {{ relic.icon || '🏺' }}
               </div>
               <div class="flex-1 min-w-0">
@@ -77,18 +77,18 @@
 
             <!-- Relic Stats -->
             <div class="grid grid-cols-2 gap-3 mb-4">
-              <div class="rounded-md border border-theme-border/50 bg-theme-panel/30 p-2.5 text-center">
+              <div class="rounded-sm border border-theme-border/50 bg-theme-panel/30 p-2.5 text-center">
                 <div class="text-xs text-theme-text-muted">Power</div>
                 <div class="text-sm font-semibold text-theme-accent">{{ relic.power_level || 1 }}</div>
               </div>
-              <div class="rounded-md border border-theme-border/50 bg-theme-panel/30 p-2.5 text-center">
+              <div class="rounded-sm border border-theme-border/50 bg-theme-panel/30 p-2.5 text-center">
                 <div class="text-xs text-theme-text-muted">Steal Cost</div>
                 <div class="text-sm font-semibold text-yellow-500">{{ relic.steal_cost || 50 }} 💰</div>
               </div>
             </div>
 
             <!-- Holder Info -->
-            <div class="rounded-lg border border-theme-border/50 bg-theme-panel/30 p-3 mb-4">
+            <div class="rounded-sm border border-theme-border/50 bg-theme-panel/30 p-3 mb-4">
               <div v-if="relic.holder_id" class="flex items-center gap-2">
                 <span class="text-lg">👑</span>
                 <div>
@@ -104,7 +104,7 @@
             </div>
 
             <!-- Synod-wide buff indicator -->
-            <div v-if="relic.holder_id && relic.holder_id !== currentUserId && isRelicFromSynodMember(relic)" class="rounded-md border border-theme-accent/30 bg-theme-accent/5 p-2 mb-4 text-center">
+            <div v-if="relic.holder_id && relic.holder_id !== currentUserId && isRelicFromSynodMember(relic)" class="rounded-sm border border-theme-accent/30 bg-theme-accent/5 p-2 mb-4 text-center">
               <span class="text-xs text-theme-accent font-medium">⚔︁ESynod Buff Active</span>
             </div>
 
@@ -139,7 +139,7 @@
 
           <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <!-- Papal Bull -->
-            <div class="rounded-lg border border-theme-border bg-theme-panel/40 p-5">
+            <div class="rounded-sm border border-theme-border bg-theme-panel/40 p-5">
               <div class="flex items-center gap-3 mb-3">
                 <span class="text-3xl">🐂</span>
                 <div>
@@ -169,7 +169,7 @@
             </div>
 
             <!-- Divine Architect -->
-            <div class="rounded-lg border border-theme-border bg-theme-panel/40 p-5">
+            <div class="rounded-sm border border-theme-border bg-theme-panel/40 p-5">
               <div class="flex items-center gap-3 mb-3">
                 <span class="text-3xl">🏗️</span>
                 <div>
@@ -199,7 +199,7 @@
             </div>
 
             <!-- Indulgence Balance -->
-            <div class="rounded-lg border border-theme-accent/20 bg-theme-accent/5 p-5 text-center">
+            <div class="rounded-sm border border-theme-accent/20 bg-theme-accent/5 p-5 text-center">
               <div class="text-4xl mb-2">✨</div>
               <h4 class="font-semibold text-theme-text mb-1">Indulgence Balance</h4>
               <div class="text-3xl font-bold text-theme-accent">{{ economy.indulgences || 0 }}</div>

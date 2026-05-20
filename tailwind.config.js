@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        ui: ['Inter', '"Segoe UI"', 'system-ui', 'sans-serif'],
+        ui: ['"JetBrains Mono"', '"Cascadia Code"', 'monospace'],
         mono: ['"JetBrains Mono"', '"Cascadia Code"', 'monospace'],
       },
       colors: {
@@ -39,11 +39,14 @@ export default {
         'glow-purgatory': '0 18px 30px rgba(168, 93, 50, 0.35)',
       },
       borderRadius: {
-        'panel': '26px',
-        'btn': '14px',
+        'panel': '2px',
+        'btn': '2px',
+        'lg': '4px',
+        'md': '2px',
+        'sm': '1px',
       },
       backdropBlur: {
-        'glass': '20px',
+        'glass': '4px',
       },
     },
   },

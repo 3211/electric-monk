@@ -10,7 +10,7 @@
             <h3 class="text-sm font-semibold text-theme-text">Grant a Blessing</h3>
             <button
               @click="$emit('close')"
-              class="flex h-7 w-7 items-center justify-center rounded-full text-theme-text-muted transition-colors duration-200 hover:bg-theme-accent/10 hover:text-theme-accent"
+              class="flex h-7 w-7 items-center justify-center rounded-sm text-theme-text-muted transition-colors duration-200 hover:bg-theme-accent/10 hover:text-theme-accent"
             >
               ✕
             </button>
@@ -28,9 +28,9 @@
               :key="blessing.id"
               @click="handleSelect(blessing.id)"
               :disabled="isDisabled(blessing)"
-              class="blessing-option group flex w-full items-center gap-3 rounded-xl border border-theme-border/60 p-3 text-left transition-all duration-200 hover:border-theme-accent/30 hover:bg-theme-accent/5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-theme-border/60 disabled:hover:bg-transparent"
+              class="blessing-option group flex w-full items-center gap-3 rounded-sm border border-theme-border/60 p-3 text-left transition-all duration-200 hover:border-theme-accent/30 hover:bg-theme-accent/5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-theme-border/60 disabled:hover:bg-transparent"
             >
-              <span class="flex h-10 w-10 flex-none items-center justify-center rounded-xl border border-theme-accent/15 bg-white/50 text-xl shadow-[0_8px_16px_rgba(213,154,23,0.08)]">{{ blessing.emoji }}</span>
+              <span class="flex h-10 w-10 flex-none items-center justify-center rounded-sm border border-theme-accent/15 bg-white/50 text-xl shadow-[0_8px_16px_rgba(213,154,23,0.08)]">{{ blessing.emoji }}</span>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2">
                   <span class="truncate text-sm font-medium text-theme-text">{{ blessing.name }}</span>
@@ -49,7 +49,7 @@
           </div>
 
           <!-- Insufficient karma notice -->
-          <div v-if="userKarma < minCost" class="mt-3 rounded-lg border border-theme-purgatory/30 bg-theme-purgatory/10 p-3 text-xs text-theme-purgatory-dark">
+          <div v-if="userKarma < minCost" class="mt-3 rounded-sm border border-theme-purgatory/30 bg-theme-purgatory/10 p-3 text-xs text-theme-purgatory-dark">
             You need at least <span class="font-semibold">{{ minCost }}</span> ✦ karma to grant a blessing.
           </div>
         </div>

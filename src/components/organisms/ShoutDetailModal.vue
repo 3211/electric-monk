@@ -6,7 +6,7 @@
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
 
         <!-- Modal -->
-        <div class="relative z-10 w-full max-w-2xl max-h-[85vh] overflow-y-auto glass-panel glass-panel-strong glass-gloss rounded-[28px] border border-theme-accent/30 p-6 sm:p-8">
+        <div class="relative z-10 w-full max-w-2xl max-h-[85vh] overflow-y-auto glass-panel glass-panel-strong glass-gloss rounded-sm border border-theme-accent/30 p-6 sm:p-8">
           <!-- Close Button -->
           <button
             @click="$emit('close')"
@@ -27,7 +27,7 @@
             <!-- Shout Author + Content -->
             <div class="mb-6">
               <div class="mb-4 flex items-center gap-3">
-                <div class="h-12 w-12 flex-shrink-0 overflow-hidden rounded-full border-2 border-theme-accent/30 bg-theme-panel">
+                <div class="h-12 w-12 flex-shrink-0 overflow-hidden rounded-sm ring-1 ring-inset ring-white/10 border-2 border-theme-accent/30 bg-theme-panel">
                   <img
                     v-if="shout.pfp_index != null"
                     :src="`/pfp/${shout.pfp_index}.png`"
@@ -84,10 +84,10 @@
               <div
                 v-for="reply in replies"
                 :key="reply.id"
-                class="rounded-2xl border border-theme-border bg-theme-panel/50 p-4"
+                class="rounded-sm border border-theme-border bg-theme-panel/50 p-4"
               >
                 <div class="mb-2 flex items-center gap-2">
-                  <div class="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full border border-theme-accent/20 bg-theme-panel">
+                  <div class="h-8 w-8 flex-shrink-0 overflow-hidden rounded-sm ring-1 ring-inset ring-white/10 border border-theme-accent/20 bg-theme-panel">
                     <img
                       v-if="reply.pfp_index != null"
                       :src="`/pfp/${reply.pfp_index}.png`"
@@ -145,7 +145,7 @@
 
             <!-- Reply Form -->
             <div class="border-t border-theme-border pt-4">
-              <div v-if="submitError" class="mb-3 rounded-xl border border-theme-purgatory/25 bg-theme-purgatory/10 p-2 text-xs text-theme-purgatory-dark">
+              <div v-if="submitError" class="mb-3 rounded-sm border border-theme-purgatory/25 bg-theme-purgatory/10 p-2 text-xs text-theme-purgatory-dark">
                 {{ submitError }}
               </div>
 
@@ -173,7 +173,7 @@
             </div>
 
             <!-- Blessing Picker (Inline) -->
-            <div v-if="showBlessingPicker" class="mt-4 rounded-2xl border border-theme-accent/30 bg-theme-panel/80 p-4">
+            <div v-if="showBlessingPicker" class="mt-4 rounded-sm border border-theme-accent/30 bg-theme-panel/80 p-4">
               <div class="mb-3 flex items-center justify-between">
                 <h4 class="text-sm font-semibold text-theme-text">
                   Bless this {{ showBlessingPicker === 'reply' ? 'Reply' : 'Shout' }}

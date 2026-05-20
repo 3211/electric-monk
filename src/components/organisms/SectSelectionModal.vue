@@ -11,7 +11,7 @@
         </div>
 
         <!-- Error -->
-        <div v-if="sects.error" class="mb-4 rounded-[20px] border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark">
+        <div v-if="sects.error" class="mb-4 rounded-sm border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark">
           {{ sects.error }}
         </div>
 
@@ -22,7 +22,7 @@
             :key="sect.key"
             @click="selectedSect = sect.key"
             :class="[
-              'relative text-left p-5 rounded-[24px] border transition-all duration-[var(--dur-standard)]',
+              'relative text-left p-5 rounded-sm border transition-all duration-[var(--dur-standard)]',
               selectedSect === sect.key
                 ? 'border-theme-accent/50 bg-theme-accent/10 shadow-[0_10px_28px_rgba(213,154,23,0.18)] scale-[1.01]'
                 : 'border-theme-border bg-theme-panel/50 hover:border-theme-accent/25 hover:bg-theme-accent/5 hover:scale-[1.005]'

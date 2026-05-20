@@ -1,152 +1,116 @@
-# Electric Monk — UI Style Guide
+# Electric Monk — UI Style Guide (Hard-Square Edition)
 
-> Standardized spatial rules, border-radius, and component sizing across all views.
+> Standardized spatial rules, sharp-radius, and high-density component sizing for the Diegetic War-Game interface.
 
 ## Border Radius Scale
 
-All UI components use a tight, professional radius scale. No pill-shaped cards or over-rounded containers.
+All UI components use a sharp, technical radius scale. Over-rounded containers and pills are strictly forbidden.
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `rounded-sm` / `4px` | Minimal rounding | Scrollbar thumbs, tiny badges |
-| `rounded-md` / `6px` | Small components | Stat cells, small inner cards, mini-badges |
-| `rounded-lg` / `8px` | **Default card radius** | Cards, panels, sections, input fields, error/success banners, modal content |
-| `rounded-xl` / `12px` | Featured cards | Hero cards, active prayer card, faction diamond shell, modal containers |
-| `rounded-full` / `999px` | Pills & circles only | Avatar orbs, segmented controls, rank badges, progress bar tracks, scrollbar tracks |
+| `none` | `0px` | Perfectly sharp corners (Headers, Dividers) |
+| `rounded-sm` | `1px` | Tiny technical elements |
+| `rounded-md` / `rounded-[2px]` | **`2px`** | **Default card/button radius** |
+| `rounded-lg` | `4px` | Max allowed radius for very large hero panels |
+| `rounded-full` | `999px` | **Strictly reserved** for Progress Bars and Toggle Switches only |
 
 ### ❌ Forbidden Patterns
-- `rounded-[20px]`, `rounded-[22px]`, `rounded-[24px]`, `rounded-[28px]` — these were de-bubbled
-- `rounded-2xl` (16px) — too round for cards; use `rounded-lg` (8px) or `rounded-xl` (12px)
-- `rounded-3xl` (24px) — never appropriate for rectangular containers
-- CSS `border-radius: 1.2rem+` on cards — these were reduced to 8–12px
+- `rounded-xl`, `rounded-2xl`, `rounded-[20px+]` — all replaced with `rounded-sm`.
+- Pill-shaped buttons (`rounded-full` on buttons/badges) — all replaced with `rounded-sm` or `rounded-[2px]`.
+- Soft radial glows on container edges.
 
-### ✅ Correct Replacements
-| Before | After |
-|--------|-------|
-| `rounded-[20px]` | `rounded-lg` |
-| `rounded-[22px]` | `rounded-lg` |
-| `rounded-[24px]` | `rounded-xl` |
-| `rounded-[28px]` | `rounded-xl` |
-| `rounded-[16px]` | `rounded-lg` |
-| `rounded-[14px]` | `rounded-md` |
-| `rounded-[12px]` | `rounded-md` |
-| `rounded-2xl` | `rounded-lg` |
-| CSS `border-radius: 1.45rem+` | `border-radius: 8px` |
-| CSS `border-radius: 2.25rem` | `border-radius: 12px` |
+## Typography
 
-## Component Spacing Standards
+| Role | Font Family | Style |
+|------|-------------|-------|
+| **Headlines** | Serif Display (`Cormorant Garamond`) | Sharp, no shadows, tight tracking |
+| **Interface** | **JetBrains Mono** | Primary UI, Buttons, Labels, Data |
+| **Data** | **JetBrains Mono** | Resource values, Numbers, Stats |
+
+## Component Spacing Standards (High Density)
 
 ### Header Bars
-All view headers use consistent vertical padding:
-
 ```html
-<header class="border-b surface-divider bg-theme-panel/50 backdrop-blur-sm">
-  <div class="app-frame py-5">
+<header class="border-b surface-divider bg-theme-panel/80">
+  <div class="app-frame py-3"> <!-- Reduced from py-5 -->
 ```
-
-- `py-5` (1.25rem) — standard header padding
-- `py-6` was reduced to `py-5` for tighter headers (KarmaShopView, AkashicRecordsView, LeaderboardView)
-- `backdrop-blur-sm` — standard blur, not `backdrop-blur-[16px]`
 
 ### Main Content
 ```html
-<main class="app-frame py-8 lg:py-10">
+<main class="app-frame py-5 lg:py-6"> <!-- Reduced from py-8/10 -->
 ```
 
 ### Cards & Panels
-- Outer card padding: `p-5 sm:p-6` (was often `p-6 sm:p-7` or `p-8`)
-- Inner card padding: `p-4` for content cards
-- Grid gaps: `gap-5` for card grids, `gap-3` for tight lists
+- Outer card padding: `p-3 sm:p-4` (Reduced from `p-5/6`)
+- Grid gaps: `gap-3` standard, `gap-1` for tight data lists.
 
-### Resource Bar (Global)
+### Durable Frames (PFPs & Indicators)
+- **Geometry:** `rounded-sm` (2px).
+- **Layering:** 2px outer border + 1px inset ring (`ring-1 ring-inset ring-white/10`).
+- **Coloring:** Outer border uses faction-specific accent color (e.g., `border-theme-accent` for Gilded).
 
-Resource indicators (Karma, Mana, Gold, Food, Dogma, Heresy) are now displayed globally in the navigation bar via the `ResourceBar.vue` component, not in individual view headers.
+## Visual Implementation (The Grain)
 
-**Component**: `src/components/molecules/ResourceBar.vue`
-
-**Display order**: Karma → Mana → Gold → Food → Dogma → Heresy → (Acres)
-
-**Scale**: `text-xs` (0.7rem) with `font-semibold` values — matches the compact indicator style from the Karma Shop.
-
-**Mobile layout**: 3-column grid (`grid-cols-3`) collapsing into 2 rows.
-
-**Desktop layout**: Horizontal flex row with `flex-wrap` and `gap-0.375rem`.
-
-**Props**:
-- `showAcres` (Boolean, default: `false`) — Shows Sacred Acres indicator. Only passed as `true` on Altar and Shop tabs.
-
-**Theme support**: Includes `.app-shell--evil` and `.app-shell--war` color overrides.
-
-**What stays view-specific**:
-- Indulgences & Papal Bull — remain on AltarView only
-- Synod name capsules — remain on SynodHallView
-- Sect name capsules — remain on FactionsView
-- Relic count / War status — remain on SynodHallView
-- MiracleBuffBar — remains on AltarView and VaticanView (view-specific combat/prayer buffs)
-- ShieldTimer — moved to global nav (App.vue), stacked under the Logout button
-
-### Resource Chip (Legacy — view-specific only)
+Every glass panel includes the noise overlay via SVG filter:
 ```html
-<div class="chip gap-2 px-4 py-2 text-sm ...">
-```
-Used only for view-specific indicators that are NOT part of the global resource bar.
-
-### Stat Cells (Small inner cards)
-```html
-<div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+<!-- In index.html <body> -->
+<svg style="position: absolute; width: 0; height: 0; pointer-events: none;" aria-hidden="true">
+  <filter id="grain">
+    <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+    <feColorMatrix type="saturate" values="0" />
+    <feComponentTransfer><feFuncA type="linear" slope="0.05" /></feComponentTransfer>
+    <feBlend in="SourceGraphic" mode="multiply" />
+  </filter>
+</svg>
 ```
 
-### Error/Warning Banners
-```html
-<div class="rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 ...">
+```css
+/* Applied via ::before pseudo-element */
+.glass-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  filter: url(#grain);
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: inherit;
+}
 ```
 
-### Section Cards (Vatican, Synod, etc.)
-```html
-<div class="rounded-lg border border-theme-border bg-theme-panel/35 p-4">
+## Hard Shadows
+
+All panels and buttons use sharp hard-shadows instead of soft glows:
+```css
+box-shadow: 4px 4px 0px rgba(0,0,0,0.15);
 ```
 
-### Icon Containers
-```html
-<span class="flex h-14 w-14 items-center justify-center rounded-lg border ...">
-```
-- Was `rounded-2xl` or `rounded-[20px]` — now `rounded-lg`
+## Button Styling
 
-## Max-Width Constraints
+All buttons (`btn-primary`, `btn-secondary`, `btn-ghost`, `btn-danger`) enforce:
+- `border-radius: 2px` (via `--radius-button`)
+- `text-transform: uppercase`
+- `letter-spacing: 0.05em`
+- `font-weight: 700`
+- `font-family: "JetBrains Mono", monospace`
 
-- Submission panels: `lg:sticky lg:top-28` with grid layout
-- Modals: `width: min(92vw, 34rem)`
-- Faith columns grid: `grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5`
+## Theme Overrides (Consistency)
+- **Primary View:** Warm Ivory & Gold (Sharp Gold accents)
+- **Evil View:** Dark Purple & Neon (Sharp Magenta accents)
+- **War View:** Steel & Brass (Sharp Brass accents)
 
-## Files Modified
+All themes must adhere to the `2px` radius rule regardless of color scheme.
 
-| View | Changes |
-|------|---------|
-| `AltarView.vue` | Template: `rounded-[22px]`→`rounded-xl`, `rounded-[20px]`→`rounded-xl`, `rounded-[24px]`→`rounded-xl`, `p-6 sm:p-7`→`p-5 sm:p-6`, `mb-8`→`mb-6`, error banners→`rounded-lg`. CSS: `border-radius: 24px`→`12px`, mobile overrides→`12px` |
-| `VaticanView.vue` | Template: ~25x `rounded-[20px]`→`rounded-lg`, `rounded-[22px]`→`rounded-lg`, `rounded-[12px]`→`rounded-md`, `rounded-2xl`→`rounded-lg` |
-| `SynodHallView.vue` | Template: `rounded-[20px]`→`rounded-lg`, `rounded-[16px]`→`rounded-lg`, `rounded-[14px]`→`rounded-md`. CSS: card radii reduced |
-| `PurgatoryView.vue` | Template: `rounded-[20px]`→`rounded-lg`, `rounded-[24px]`→`rounded-lg` (sm). CSS: `border-radius: 24px`→`12px`, `20px`→`10px` |
-| `ReliquaryView.vue` | Template: `rounded-[20px]`→`rounded-lg`, `rounded-[16px]`→`rounded-lg`, `rounded-[14px]`→`rounded-md` |
-| `HolyWarView.vue` | Template: `rounded-[20px]`→`rounded-lg`, `rounded-[16px]`→`rounded-lg`, `rounded-[12px]`→`rounded-md` |
-| `LoginView.vue` | Template: `rounded-[20px]`→`rounded-lg` |
-| `KarmaShopView.vue` | Template: `rounded-2xl`→`rounded-lg`. Header: `py-6`→`py-5`, `backdrop-blur-[16px]`→`backdrop-blur-sm` |
-| `CatacombsView.vue` | Template: `rounded-2xl`→`rounded-lg` |
-| `AkashicRecordsView.vue` | Template: `rounded-[18px]`→`rounded-lg`. Header: `py-6`→`py-5`, `backdrop-blur-[16px]`→`backdrop-blur-sm`. CSS: `border-radius: 26px`→`12px` |
-| `LeaderboardView.vue` | Header: `py-6`→`py-5`, `backdrop-blur-[16px]`→`backdrop-blur-sm` |
-| `FactionsView.vue` | CSS: All card/panel `border-radius` values reduced (`.faction-roster-card` 1.45rem→8px, `.faction-diamond-shell` 2.25rem→12px, `.faction-node-card` 1.45rem→8px, `.faction-detail-header` 1.75rem→10px, `.faction-section-card` 1.5rem→10px, `.faction-metric-card` 1.2rem→8px, `.faction-relationship-card` 1.3rem→8px, `.faction-member-row` 1.15rem→8px, `.faction-core-seal-icon` 1.4rem→8px, `.faction-roster-orb` 0.9rem→8px, mobile `28px`→`12px`) |
+## Implementation Status
 
-## Preserved Patterns
-
-The following `border-radius: 999px` uses are **intentional** and were NOT changed:
-- Pill-shaped segmented controls (`.segmented-shell`)
-- Circular avatar orbs / halos
-- Rank badges
-- Progress bar tracks
-- Scrollbar tracks/thumbs
-- Icon discs (`.aether-icon`, `.aether-judgment-icon`)
-- Karma display pills (`.aether-karma-display`)
-- Loader bars
-
-## No Script Logic Touched
-
-This refactor was strictly `<template>` and `<style>` only. All `<script setup>` blocks, state management, Supabase RPC calls, and composable logic remain untouched.
+### Completed Changes
+- [x] `index.html` — SVG grain filter injected
+- [x] `src/style.css` — Root variables hardened (2px radii, mono font), grain overlay, hard shadows
+- [x] `tailwind.config.js` — Font family switched to JetBrains Mono, radius tokens capped at 4px, backdrop blur reduced to 4px
+- [x] `ResourceBar.vue` — Ledger-style (emoji + value only), 2px radius, mono font, compressed padding
+- [x] `ShoutCard.vue` — Durable framed PFPs, `rounded-[2px]` badges, compressed padding
+- [x] All views — `rounded-xl` → `rounded-sm`, `rounded-2xl` → `rounded-sm`, `rounded-[20/24/28]px` → `rounded-sm`
+- [x] All views — `rounded-lg` → `rounded-sm`, `rounded-md` → `rounded-sm`
+- [x] All views — `rounded-full` on PFPs, badges, close buttons → `rounded-sm`
+- [x] Progress bars and toggle switches retain `rounded-full` (per spec)
+- [x] Buttons — Hard shadows, uppercase, mono font, 2px radius

@@ -179,7 +179,7 @@
               <div
                 v-for="s in synod.publicSynods"
                 :key="s.id"
-                class="flex items-center justify-between p-4 rounded-lg border border-theme-border bg-theme-panel/40"
+                class="flex items-center justify-between p-4 rounded-sm border border-theme-border bg-theme-panel/40"
               >
                 <div>
                   <h3 class="font-semibold text-theme-text">{{ s.name }}</h3>
@@ -227,19 +227,19 @@
             </div>
 
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-              <div class="rounded-lg border border-theme-border bg-theme-panel/40 p-4 text-center">
+              <div class="rounded-sm border border-theme-border bg-theme-panel/40 p-4 text-center">
                 <div class="text-2xl font-bold text-theme-accent">{{ synod.memberCount }}</div>
                 <div class="text-xs text-theme-text-muted mt-1">Members</div>
               </div>
-              <div class="rounded-lg border border-theme-border bg-theme-panel/40 p-4 text-center">
+              <div class="rounded-sm border border-theme-border bg-theme-panel/40 p-4 text-center">
                 <div class="text-2xl font-bold text-yellow-500">{{ synod.synodInfo?.vault_gold || 0 }}</div>
                 <div class="text-xs text-theme-text-muted mt-1">Vault Gold</div>
               </div>
-              <div class="rounded-lg border border-theme-border bg-theme-panel/40 p-4 text-center">
+              <div class="rounded-sm border border-theme-border bg-theme-panel/40 p-4 text-center">
                 <div class="text-2xl font-bold text-blue-400">{{ synod.synodInfo?.tax_rate || 0 }}%</div>
                 <div class="text-xs text-theme-text-muted mt-1">Tax Rate</div>
               </div>
-              <div class="rounded-lg border border-theme-border bg-theme-panel/40 p-4 text-center">
+              <div class="rounded-sm border border-theme-border bg-theme-panel/40 p-4 text-center">
                 <div class="text-2xl font-bold text-theme-text">{{ synod.synodInfo?.sect_key ? factionLabel(synod.synodInfo.sect_key) : '-' }}</div>
                 <div class="text-xs text-theme-text-muted mt-1">Faction</div>
               </div>
@@ -292,7 +292,7 @@
               <div
                 v-for="relic in synod.synodRelics"
                 :key="relic.id"
-                class="flex items-center gap-3 p-3 rounded-lg border border-theme-accent/20 bg-theme-accent/5"
+                class="flex items-center gap-3 p-3 rounded-sm border border-theme-accent/20 bg-theme-accent/5"
               >
                 <span class="text-2xl">&#x1F3FA;</span>
                 <div class="min-w-0 flex-1">
@@ -311,7 +311,7 @@
               <div
                 v-for="app in synod.applicants"
                 :key="app.user_id"
-                class="flex items-center justify-between p-3 rounded-lg border border-theme-border/50 bg-theme-panel/30"
+                class="flex items-center justify-between p-3 rounded-sm border border-theme-border/50 bg-theme-panel/30"
               >
                 <div>
                   <div class="font-medium text-theme-text text-sm">{{ app.username }}</div>
@@ -335,7 +335,7 @@
               <div
                 v-for="member in sortedMembers"
                 :key="member.user_id"
-                class="flex items-center justify-between p-3 rounded-lg border border-theme-border/50 bg-theme-panel/30"
+                class="flex items-center justify-between p-3 rounded-sm border border-theme-border/50 bg-theme-panel/30"
               >
                 <div class="flex items-center gap-3">
                   <span class="text-lg">{{ roleIcon(member.role) }}</span>
@@ -386,7 +386,7 @@
               <div
                 v-for="war in synod.wars"
                 :key="war.id"
-                class="p-4 rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/5"
+                class="p-4 rounded-sm border border-theme-purgatory/25 bg-theme-purgatory/5"
               >
                 <div class="flex items-center justify-between">
                   <div>
@@ -420,7 +420,7 @@
 
         <!-- Shout Submission Form -->
         <div class="glass-panel glass-panel-strong glass-gloss p-5 sm:p-6">
-          <div v-if="forumShouts.submitError" class="mb-3 rounded-xl border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark">
+          <div v-if="forumShouts.submitError" class="mb-3 rounded-sm border border-theme-purgatory/25 bg-theme-purgatory/10 p-3 text-sm text-theme-purgatory-dark">
             {{ forumShouts.submitError }}
           </div>
 
@@ -602,7 +602,7 @@
               :class="{ 'ring-1 ring-theme-accent/30': relic.holder_id === currentUserId }"
             >
               <div class="flex items-start gap-4 mb-4">
-                <div class="flex h-14 w-14 items-center justify-center rounded-lg border border-theme-border bg-theme-panel/60 text-3xl">
+                <div class="flex h-14 w-14 items-center justify-center rounded-sm border border-theme-border bg-theme-panel/60 text-3xl">
                   {{ relic.icon || '\uD83C\uDFFA' }}
                 </div>
                 <div class="flex-1 min-w-0">
@@ -612,17 +612,17 @@
               </div>
 
               <div class="grid grid-cols-2 gap-3 mb-4">
-                <div class="rounded-md border border-theme-border/50 bg-theme-panel/30 p-2.5 text-center">
+                <div class="rounded-sm border border-theme-border/50 bg-theme-panel/30 p-2.5 text-center">
                   <div class="text-xs text-theme-text-muted">Power</div>
                   <div class="text-sm font-semibold text-theme-accent">{{ relic.power_level || 1 }}</div>
                 </div>
-                <div class="rounded-md border border-theme-border/50 bg-theme-panel/30 p-2.5 text-center">
+                <div class="rounded-sm border border-theme-border/50 bg-theme-panel/30 p-2.5 text-center">
                   <div class="text-xs text-theme-text-muted">Steal Cost</div>
                   <div class="text-sm font-semibold text-yellow-500">{{ relic.steal_cost || 50 }} Gold</div>
                 </div>
               </div>
 
-              <div class="rounded-lg border border-theme-border/50 bg-theme-panel/30 p-3 mb-4">
+              <div class="rounded-sm border border-theme-border/50 bg-theme-panel/30 p-3 mb-4">
                 <div v-if="relic.holder_id" class="flex items-center gap-2">
                   <span class="text-lg">&#x1F451;</span>
                   <div>
@@ -635,7 +635,7 @@
                 </div>
               </div>
 
-              <div v-if="relic.holder_id && relic.holder_id !== currentUserId && isRelicFromSynodMember(relic)" class="rounded-md border border-theme-accent/30 bg-theme-accent/5 p-2 mb-4 text-center">
+              <div v-if="relic.holder_id && relic.holder_id !== currentUserId && isRelicFromSynodMember(relic)" class="rounded-sm border border-theme-accent/30 bg-theme-accent/5 p-2 mb-4 text-center">
                 <span class="text-xs text-theme-accent font-medium">&#x2694;&#xFE0F; Synod Buff Active</span>
               </div>
 
@@ -661,7 +661,7 @@
             <p class="text-sm text-theme-text-muted mb-6">Premium blessings purchased with devotion.</p>
 
             <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div class="rounded-lg border border-theme-border bg-theme-panel/40 p-5">
+              <div class="rounded-sm border border-theme-border bg-theme-panel/40 p-5">
                 <div class="flex items-center gap-3 mb-3">
                   <span class="text-3xl">&#x1F402;</span>
                   <div>
@@ -684,7 +684,7 @@
                 </div>
               </div>
 
-              <div class="rounded-lg border border-theme-border bg-theme-panel/40 p-5">
+              <div class="rounded-sm border border-theme-border bg-theme-panel/40 p-5">
                 <div class="flex items-center gap-3 mb-3">
                   <span class="text-3xl">&#x1F3D7;&#xFE0F;</span>
                   <div>
@@ -707,7 +707,7 @@
                 </div>
               </div>
 
-              <div class="rounded-lg border border-theme-accent/20 bg-theme-accent/5 p-5 text-center">
+              <div class="rounded-sm border border-theme-accent/20 bg-theme-accent/5 p-5 text-center">
                 <div class="text-4xl mb-2">&#x2728;</div>
                 <h4 class="font-semibold text-theme-text mb-1">Indulgence Balance</h4>
                 <div class="text-3xl font-bold text-theme-accent">{{ economy.indulgences || 0 }}</div>
@@ -754,7 +754,7 @@
               </button>
             </div>
 
-            <div v-if="hw.warTarget?.found" class="rounded-lg border border-theme-accent/30 bg-theme-accent/5 p-5">
+            <div v-if="hw.warTarget?.found" class="rounded-sm border border-theme-accent/30 bg-theme-accent/5 p-5">
               <div class="flex items-center justify-between">
                 <div>
                   <div class="font-semibold text-theme-text text-lg">{{ hw.warTarget.name }}</div>
@@ -775,7 +775,7 @@
             </div>
           </template>
 
-          <div v-if="hw.lastResult?.success" class="mt-4 rounded-lg border border-theme-accent/30 bg-theme-accent/5 p-4 text-sm text-theme-text">
+          <div v-if="hw.lastResult?.success" class="mt-4 rounded-sm border border-theme-accent/30 bg-theme-accent/5 p-4 text-sm text-theme-text">
             Crusade declared! {{ hw.lastResult.siege_days }}-day siege. {{ hw.lastResult.attacker_mana }} Mana / {{ hw.lastResult.attacker_workers }} Workers committed.
           </div>
         </div>
@@ -798,7 +798,7 @@
           </div>
 
           <div v-for="(war, idx) in [hw.activeWars[hw.defenseIndex]]" :key="war?.session_id || idx">
-            <div v-if="war" class="p-5 rounded-lg border"
+            <div v-if="war" class="p-5 rounded-sm border"
               :class="war.is_attacker ? 'border-theme-accent/25 bg-theme-accent/5' : 'border-theme-purgatory/25 bg-theme-purgatory/5'">
               <div class="flex items-center justify-between mb-3">
                 <div>
@@ -837,16 +837,16 @@
               </div>
 
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-theme-text-muted">
-                <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                <div class="rounded-sm border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                   <div class="font-semibold text-theme-text">{{ war.attacker_workers }}</div><div>Atk Workers</div>
                 </div>
-                <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                <div class="rounded-sm border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                   <div class="font-semibold text-theme-text">{{ war.defender_workers }}</div><div>Def Workers</div>
                 </div>
-                <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                <div class="rounded-sm border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                   <div class="font-semibold text-theme-text">{{ war.ticks_remaining }}/{{ war.ticks_total }}</div><div>Ticks</div>
                 </div>
-                <div class="rounded-md border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
+                <div class="rounded-sm border border-theme-border/30 bg-theme-panel/30 p-2 text-center">
                   <div class="font-semibold text-yellow-500">{{ war.gold_stolen || 0 }}</div><div>Gold Stolen</div>
                 </div>
               </div>
@@ -895,10 +895,10 @@
                   <div
                     v-for="synodEntry in sr.sectColumns[sectKey]"
                     :key="synodEntry.synod_id"
-                    class="flex items-center gap-2.5 py-2.5 px-3 rounded-xl transition-colors duration-200 hover:bg-theme-accent/5"
+                    class="flex items-center gap-2.5 py-2.5 px-3 rounded-sm transition-colors duration-200 hover:bg-theme-accent/5"
                     :class="{ 'bg-theme-accent/10 ring-1 ring-theme-accent/20': economy.synodId === synodEntry.synod_id }"
                   >
-                    <span class="inline-flex items-center justify-center w-8 h-8 flex-shrink-0 rounded-full text-xs font-bold"
+                    <span class="inline-flex items-center justify-center w-8 h-8 flex-shrink-0 rounded-sm text-xs font-bold"
                       :class="rankBadgeClass(synodEntry.rank)"
                     >
                       {{ synodEntry.rank }}

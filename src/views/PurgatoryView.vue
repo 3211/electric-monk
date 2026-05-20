@@ -14,7 +14,7 @@
       </div>
 
       <!-- Intercessory Prayer Count -->
-      <div v-if="intercessoryCount > 0" class="glass-panel glass-panel-soft glass-gloss evil-purgatory-support mb-5 rounded-lg border border-theme-accent/20 p-4 sm:rounded-lg">
+      <div v-if="intercessoryCount > 0" class="glass-panel glass-panel-soft glass-gloss evil-purgatory-support mb-5 rounded-sm border border-theme-accent/20 p-4 sm:rounded-sm">
         <p class="text-sm font-medium text-theme-accent">
           🕯️ {{ intercessoryCount }} {{ intercessoryCount === 1 ? 'person is' : 'people are' }} praying for your redemption
         </p>
@@ -54,7 +54,7 @@
 
         <!-- Ad Placeholder -->
         <div v-else class="mt-5 space-y-4">
-          <div class="glass-panel glass-panel-soft evil-purgatory-ad aspect-video rounded-lg border border-theme-border p-5 sm:rounded-lg sm:p-6">
+          <div class="glass-panel glass-panel-soft evil-purgatory-ad aspect-video rounded-sm border border-theme-border p-5 sm:rounded-sm sm:p-6">
             <div class="flex h-full flex-col items-center justify-center text-center">
               <div class="mb-2 animate-pulse text-theme-accent">
                 <svg class="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -87,7 +87,7 @@
           <div
             v-for="c in combat.activeCombats"
             :key="c.session_id"
-            class="p-4 rounded-lg border border-theme-purgatory/25 bg-theme-purgatory/5"
+            class="p-4 rounded-sm border border-theme-purgatory/25 bg-theme-purgatory/5"
           >
             <div class="flex items-center justify-between mb-2">
               <div class="font-medium text-theme-text text-sm">
