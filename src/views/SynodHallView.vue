@@ -820,7 +820,7 @@
                   <div class="flex justify-between text-xs text-theme-text-muted mb-1">
                     <span>Attacker Mana</span><span class="font-semibold text-blue-400">{{ war.attacker_mana }}</span>
                   </div>
-                  <div class="h-3 rounded-full border border-theme-border/30 bg-theme-panel/50 overflow-hidden">
+                  <div class="h-3 rounded-sm border border-theme-border/30 bg-theme-panel/50 overflow-hidden">
                     <div class="h-full bg-blue-500/60 transition-all duration-500"
                       :style="{ width: manaPercent(war.attacker_mana, war.attacker_mana + war.defender_mana) + '%' }"></div>
                   </div>
@@ -829,7 +829,7 @@
                   <div class="flex justify-between text-xs text-theme-text-muted mb-1">
                     <span>Defender Mana</span><span class="font-semibold text-red-400">{{ war.defender_mana }}</span>
                   </div>
-                  <div class="h-3 rounded-full border border-theme-border/30 bg-theme-panel/50 overflow-hidden">
+                  <div class="h-3 rounded-sm border border-theme-border/30 bg-theme-panel/50 overflow-hidden">
                     <div class="h-full bg-red-500/60 transition-all duration-500"
                       :style="{ width: manaPercent(war.defender_mana, war.attacker_mana + war.defender_mana) + '%' }"></div>
                   </div>
@@ -1329,7 +1329,7 @@ onUnmounted(() => {
   border: 1px solid rgba(182, 144, 91, 0.24);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)), linear-gradient(145deg, rgba(62, 72, 82, 0.92), rgba(35, 43, 51, 0.96));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(255, 255, 255, 0.03), 0 14px 28px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(182, 144, 91, 0.06);
-  border-radius: 999px;
+  border-radius: 2px;
   padding: 0.625rem 1.5rem;
   font-weight: 600;
   cursor: pointer;
@@ -1340,7 +1340,7 @@ onUnmounted(() => {
   border: 1px solid rgba(164, 176, 189, 0.14);
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(10px);
-  border-radius: 999px;
+  border-radius: 2px;
   padding: 0.625rem 1.5rem;
   font-weight: 500;
   cursor: pointer;
@@ -1401,7 +1401,7 @@ onUnmounted(() => {
 .privacy-btn {
   padding: 0.25rem 0.75rem;
   font-size: 0.65rem;
-  border-radius: 999px;
+  border-radius: 2px;
   line-height: 1.25;
   font-weight: 500;
   border: 1px solid transparent;
@@ -1455,7 +1455,7 @@ onUnmounted(() => {
 
 .synod-rankings-scroll::-webkit-scrollbar-track {
   background: rgba(139, 125, 91, 0.06);
-  border-radius: 999px;
+  border-radius: 2px;
   margin: 4px 0;
 }
 
@@ -1467,7 +1467,7 @@ onUnmounted(() => {
     rgba(139, 125, 91, 0.28) 65%,
     rgba(185, 197, 207, 0.38)
   );
-  border-radius: 999px;
+  border-radius: 2px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.28),
@@ -1532,7 +1532,7 @@ onUnmounted(() => {
   width: 5rem;
   height: 5rem;
   object-fit: contain;
-  border-radius: 999px;
+  border-radius: 2px;
 }
 
 /* Town Crier Aether Modal (mirrors AltarView) */
@@ -1580,7 +1580,7 @@ onUnmounted(() => {
   width: 5rem;
   height: 5rem;
   margin: 0 auto 1.5rem;
-  border-radius: 999px;
+  border-radius: 2px;
   color: var(--theme-accent);
   background: rgba(255, 248, 228, 0.8);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 18px 30px rgba(213, 154, 23, 0.16);
@@ -1610,7 +1610,7 @@ onUnmounted(() => {
   height: 0.5rem;
   margin-top: 1.5rem;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: 2px;
   background: linear-gradient(180deg, rgba(139, 125, 91, 0.12), rgba(255, 255, 255, 0.45));
   box-shadow: inset 0 1px 1px rgba(48, 38, 21, 0.08), inset 0 -1px 0 rgba(255, 255, 255, 0.6);
 }
@@ -1631,7 +1631,7 @@ onUnmounted(() => {
   width: 4.5rem;
   height: 4.5rem;
   margin: 0 auto 1.25rem;
-  border-radius: 999px;
+  border-radius: 2px;
   background: rgba(255, 249, 235, 0.82);
   border: 1px solid rgba(213, 154, 23, 0.22);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76), 0 16px 28px rgba(48, 38, 21, 0.12);

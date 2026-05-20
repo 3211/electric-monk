@@ -198,13 +198,13 @@
 
             <div class="relationship-legend steel-legend">
               <span class="relationship-legend-item">
-                <span class="inline-block h-0.5 w-5 rounded" style="background: #6c8c83;"></span> Ally
+                <span class="inline-block h-0.5 w-5 rounded-sm" style="background: #6c8c83;"></span> Ally
               </span>
               <span class="relationship-legend-item">
-                <span class="inline-block h-0.5 w-5 rounded" style="background: #9b6b66;"></span> Enemy
+                <span class="inline-block h-0.5 w-5 rounded-sm" style="background: #9b6b66;"></span> Enemy
               </span>
               <span class="relationship-legend-item">
-                <span class="inline-block h-0.5 w-5 rounded" style="background: #8b856d; opacity: 0.65;"></span> Neutral
+                <span class="inline-block h-0.5 w-5 rounded-sm" style="background: #8b856d; opacity: 0.65;"></span> Neutral
               </span>
             </div>
           </section>
@@ -834,7 +834,7 @@ onBeforeUnmount(() => {
 
 .faction-tab-shell.segmented-shell {
   padding: 0.32rem;
-  border-radius: 999px;
+  border-radius: 2px;
   border: 1px solid rgba(166, 178, 189, 0.14);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015) 100%),
@@ -1023,7 +1023,7 @@ onBeforeUnmount(() => {
   width: 2.75rem;
   height: 2.75rem;
   flex: 0 0 2.75rem;
-  border-radius: 1rem;
+  border-radius: 2px;
   border: 1px solid rgba(181, 191, 201, 0.16);
   background:
     radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.02) 40%, rgba(255, 255, 255, 0) 64%),
@@ -1222,7 +1222,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.55rem;
   padding: 0.62rem 0.95rem;
-  border-radius: 999px;
+  border-radius: 2px;
   border: 1px solid rgba(169, 180, 191, 0.14);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.015) 100%),
@@ -1405,7 +1405,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   width: 2rem;
   height: 2rem;
-  border-radius: 999px;
+  border-radius: 2px;
   font-size: 0.8rem;
   font-weight: 700;
   color: #352817;
@@ -1423,7 +1423,7 @@ onBeforeUnmount(() => {
   width: 2.25rem;
   height: 2.25rem;
   flex-shrink: 0;
-  border-radius: 999px;
+  border-radius: 2px;
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--war-muted);
@@ -1508,7 +1508,7 @@ onBeforeUnmount(() => {
 
 .glass-bead-scroll::-webkit-scrollbar-track {
   background: rgba(166, 178, 190, 0.06);
-  border-radius: 999px;
+  border-radius: 2px;
   margin: 4px 0;
 }
 
@@ -1520,7 +1520,7 @@ onBeforeUnmount(() => {
     rgba(139, 125, 91, 0.24) 65%,
     rgba(185, 197, 207, 0.34)
   );
-  border-radius: 999px;
+  border-radius: 2px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.2),
