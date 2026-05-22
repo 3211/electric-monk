@@ -19,7 +19,7 @@ import { runBootSequence } from './boot'
  * To add a new global command, add an entry here and it will
  * automatically appear in /help.
  */
-export function buildGlobalCommands() {
+export function testCommands() {
   return {
 //--
     'test2': {
