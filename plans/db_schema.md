@@ -1,6 +1,6 @@
-# Holy War Online — Database Schema (The Ought)
+# Holy War Online — Database Schema (The Is)
 
-This document defines the intended architectural state of the Holy War Online database. It serves as the single source of truth for table structures, relationships, and server-side logic.
+This document defines the authoritative architectural state of the Holy War Online database. It serves as the single source of truth for table structures, relationships, and server-side logic.
 
 **Implementation Status:** See [`plans/migrations.md`](./migrations.md) for the current migration status.  
 **Last updated:** 2026-05-22
@@ -16,7 +16,7 @@ Master registry of all IP addresses across the game. Prevents cross-entity colli
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | `ip_address` | inet | PRIMARY KEY | Unique network identifier |
-| `entity_type` | TEXT | NOT NULL | Owning entity table (`players`, `sects`, `bots`, etc.) |
+| `entity_type` | TEXT | NOT NULL | Owning entity table (`players`, `sects`, `virtual_machines`, etc.) |
 | `created_at` | TIMESTAMPTZ | DEFAULT now() | |
 
 **Indexes:**
@@ -46,14 +46,6 @@ Faction metadata that drives AI generation and game mechanics. This table is **r
 | `updated_at` | TIMESTAMPTZ | DEFAULT now() | |
 
 **RLS Policy:** Public read-only. Only service role can modify.
-
-**Seed Data:**
-| id | name | ip_address | emoji | principles |
-|----|------|------------|-------|------------|
-| `gilded_path` | The Gilded Path | 77.77.77.77 | ✨ | Wealth, Prosperity, Ambition, Capital, Grandeur |
-| `holy_way` | The Holy Way | 1.1.1.111 | 🕊️ | Compassion, Charity, Devotion, Selflessness, Healing |
-| `final_watch` | The Final Watch | 44.44.12.12 | 🛡️ | Vigilance, Protection, Endurance, Loyalty, Defense of the faithful |
-| `black_tribunal` | The Black Tribunal | 99.9.31.99 | 🗡️ | Conquest, Eradicating heresy, Ruthlessness, Selfishness, Personal gain |
 
 ---
 
@@ -86,6 +78,69 @@ Core player data linked to `auth.users`. Tracks username, network location, sect
 
 ---
 
+## Virtual Computing
+
+### `virtual_machines`
+
+Infrastructure for in-game computing environments.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `machine_id` | UUID | PRIMARY KEY DEFAULT gen_random_uuid() | Unique hardware identifier |
+| `owner_identity_id` | UUID | FK → players(id) ON DELETE SET NULL | The player who owns the machine |
+| `ip_address` | inet | UNIQUE DEFAULT allocate_network_address('virtual_machines') | Public IP of the virtual computer |
+| `machine_name` | VARCHAR | NOT NULL | Display name / hostname |
+| `cpu_speed_mhz` | INT | NOT NULL | Processing power metric |
+| `ram_gb` | INT | NOT NULL | Memory capacity |
+| `max_storage_mb` | INT | NOT NULL | Disk space limit |
+| `created_at` | TIMESTAMPTZ | DEFAULT now() | |
+
+**RLS Policy:** Service role only (managed via Edge Functions).
+
+---
+
+### `virtual_files`
+
+The filesystem for `virtual_machines`.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `file_id` | UUID | PRIMARY KEY DEFAULT gen_random_uuid() | Unique file identifier |
+| `machine_id` | UUID | NOT NULL, FK → virtual_machines(machine_id) ON DELETE CASCADE | Parent machine |
+| `file_path` | VARCHAR | NOT NULL | Directory path |
+| `file_name` | VARCHAR | NOT NULL | Filename with extension |
+| `file_size_mb` | INT | NOT NULL DEFAULT 0 | Storage impact |
+| `file_content` | TEXT | DEFAULT '' | Actual file data |
+| `created_at` | TIMESTAMPTZ | DEFAULT now() | |
+
+**Indexes:**
+- `idx_vfiles_machine_path` on `(machine_id, file_path)`
+
+**RLS Policy:** Service role only (managed via Edge Functions).
+
+---
+
+### `virtual_logs`
+
+Audit trail for actions performed on or by virtual machines.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `log_id` | UUID | PRIMARY KEY DEFAULT gen_random_uuid() | |
+| `machine_id` | UUID | NOT NULL, FK → virtual_machines(machine_id) ON DELETE CASCADE | Target machine |
+| `timestamp` | TIMESTAMPTZ | DEFAULT now() | |
+| `source_ip` | inet | NOT NULL | Originating IP of the action |
+| `action_type` | VARCHAR | NOT NULL | e.g., `LOGIN`, `DELETE`, `DOWNLOAD` |
+| `details` | TEXT | | Payload or context for the log entry |
+| `is_spoofed` | BOOLEAN | DEFAULT false | Whether the source IP was masked |
+
+**Indexes:**
+- `idx_vlogs_machine_time` on `(machine_id, timestamp DESC)`
+
+**RLS Policy:** Service role only (managed via Edge Functions).
+
+---
+
 ## Helper Functions (RPCs)
 
 Detailed usage patterns can be found in [`plans/api_reference.md`](./api_reference.md).
@@ -106,56 +161,3 @@ Detailed usage patterns can be found in [`plans/api_reference.md`](./api_referen
 | `complete_player_onboarding()` | — | JSON | Marks onboarding complete (requires username + sect) |
 | `get_player_status()` | — | JSON | Returns player profile including `ip_address`, `sect_name`, `sect_emoji`, and onboarding state |
 | `get_available_sects()` | — | JSONB | Returns all sects including `ip_address`, ordered by `display_order` |
-
----
-//this section doesn't belong in the db scehma and will be removed later.
-## Future Expansions
-
-The following tables are planned for future development:
-
-| Table | Purpose |
-|-------|---------|
-| `game_config` | Central key-value store for game balance parameters (production, karma, combat, vassalage, social, sect_bonus) |
-| `faction_relationships` | Enemy/ally/neutral status between sects with lore rationales |
-| `shop_items` | Purchasable buildings, prayer slots, research |
-| `player_buildings` | Player-owned buildings and production |
-| `prayers` | Active and completed prayers |
-| `synods` | Player alliances/guilds |
-| `shouts` | Global chat messages |
-| `relics` | Unique global artifacts |
-| `research_nodes` | Tech tree for light/dark research |
-
-### `game_config` (Planned)
-
-Central key-value store for all game balance parameters. Read by RPCs and the cron heartbeat for production calculations.
-
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| `key` | TEXT | PRIMARY KEY | Dot-notation identifier: e.g., `tick.production_divisor` |
-| `value` | NUMERIC | NOT NULL | The balance value |
-| `description` | TEXT | | Human-readable description of what this config does |
-| `category` | TEXT | DEFAULT 'production' | Logical grouping: `production`, `karma`, `combat`, `vassalage`, `social`, `sect_bonus` |
-| `created_at` | TIMESTAMPTZ | DEFAULT now() | |
-| `updated_at` | TIMESTAMPTZ | DEFAULT now() | |
-
-**Key Categories:**
-- `karma`: Prayer reward tuning
-- `production`: Engine speed & tick rates
-- `vassalage`: Tithe and subjugation rules
-- `social`: Synod and shout costs
-- `combat`: PvP and Holy War tuning
-
-### `faction_relationships` (Planned)
-
-Defines enemy/ally/neutral status between sects for combat bonuses and narrative flavor.
-
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| `id` | UUID | PRIMARY KEY DEFAULT gen_random_uuid() | |
-| `sect_key` | TEXT | UNIQUE, FK → sects(id) | The faction this row describes |
-| `enemy_sect` | TEXT | NOT NULL, FK → sects(id) | The faction they are at war with |
-| `ally_sect` | TEXT | NOT NULL, FK → sects(id) | The faction they are allied with |
-| `neutral_sect` | TEXT | NOT NULL, FK → sects(id) | The faction they are neutral toward |
-| `rationale_enemy` | TEXT | | Lore explanation for the enmity |
-| `rationale_ally` | TEXT | | Lore explanation for the alliance |
-| `rationale_neutral` | TEXT | | Lore explanation for the neutrality |

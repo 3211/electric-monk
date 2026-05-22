@@ -12,6 +12,7 @@ This document tracks the evolution of the Holy War Online database and defines t
 |--------|-------|--------|-------------|
 | Genesis | `genesis_0.sql` | **ACTIVE** | Core network registry, player & sects foundation with IP allocation |
 | Revelations | `revelations_0.sql` | **ACTIVE** | Faction seed data (four core sects with network identities) |
+| Genesis | `genesis_1.sql` | **ACTIVE** | Virtual Machines, Files, and Logs infrastructure |
 
 Run all `.sql` files in lexicographic order to rebuild the full database from scratch.
 

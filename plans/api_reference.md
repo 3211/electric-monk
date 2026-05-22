@@ -1,6 +1,6 @@
-# API Reference (RPCs)
+# API Reference (RPCs & Edge Functions)
 
-This document provides usage examples and technical details for the Supabase Remote Procedure Calls (RPCs) used in Holy War Online.
+This document provides usage examples and technical details for the Supabase Remote Procedure Calls (RPCs) and Edge Functions used in Holy War Online.
 
 **Last updated:** 2026-05-22
 
@@ -8,18 +8,17 @@ This document provides usage examples and technical details for the Supabase Rem
 
 ## JavaScript/TypeScript Usage Examples
 
+### Database RPCs
 All RPCs are called via the `supabase.rpc()` method. Ensure you are using an authenticated client where required.
 
 ```typescript
 // Get player status (Profile + Onboarding state + Network identity)
 const { data } = await supabase.rpc('get_player_status');
-console.log(data.username, data.ip_address, data.sect_name, data.onboarding_complete);
 
 // Update username (Validates and saves)
 const { data } = await supabase.rpc('update_player_username', { 
   p_new_username: 'NewName_123' 
 });
-if (!data.success) console.error(data.error);
 
 // Choose a sect (Sets faction affiliation)
 const { data } = await supabase.rpc('choose_player_sect', { 
@@ -31,12 +30,35 @@ const { data } = await supabase.rpc('complete_player_onboarding');
 
 // Get all available sects (Returns data for selection UI)
 const { data: sects } = await supabase.rpc('get_available_sects');
-// Each sect object includes: id, name, ip_address, emoji, description, principles, tone_description
+```
+
+### Edge Functions
+Edge Functions are called via `supabase.functions.invoke()`.
+
+```typescript
+// Virtual Computers API
+const { data, error } = await supabase.functions.invoke('virtual-computers', {
+  method: 'GET',
+  queries: { machine_id: '...', target_path: '/etc' }
+});
 ```
 
 ---
 
-## Function Reference
+## Edge Function: `virtual-computers`
+
+Managed via `supabase/functions/virtual-computers/index.ts`. This function handles filesystem and log operations for virtual machines, bypassing RLS via the `service_role`.
+
+| Method | Parameters (JSON/Query) | Description |
+|--------|-------------------------|-------------|
+| `GET` | `machine_id`, `target_path` | Lists files in a specific directory on a machine. |
+| `DELETE` | `machine_id`, `target_path` | Deletes files matching path (recursive via `LIKE path%`). |
+| `PUT` | `file_id`, `new_content` | Updates the content of a specific file (Atomic update). |
+| `POST` | `machine_id`, `source_ip`, `action_type`, `details`, `is_spoofed` | Appends an entry to the `virtual_logs`. |
+
+---
+
+## Function Reference (RPC)
 
 ### `allocate_network_address(p_entity_type TEXT) → inet`
 
