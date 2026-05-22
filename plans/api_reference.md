@@ -53,8 +53,8 @@ Managed via `supabase/functions/virtual-computers/index.ts`. This function handl
 |--------|-------------------------|-------------|
 | `GET` | `machine_id`, `target_path` | Lists files in a specific directory on a machine. |
 | `DELETE` | `machine_id`, `target_path` | Deletes files matching path (recursive via `LIKE path%`). |
-| `PUT` | `file_id`, `new_content` | Updates the content of a specific file (Atomic update). |
-| `POST` | `machine_id`, `source_ip`, `action_type`, `details`, `is_spoofed` | Appends an entry to the `virtual_logs`. |
+| `PUT` | `file_id`, `new_content`, `new_size_mb` | Updates file content and size. **Enforces storage limits** by summing `catalog_storage` capacity on the machine. |
+| `POST` | `machine_id`, `source_ip`, `action_type`, `details`, `is_spoofed` | Appends an entry to `virtual_logs`. **Applies Trace Resistance** by summing `catalog_network_cards` resistance. |
 
 ---
 

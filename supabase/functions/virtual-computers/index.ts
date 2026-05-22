@@ -51,11 +51,44 @@ serve(async (req) => {
     }
 
     if (method === "PUT") {
-      const { file_id, new_content } = await req.json();
+      const { file_id, new_content, new_size_mb = 0 } = await req.json();
 
       await sql.begin(async (tx) => {
-        await tx`SELECT 1 FROM virtual_files WHERE file_id = ${file_id} FOR UPDATE`;
-        await tx`UPDATE virtual_files SET file_content = ${new_content} WHERE file_id = ${file_id}`;
+        // Lock target file and fetch current metrics
+        const [file] = await tx`
+          SELECT machine_id, file_size_mb 
+          FROM virtual_files 
+          WHERE file_id = ${file_id} FOR UPDATE
+        `;
+
+        if (!file) throw new Error("File not found");
+
+        // Sum max storage across all installed drives
+        const [{ max_storage }] = await tx`
+          SELECT COALESCE(SUM(cs.capacity_mb), 0) as max_storage
+          FROM virtual_machine_hardware vmh
+          JOIN catalog_storage cs ON vmh.catalog_id = cs.id
+          WHERE vmh.machine_id = ${file.machine_id} AND vmh.hardware_type = 'storage'
+        `;
+
+        // Calculate current total storage usage
+        const [{ used_storage }] = await tx`
+          SELECT COALESCE(SUM(file_size_mb), 0) as used_storage
+          FROM virtual_files
+          WHERE machine_id = ${file.machine_id}
+        `;
+
+        const predicted_storage = Number(used_storage) - Number(file.file_size_mb) + Number(new_size_mb);
+
+        if (predicted_storage > Number(max_storage)) {
+          throw new Error("Insufficient storage capacity on virtual machine.");
+        }
+
+        await tx`
+          UPDATE virtual_files 
+          SET file_content = ${new_content}, file_size_mb = ${new_size_mb}
+          WHERE file_id = ${file_id}
+        `;
       });
 
       return new Response(JSON.stringify({ success: true }), { status: 200, headers: corsHeaders });
@@ -64,9 +97,17 @@ serve(async (req) => {
     if (method === "POST") {
       const { machine_id, source_ip, action_type, details, is_spoofed = false } = await req.json();
 
+      // Aggregate trace resistance from equipped NICs
+      const [{ trace_resistance }] = await sql`
+        SELECT COALESCE(SUM(cnc.trace_resistance), 0) as trace_resistance
+        FROM virtual_machine_hardware vmh
+        JOIN catalog_network_cards cnc ON vmh.catalog_id = cnc.id
+        WHERE vmh.machine_id = ${machine_id} AND vmh.hardware_type = 'network'
+      `;
+
       await sql`
-        INSERT INTO virtual_logs (machine_id, source_ip, action_type, details, is_spoofed)
-        VALUES (${machine_id}, ${source_ip}, ${action_type}, ${details}, ${is_spoofed})
+        INSERT INTO virtual_logs (machine_id, source_ip, action_type, details, is_spoofed, trace_resistance_applied)
+        VALUES (${machine_id}, ${source_ip}, ${action_type}, ${details}, ${is_spoofed}, ${trace_resistance})
       `;
 
       return new Response(JSON.stringify({ success: true }), { status: 200, headers: corsHeaders });

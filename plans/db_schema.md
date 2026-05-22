@@ -82,7 +82,7 @@ Core player data linked to `auth.users`. Tracks username, network location, sect
 
 ### `virtual_machines`
 
-Infrastructure for in-game computing environments.
+Infrastructure for in-game computing environments. Performance metrics are derived from linked hardware.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
@@ -90,12 +90,31 @@ Infrastructure for in-game computing environments.
 | `owner_identity_id` | UUID | FK → players(id) ON DELETE SET NULL | The player who owns the machine |
 | `ip_address` | inet | UNIQUE DEFAULT allocate_network_address('virtual_machines') | Public IP of the virtual computer |
 | `machine_name` | VARCHAR | NOT NULL | Display name / hostname |
-| `cpu_speed_mhz` | INT | NOT NULL | Processing power metric |
-| `ram_gb` | INT | NOT NULL | Memory capacity |
-| `max_storage_mb` | INT | NOT NULL | Disk space limit |
+| `case_id` | TEXT | NOT NULL | Reference to `catalog_cases` |
+| `power_supply_id` | TEXT | NOT NULL | Reference to `catalog_power_supplies` |
 | `created_at` | TIMESTAMPTZ | DEFAULT now() | |
 
 **RLS Policy:** Service role only (managed via Edge Functions).
+
+---
+
+### `virtual_machine_hardware`
+
+Links specific hardware components to a virtual machine.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PRIMARY KEY DEFAULT gen_random_uuid() | |
+| `machine_id` | UUID | NOT NULL, FK → virtual_machines(machine_id) ON DELETE CASCADE | Parent machine |
+| `hardware_type` | VARCHAR | NOT NULL | e.g., `cpu`, `memory`, `storage`, `network` |
+| `catalog_id` | TEXT | NOT NULL | Reference to the specific catalog item ID |
+| `slot_index` | INT | DEFAULT 0 | Logical slot position (for UI/constraints) |
+| `created_at` | TIMESTAMPTZ | DEFAULT now() | |
+
+**Indexes:**
+- `idx_vmh_machine` on `(machine_id, hardware_type)`
+
+**RLS Policy:** Service role only.
 
 ---
 
@@ -133,11 +152,62 @@ Audit trail for actions performed on or by virtual machines.
 | `action_type` | VARCHAR | NOT NULL | e.g., `LOGIN`, `DELETE`, `DOWNLOAD` |
 | `details` | TEXT | | Payload or context for the log entry |
 | `is_spoofed` | BOOLEAN | DEFAULT false | Whether the source IP was masked |
+| `trace_resistance_applied` | INT | DEFAULT 0 | Amount of resistance applied at log time |
 
 **Indexes:**
 - `idx_vlogs_machine_time` on `(machine_id, timestamp DESC)`
 
 **RLS Policy:** Service role only (managed via Edge Functions).
+
+---
+
+## Hardware Catalogs
+
+All catalog tables are **read-only for players** and managed by the service role.
+
+### `hardware_shops`
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | TEXT | Primary Key (e.g., `public_hub`) |
+| `name` | TEXT | Display name |
+| `description` | TEXT | Lore / utility description |
+
+### `catalog_cpus`
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | TEXT | Primary Key |
+| `name` | TEXT | |
+| `base_price` | INT | |
+| `cores` | INT | |
+| `clock_speed_mhz` | INT | |
+| `power_draw_watts` | INT | |
+| `available_in_shops` | TEXT[] | Array of shop IDs |
+
+### `catalog_memory`
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | TEXT | Primary Key |
+| `capacity_gb` | INT | |
+| `speed_mhz` | INT | |
+| `power_draw_watts` | INT | |
+
+### `catalog_storage`
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | TEXT | Primary Key |
+| `capacity_mb` | INT | Total storage provided |
+| `read_speed_mbps` | INT | |
+| `write_speed_mbps` | INT | |
+
+### `catalog_network_cards`
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | TEXT | Primary Key |
+| `bandwidth_mbps` | INT | |
+| `trace_resistance` | INT | Passive defense against tracing |
+
+### `catalog_cases` & `catalog_power_supplies`
+Standard metadata for chassis (max slots) and power delivery (max watts).
 
 ---
 

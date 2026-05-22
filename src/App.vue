@@ -98,6 +98,7 @@ const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
   position: relative;
   z-index: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
 }
 

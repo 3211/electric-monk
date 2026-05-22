@@ -1,15 +1,15 @@
 <template>
-  <div class="login-view flex-1 flex flex-col items-center justify-center px-4 py-4 sm:py-6 lg:py-10 min-h-0">
+  <div class="login-view flex-1 flex flex-col items-center justify-center px-4 min-h-0">
     <!-- Logo above login card -->
-    <div class="mb-4 flex flex-col items-center sm:mb-6 lg:mb-8">
+    <div class="login-logo-section flex flex-col items-center">
       <div class="login-logo-shell">
         <div class="login-logo-halo"></div>
         <img src="@/assets/icons/icon.png" alt="Holy War Online" class="login-logo-image" />
       </div>
-      <h1 class="login-title ritual-heading mt-4 text-2xl font-bold sm:text-3xl"></h1>
+      <h1 class="login-title ritual-heading text-2xl font-bold sm:text-3xl"></h1>
     </div>
 
-    <div class="login-card max-w-md w-full p-6 sm:p-8">
+    <div class="login-card max-w-md w-full">
       <!-- Error Message -->
       <div v-if="auth.error && typeof auth.error === 'string' && auth.error.trim()" class="login-error mb-5 rounded-sm border border-war-enemy/25 bg-war-enemy/10 p-3 text-sm text-war-enemy-text shadow-[0_10px_24px_rgba(155,107,102,0.08)]">
         {{ auth.error }}
@@ -184,7 +184,7 @@
     </div>
 
     <!-- Tagline below login card -->
-    <div class="mt-4 sm:mt-6 text-center">
+    <div class="login-tagline text-center">
       <p class="text-sm italic text-war-dim">Holy War Online</p>
     </div>
   </div>
@@ -274,6 +274,12 @@ async function handlePasswordReset() {
 /* ─── War theme local variables (supplements shell) ─── */
 .login-view {
   --war-enemy-text: #e0c1be;
+  padding: clamp(0.5rem, 2svh, 2.5rem) 1rem;
+}
+
+/* ─── Logo Section ─── */
+.login-logo-section {
+  margin-bottom: clamp(0.5rem, 2svh, 1.5rem);
 }
 
 /* ─── Title ─── */
@@ -288,8 +294,8 @@ async function handlePasswordReset() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: clamp(8rem, 22vw, 14.5rem);
-  height: clamp(8rem, 22vw, 14.5rem);
+  width: clamp(5rem, min(22vw, 18svh), 14.5rem);
+  height: clamp(5rem, min(22vw, 18svh), 14.5rem);
 }
 
 .login-logo-halo {
@@ -304,8 +310,8 @@ async function handlePasswordReset() {
 .login-logo-image {
   position: relative;
   z-index: 1;
-  width: clamp(7rem, 19vw, 12.5rem);
-  height: clamp(7rem, 19vw, 12.5rem);
+  width: clamp(4.5rem, min(19vw, 15.5svh), 12.5rem);
+  height: clamp(4.5rem, min(19vw, 15.5svh), 12.5rem);
   filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.4));
 }
 
@@ -323,6 +329,7 @@ async function handlePasswordReset() {
 /* ─── Login Card ─── */
 .login-card {
   position: relative;
+  padding: clamp(1rem, 2.5svh, 2rem);
   border-radius: var(--radius-panel, 2px);
   border: 1px solid var(--war-edge);
   background:
@@ -334,6 +341,16 @@ async function handlePasswordReset() {
     inset 0 -1px 0 rgba(255, 255, 255, 0.025);
   backdrop-filter: blur(12px);
   color: var(--war-text);
+}
+
+/* ─── Title spacing ─── */
+.login-title {
+  margin-top: clamp(0.5rem, 1.5svh, 1rem);
+}
+
+/* ─── Tagline ─── */
+.login-tagline {
+  margin-top: clamp(0.5rem, 1.5svh, 1.5rem);
 }
 
 .login-card::after {
