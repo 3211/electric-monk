@@ -1,1020 +1,120 @@
-<script setup>
-import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
-import { useAuth } from './composables/useAuth'
-import { useBanTimer } from './composables/useBanTimer'
-import { useEconomy } from './composables/useEconomy'
-import { usePrayers } from './composables/usePrayers'
-import { useShouts } from './composables/useShouts'
-import { useOnboarding } from './composables/useOnboarding'
-import { useSynod } from './composables/useSynod'
-import ShieldTimer from './components/molecules/ShieldTimer.vue'
-import ResourceBar from './components/molecules/ResourceBar.vue'
-import LoginView from './views/LoginView.vue'
-import AltarView from './views/AltarView.vue'
-import PurgatoryView from './views/PurgatoryView.vue'
-import AkashicRecordsView from './views/AkashicRecordsView.vue'
-import KarmaShopView from './views/KarmaShopView.vue'
-import VaticanView from './views/VaticanView.vue'
-import ScriptoriumView from './views/ScriptoriumView.vue'
-import SynodHallView from './views/SynodHallView.vue'
-import FactionsView from './views/FactionsView.vue'
-import OnboardingWizard from './components/organisms/OnboardingWizard.vue'
-import UsernameChangeModal from './components/organisms/UsernameChangeModal.vue'
-const auth = useAuth()
-const banTimer = useBanTimer()
-const economy = useEconomy()
-const prayers = usePrayers()
-const shouts = useShouts()
-const onboarding = useOnboarding()
-const synod = useSynod()
-
-// Tab navigation
-const currentTab = ref('altar')
-
-// Mobile navigation drawer state
-const isMobileNavOpen = ref(false)
-
-const tabLabels = {
-  altar: '⚜ Altar',
-  akashic: '📜 Records',
-  factions: '🏛 Sects',
-  vatican: '🏰 Vatican',
-  synod: '⚔ Synod',
-  scriptorium: '📋 Scriptorium',
-  shop: '🛒 Shop',
-}
-const currentTabLabel = computed(() => tabLabels[currentTab.value] || 'Altar')
-
-// Show Sacred Acres only on Altar and Shop tabs
-const showAcres = computed(() => ['altar', 'shop'].includes(currentTab.value))
-
-// Close mobile nav on Escape key
-function handleEscapeKey(e) {
-  if (e.key === 'Escape' && isMobileNavOpen.value) {
-    isMobileNavOpen.value = false
-  }
-}
-onMounted(() => document.addEventListener('keydown', handleEscapeKey))
-onUnmounted(() => document.removeEventListener('keydown', handleEscapeKey))
-
-// Lock body scroll when mobile nav is open
-watch(isMobileNavOpen, (open) => {
-  document.body.style.overflow = open ? 'hidden' : ''
-})
-
-// Force evil theme — injected by child views for conditional dark mode (Scriptorium, Records, Vatican)
-const forceEvilTheme = ref(false)
-provide('forceEvilTheme', forceEvilTheme)
-
-// Force war theme — injected by FactionsView for steel-brass aesthetic
-const forceWarTheme = ref(false)
-provide('forceWarTheme', forceWarTheme)
-
-// Username change modal state
-const showUsernameChangeModal = ref(false)
-
-// Determine which view to show
-// Suppress ban redirect while an Aether / Town Crier modal is active so the
-// player can finish reading the Monk's or Crier's message before being sent
-// to Purgatory.  The edge function sets the ban in the DB immediately on
-// rejection, so the 10-second poll in useBanTimer can fire *before* the
-// client has received the result.  We therefore suppress the redirect both
-// while the modal is processing (spinner visible) AND while a rejection
-// result is being displayed.  Once the modal is dismissed (the result is
-// cleared), the computed re-evaluates and the redirect kicks in.
-const isRejectionModalActive = computed(() =>
-  prayers.isAetherProcessing ||
-  (prayers.aetherResult && prayers.aetherResult.judgment === 'rejected') ||
-  shouts.isCrierProcessing ||
-  (shouts.crierResult && shouts.crierResult.judgment === 'rejected')
-)
-
-const currentView = computed(() => {
-  if (!auth.isAuthenticated) return 'login'
-  if (banTimer.isBanned && !isRejectionModalActive.value) return 'purgatory'
-  return currentTab.value
-})
-
-// Views that own a light/dark sub-toggle — they manage forceEvilTheme themselves.
-// All OTHER views force light mode on entry, preventing dark-mode persistence bleed.
-const toggleableViews = new Set(['scriptorium', 'akashic', 'vatican', 'synod'])
-const evilViews = new Set(['purgatory'])
-const isEvilView = computed(() => evilViews.has(currentView.value) || forceEvilTheme.value)
-const isWarView = computed(() => forceWarTheme.value)
-
-// Reset theme overrides when navigating to a non-toggleable view
-watch(currentTab, (tab) => {
-  isMobileNavOpen.value = false
-  if (!toggleableViews.has(tab)) {
-    forceEvilTheme.value = false
-  }
-  if (tab !== 'factions' && tab !== 'vatican' && tab !== 'synod') {
-    forceWarTheme.value = false
-  }
-})
-
-// Reset all theme overrides when navigating to login (e.g. after sign-out)
-watch(currentView, (view) => {
-  if (view === 'login') {
-    forceEvilTheme.value = false
-    forceWarTheme.value = false
-  }
-})
-
-// Watch for authentication to trigger onboarding and data fetch
-watch(() => auth.isAuthenticated, async (isAuth) => {
-  if (isAuth) {
-    // Fetch economy, profile, and synod data
-    await Promise.all([
-      economy.fetchEconomy(),
-      prayers.fetchProfile(),
-      synod.fetchSynodInfo(),
-    ])
-
-    // Check onboarding status — new users (or users missing identity) go through the wizard
-    if (!prayers.onboardingComplete || !prayers.username) {
-      onboarding.startOnboarding()
-    }
-  } else {
-    // Clear synod state on sign-out so it doesn't persist stale data
-    synod.resetState()
-  }
-}, { immediate: true })
-
-// Handle username change
-function onUsernameChanged(newUsername, karmaRemaining) {
-  prayers.fetchProfile()
-  economy.fetchEconomy()
-}
-
-// Dynamic copyright year and developer email
-const currentYear = new Date().getFullYear()
-const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
-</script>
-
 <template>
-  <div :class="['app-shell min-h-screen flex flex-col', { 'app-shell--evil': isEvilView && !isWarView, 'app-shell--war': isWarView, 'app-shell--holy': !isEvilView && !isWarView }]">
-    <!-- ===== Mobile Top Bar (visible < md, hidden on desktop) ===== -->
-    <div v-if="auth.isAuthenticated && !banTimer.isBanned" class="mobile-top-bar md:hidden sticky top-0 z-40 border-b backdrop-blur-[18px]" :class="{ 'mobile-top-bar--evil': isEvilView && !isWarView, 'mobile-top-bar--war': isWarView }">
-      <div class="app-frame flex items-center justify-between py-2.5">
-        <div class="flex items-center gap-2">
-          <button @click="isMobileNavOpen = true" class="hamburger-btn" aria-label="Open navigation menu">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <span class="text-sm font-semibold text-theme-accent truncate max-w-[180px]">{{ currentTabLabel }}</span>
-        </div>
-        <div class="flex flex-col items-center gap-1">
-          <div class="flex items-center gap-2">
-            <button
-              @click="showUsernameChangeModal = true"
-              class="nav-account-btn"
-              title="Change Username (costs 1000 Karma)"
-              aria-label="Change Username"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </button>
-          </div>
-          <ShieldTimer v-if="economy.shieldActive" :shield-until="economy.divineShieldUntil" />
-        </div>
-      </div>
-      <div class="app-frame pb-2.5 pt-0">
-        <ResourceBar :show-acres="showAcres" />
-      </div>
-    </div>
+  <div class="app-shell h-screen flex flex-col overflow-hidden">
+    <!-- Fixed atmospheric background layers -->
+    <div aria-hidden="true" class="war-layer war-layer--mist"></div>
+    <div aria-hidden="true" class="war-layer war-layer--veil"></div>
+    <div aria-hidden="true" class="war-layer war-layer--glow"></div>
 
-    <!-- ===== Mobile Navigation Drawer Overlay ===== -->
-    <Transition name="mobile-drawer">
-      <div v-if="isMobileNavOpen && auth.isAuthenticated && !banTimer.isBanned" class="mobile-drawer-overlay" @click="isMobileNavOpen = false">
-        <div class="mobile-drawer-panel" :class="{ 'mobile-drawer-panel--evil': isEvilView && !isWarView, 'mobile-drawer-panel--war': isWarView }" @click.stop>
-          <div class="flex items-center justify-between mb-6">
-            <h2 class="ritual-heading text-lg font-bold text-theme-accent">Navigation</h2>
-            <button @click="isMobileNavOpen = false" class="hamburger-btn" aria-label="Close navigation menu">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <nav class="flex flex-col gap-1.5">
-            <button
-              v-for="(label, key) in tabLabels"
-              :key="key"
-              @click="currentTab = key"
-              :class="[currentTab === key ? 'mobile-nav-item-active' : 'mobile-nav-item-inactive']"
-            >
-              {{ label }}
-            </button>
-          </nav>
-          <div class="mt-6 pt-4 border-t border-current/10">
-            <button @click="auth.signOut()" class="mobile-nav-item-inactive w-full">
-              Logout
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
+    <!-- Main content -->
+    <main class="app-content flex-1 relative z-10">
+      <LoginView v-if="!auth.isAuthenticated" />
+      <HomeScreen v-else />
+    </main>
 
-    <!-- ===== Desktop Navigation (visible md+, hidden on mobile) ===== -->
-    <nav v-if="auth.isAuthenticated && !banTimer.isBanned" class="global-nav hidden md:block sticky top-0 z-40 border-b backdrop-blur-[18px]">
-      <div class="app-frame">
-        <div class="relative py-3 sm:py-4">
-          <div :class="['global-nav-veil', isWarView ? 'global-nav-veil--war' : (isEvilView ? 'global-nav-veil--evil' : 'global-nav-veil--holy')]"></div>
-          <div class="global-nav-row relative flex flex-wrap items-center gap-2 sm:gap-3">
-            <!-- Primary tabs cluster (flex-grows to consume slack) -->
-            <div class="global-nav-shell segmented-shell flex-1 min-w-0 flex flex-wrap items-center justify-start gap-1">
-              <button
-                @click="currentTab = 'altar'"
-                :class="currentTab === 'altar' ? 'nav-tab-active' : 'nav-tab-inactive'"
-              >
-                &#x269C; Altar
-              </button>
-              <button
-                @click="currentTab = 'akashic'"
-                :class="currentTab === 'akashic' ? 'nav-tab-active' : 'nav-tab-inactive'"
-              >
-                &#x1F4DC; Records
-              </button>
-              <button
-                @click="currentTab = 'factions'"
-                :class="currentTab === 'factions' ? 'nav-tab-active' : 'nav-tab-inactive'"
-              >
-                &#x1F3DB; Sects
-              </button>
-              <button
-                @click="currentTab = 'vatican'"
-                :class="currentTab === 'vatican' ? 'nav-tab-active' : 'nav-tab-inactive'"
-              >
-                &#x1F3F0; Vatican
-              </button>
-              <button
-                @click="currentTab = 'synod'"
-                :class="currentTab === 'synod' ? 'nav-tab-active' : 'nav-tab-inactive'"
-              >
-                &#x2694; Synod
-              </button>
-              <button
-                @click="currentTab = 'scriptorium'"
-                :class="currentTab === 'scriptorium' ? 'nav-tab-active' : 'nav-tab-inactive'"
-              >
-                &#x1F4D1; Scriptorium
-              </button>
-              <button
-                @click="currentTab = 'shop'"
-                :class="currentTab === 'shop' ? 'nav-tab-active' : 'nav-tab-inactive'"
-              >
-                &#x1F6D2; Shop
-              </button>
-            </div>
-
-            <!-- Global resource indicators (always visible) -->
-            <ResourceBar :show-acres="showAcres" />
-
-            <!-- Account cluster: change-username (icon) + logout (pill) + shield stacked below -->
-            <div class="global-nav-account segmented-shell flex flex-col items-center gap-1 flex-none ml-auto py-1">
-              <div class="flex items-center gap-1">
-                <button
-                  @click="showUsernameChangeModal = true"
-                  class="nav-account-btn"
-                  title="Change Username (costs 1000 Karma)"
-                  aria-label="Change Username"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </button>
-                <button
-                  @click="auth.signOut()"
-                  class="nav-tab-inactive"
-                  title="Logout"
-                >
-                  Logout
-                </button>
-              </div>
-              <ShieldTimer v-if="economy.shieldActive" :shield-until="economy.divineShieldUntil" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </nav>
-
-    <div class="app-content-region flex-1">
-      <template v-if="isWarView">
-        <div aria-hidden="true" class="war-layout-layer war-layout-layer--mist"></div>
-        <div aria-hidden="true" class="war-layout-layer war-layout-layer--veil"></div>
-        <div aria-hidden="true" class="war-layout-layer war-layout-layer--glow"></div>
-      </template>
-      <template v-else-if="isEvilView">
-        <div aria-hidden="true" class="evil-layout-layer evil-layout-layer--mist"></div>
-        <div aria-hidden="true" class="evil-layout-layer evil-layout-layer--veil"></div>
-        <div aria-hidden="true" class="evil-layout-layer evil-layout-layer--glow"></div>
-      </template>
-      <template v-else>
-        <div aria-hidden="true" class="holy-light-layer"></div>
-        <div aria-hidden="true" class="holy-cloud-layer"></div>
-        <div aria-hidden="true" class="holy-ripple-layer"></div>
-      </template>
-      <div class="app-content-inner">
-        <section class="app-view-stage">
-          <LoginView v-if="currentView === 'login'" />
-          <PurgatoryView v-else-if="currentView === 'purgatory'" />
-          <AltarView v-else-if="currentView === 'altar'" />
-          <ScriptoriumView v-else-if="currentView === 'scriptorium'" />
-          <AkashicRecordsView v-else-if="currentView === 'akashic'" />
-          <KarmaShopView v-else-if="currentView === 'shop'" />
-          <VaticanView v-else-if="currentView === 'vatican'" />
-          <SynodHallView v-else-if="currentView === 'synod'" />
-          <FactionsView v-else-if="currentView === 'factions'" />
-        </section>
-
-        <!-- Onboarding Wizard (new user flow) -->
-        <OnboardingWizard />
-
-        <!-- Username Change Modal (accessible from settings) -->
-        <UsernameChangeModal
-          v-model="showUsernameChangeModal"
-          :current-username="prayers.username"
-          :karma-balance="prayers.karma"
-          @changed="onUsernameChanged"
-        />
-      </div>
-    </div>
-
-    <!-- Global Footer -->
-    <footer class="global-footer border-t backdrop-blur-[18px]">
-      <div class="app-frame py-4 text-center text-xs text-theme-text-muted">
-        <p>Copyright {{ currentYear }} Lake Boiler Labs. All rights reserved. Contact: <a :href="'mailto:' + devEmail" class="global-footer-link font-medium transition-colors duration-200 hover:underline">{{ devEmail }}</a></p>
+    <!-- Global copyright footer -->
+    <footer class="global-footer relative z-10">
+      <div class="app-frame py-1.5 text-center text-[0.65rem] tracking-wide" style="color: var(--war-muted);">
+        <p>Copyright {{ currentYear }} Lake Boiler Labs. All rights reserved. <a :href="'mailto:' + devEmail" class="footer-link">{{ devEmail }}</a></p>
       </div>
     </footer>
   </div>
 </template>
 
+<script setup>
+import { useAuth } from './composables/useAuth'
+import LoginView from './views/LoginView.vue'
+import HomeScreen from './views/HomeScreen.vue'
+
+const auth = useAuth()
+const currentYear = new Date().getFullYear()
+const devEmail = import.meta.env.VITE_DEV_EMAIL || 'contact@example.com'
+</script>
+
 <style scoped>
-.nav-tab-active,
-.nav-tab-inactive {
-  @apply pill-tab;
-  flex: 0 0 auto;
-  min-height: 2.5rem;
-  padding: 0.5rem 0.85rem;
-  font-size: 0.85rem;
-}
-
-.nav-tab-active {
-  @apply pill-tab-active;
-}
-
-.nav-tab-inactive {
-  @apply pill-tab-inactive;
-}
-
-.nav-account-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  color: var(--theme-text-muted);
-  background: rgba(255, 253, 248, 0.45);
-  backdrop-filter: blur(10px);
-  transition: all var(--dur-standard) var(--ease-ritual-lift);
-  flex: 0 0 auto;
-}
-
-.nav-account-btn:hover {
-  color: var(--theme-text);
-  border-color: rgba(213, 154, 23, 0.18);
-  background: rgba(255, 251, 243, 0.72);
-  transform: translateY(-1px);
-}
-
-.app-shell--evil .nav-account-btn {
-  color: #a9b6c4;
-  border-color: rgba(137, 108, 178, 0.18);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.app-shell--evil .nav-account-btn:hover {
-  color: #d5ffe0;
-  border-color: rgba(126, 255, 161, 0.18);
-  background: rgba(126, 255, 161, 0.08);
-}
-
-.global-nav-row {
-  align-items: flex-start;
-}
-
-.global-nav-shell {
-  flex: 1 1 0%;
-  min-width: 0;
-}
-
-.global-nav-account {
-  padding: 0.25rem;
-  flex: 0 0 auto;
-  min-width: 0;
-}
-
-.app-view-stage {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 100%;
-}
-
-.app-view-stage > :first-child {
-  flex: 1 1 auto;
-  min-height: 100%;
-}
-
-/* ─── Mobile Top Bar ─── */
-.mobile-top-bar {
-  position: relative;
-  overflow: hidden;
-  background: rgba(255, 250, 241, 0.58);
-  border-color: rgba(139, 125, 91, 0.16);
-  box-shadow: 0 18px 36px rgba(48, 38, 21, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.58);
-  transition: background 420ms var(--ease-ritual-lift), border-color 420ms var(--ease-ritual-lift);
-}
-
-.mobile-top-bar--evil {
-  background: linear-gradient(180deg, rgba(13, 10, 20, 0.92), rgba(17, 12, 28, 0.88));
-  border-color: rgba(137, 108, 178, 0.36);
-  box-shadow: 0 22px 52px rgba(1, 1, 6, 0.42), 0 0 0 1px rgba(177, 128, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.mobile-top-bar--war {
-  background: linear-gradient(180deg, rgba(14, 18, 23, 0.94), rgba(18, 23, 29, 0.92));
-  border-color: rgba(164, 176, 189, 0.16);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.hamburger-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  color: var(--theme-text-muted);
-  background: rgba(255, 253, 248, 0.45);
-  backdrop-filter: blur(10px);
-  transition: all var(--dur-standard) var(--ease-ritual-lift);
-}
-
-.hamburger-btn:hover {
-  color: var(--theme-text);
-  border-color: rgba(213, 154, 23, 0.18);
-  background: rgba(255, 251, 243, 0.72);
-  transform: translateY(-1px);
-}
-
-.app-shell--evil .hamburger-btn {
-  color: #a9b6c4;
-  border-color: rgba(137, 108, 178, 0.18);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.app-shell--evil .hamburger-btn:hover {
-  color: #d5ffe0;
-  border-color: rgba(126, 255, 161, 0.18);
-  background: rgba(126, 255, 161, 0.08);
-}
-
-.app-shell--war .hamburger-btn {
-  color: #8291a0;
-  border-color: rgba(164, 176, 189, 0.14);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.app-shell--war .hamburger-btn:hover {
-  color: #b9c5cf;
-  border-color: rgba(182, 144, 91, 0.18);
-  background: rgba(182, 144, 91, 0.06);
-}
-
-/* ─── Mobile Navigation Drawer ─── */
-.mobile-drawer-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(4px);
-  display: flex;
-  justify-content: flex-start;
-}
-
-.mobile-drawer-panel {
-  position: relative;
-  width: min(280px, 85vw);
-  height: 100%;
-  overflow-y: auto;
-  padding: 1.5rem;
-  background: linear-gradient(180deg, rgba(255, 250, 241, 0.97), rgba(255, 246, 228, 0.95));
-  box-shadow: 18px 0 52px rgba(48, 38, 21, 0.18), 0 0 0 1px rgba(139, 125, 91, 0.12);
-}
-
-.mobile-drawer-panel--evil {
-  background: linear-gradient(180deg, rgba(13, 10, 20, 0.98), rgba(22, 15, 35, 0.97));
-  box-shadow: 18px 0 52px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(137, 108, 178, 0.2);
-}
-
-.mobile-drawer-panel--war {
-  background: linear-gradient(180deg, rgba(14, 18, 23, 0.98), rgba(20, 25, 32, 0.97));
-  box-shadow: 18px 0 52px rgba(0, 0, 0, 0.46), 0 0 0 1px rgba(164, 176, 189, 0.14);
-}
-
-.mobile-nav-item-active,
-.mobile-nav-item-inactive {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-button);
-  font-size: 0.9rem;
-  font-weight: 600;
-  text-align: left;
-  transition: all var(--dur-standard) var(--ease-ritual-lift);
-}
-
-.mobile-nav-item-active {
-  color: var(--theme-accent-dark);
-  border: 1px solid rgba(213, 154, 23, 0.26);
-  background: linear-gradient(180deg, rgba(255, 251, 240, 0.95), rgba(248, 232, 194, 0.92));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 10px 24px rgba(213, 154, 23, 0.18);
-}
-
-.mobile-nav-item-inactive {
-  color: var(--theme-text-dim);
-  border: 1px solid transparent;
-  background: transparent;
-}
-
-.mobile-nav-item-inactive:hover {
-  color: var(--theme-text);
-  background: rgba(255, 251, 243, 0.56);
-  border-color: rgba(139, 125, 91, 0.12);
-}
-
-.app-shell--evil .mobile-nav-item-active {
-  color: #f2f5f7;
-  border-color: rgba(126, 255, 161, 0.24);
-  background: linear-gradient(180deg, rgba(233, 241, 247, 0.16), rgba(233, 241, 247, 0.06)), linear-gradient(180deg, rgba(38, 40, 48, 0.94), rgba(21, 24, 31, 0.94));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 14px 28px rgba(0, 0, 0, 0.32), 0 0 22px rgba(126, 255, 161, 0.08);
-}
-
-.app-shell--evil .mobile-nav-item-inactive {
-  color: #a9b6c4;
-}
-
-.app-shell--evil .mobile-nav-item-inactive:hover {
-  color: #d5ffe0;
-  background: rgba(126, 255, 161, 0.08);
-  border-color: rgba(126, 255, 161, 0.12);
-}
-
-.app-shell--war .mobile-nav-item-active {
-  color: #d7e0e8;
-  border-color: rgba(182, 144, 91, 0.24);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)), linear-gradient(180deg, rgba(40, 48, 56, 0.94), rgba(24, 30, 37, 0.94));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 14px 28px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(182, 144, 91, 0.06);
-}
-
-.app-shell--war .mobile-nav-item-inactive {
-  color: #8291a0;
-}
-
-.app-shell--war .mobile-nav-item-inactive:hover {
-  color: #b9c5cf;
-  background: rgba(182, 144, 91, 0.06);
-  border-color: rgba(164, 176, 189, 0.14);
-}
-
-/* ─── Mobile Drawer Transition ─── */
-.mobile-drawer-enter-active {
-  transition: opacity 220ms var(--ease-ritual-lift);
-}
-
-.mobile-drawer-leave-active {
-  transition: opacity 180ms var(--ease-standard);
-}
-
-.mobile-drawer-enter-from,
-.mobile-drawer-leave-to {
-  opacity: 0;
-}
-
-.mobile-drawer-enter-active .mobile-drawer-panel {
-  animation: drawer-slide-in 280ms var(--ease-ritual-lift);
-}
-
-.mobile-drawer-leave-active .mobile-drawer-panel {
-  animation: drawer-slide-out 180ms var(--ease-standard);
-}
-
-@keyframes drawer-slide-in {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-@keyframes drawer-slide-out {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-100%);
-  }
-}
 .app-shell {
-  transition:
-    background 420ms var(--ease-ritual-lift),
-    color 420ms var(--ease-ritual-lift),
-    box-shadow 420ms var(--ease-ritual-lift);
-}
+  --war-bg-0: #090c10;
+  --war-bg-1: #0f1318;
+  --war-bg-2: #141a20;
+  --war-bg-3: #1a2128;
+  --war-panel: rgba(24, 31, 39, 0.9);
+  --war-panel-strong: rgba(18, 24, 31, 0.94);
+  --war-panel-soft: rgba(32, 40, 49, 0.78);
+  --war-edge: rgba(164, 176, 189, 0.16);
+  --war-edge-strong: rgba(188, 198, 208, 0.22);
+  --war-text: #d7e0e8;
+  --war-text-soft: #b4c0cc;
+  --war-muted: #8291a0;
+  --war-dim: #677482;
+  --war-steel: #b9c5cf;
+  --war-steel-soft: rgba(185, 197, 207, 0.18);
+  --war-brass: #b6905b;
+  --war-brass-light: #d4ba8e;
+  --war-ally: #6c8c83;
+  --war-enemy: #9b6b66;
+  --war-neutral: #8b856d;
 
-.app-shell--holy {
-  background: var(--theme-bg-wash);
-}
-
-.app-shell--evil {
-  background:
-    radial-gradient(circle at 50% -12%, rgba(177, 128, 255, 0.18) 0%, rgba(177, 128, 255, 0.06) 24%, transparent 56%),
-    radial-gradient(circle at 14% 18%, rgba(255, 107, 214, 0.08) 0%, transparent 28%),
-    radial-gradient(circle at 88% 14%, rgba(126, 255, 161, 0.08) 0%, transparent 26%),
-    linear-gradient(180deg, #08050d 0%, #0d0915 48%, #06030a 100%);
-}
-
-.global-nav,
-.global-footer,
-.global-nav-shell,
-.global-nav-account,
-.global-footer-link,
-.nav-tab-active,
-.nav-tab-inactive,
-.nav-account-btn {
-  transition:
-    background 420ms var(--ease-ritual-lift),
-    border-color 420ms var(--ease-ritual-lift),
-    color 420ms var(--ease-ritual-lift),
-    box-shadow 420ms var(--ease-ritual-lift),
-    opacity 420ms var(--ease-ritual-lift),
-    filter 420ms var(--ease-ritual-lift),
-    transform 420ms var(--ease-ritual-lift);
-}
-
-.global-nav,
-.global-footer {
   position: relative;
-  overflow: hidden;
+  isolation: isolate;
+  color: var(--war-text);
+  background:
+    linear-gradient(180deg, rgba(7, 9, 12, 0.94), rgba(11, 15, 19, 0.98)),
+    linear-gradient(135deg, rgba(15, 19, 24, 0.92), rgba(10, 13, 17, 0.96));
 }
 
-.global-nav::after,
-.global-footer::after {
+/* Crosshatch texture overlay */
+.app-shell::before {
   content: "";
   position: absolute;
   inset: 0;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 420ms var(--ease-ritual-lift);
-}
-
-.app-shell--holy .global-nav,
-.app-shell--holy .global-footer {
-  border-color: rgba(139, 125, 91, 0.16);
-  background: rgba(255, 250, 241, 0.58);
-  box-shadow: 0 18px 36px rgba(48, 38, 21, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.58);
-}
-
-.app-shell--holy .global-nav::after,
-.app-shell--holy .global-footer::after {
-  opacity: 1;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 22%, transparent 78%, rgba(213, 154, 23, 0.06));
-}
-
-.app-shell--evil .global-nav,
-.app-shell--evil .global-footer {
-  border-color: rgba(137, 108, 178, 0.36);
-  background: linear-gradient(180deg, rgba(13, 10, 20, 0.92), rgba(17, 12, 28, 0.88));
-  box-shadow:
-    0 22px 52px rgba(1, 1, 6, 0.42),
-    0 0 0 1px rgba(177, 128, 255, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.app-shell--evil .global-nav::after,
-.app-shell--evil .global-footer::after {
-  opacity: 1;
   background:
-    linear-gradient(180deg, rgba(206, 170, 255, 0.16), transparent 18%, transparent 80%, rgba(126, 255, 161, 0.08)),
-    radial-gradient(circle at 50% 0%, rgba(177, 128, 255, 0.18), transparent 52%);
-}
-
-.global-nav-veil {
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  border-radius: 32px;
-}
-
-.global-nav-veil--holy {
-  background: radial-gradient(circle at top, rgba(255, 223, 147, 0.16), transparent 60%);
-  opacity: 0.8;
-}
-
-.global-nav-veil--evil {
-  background:
-    radial-gradient(circle at 18% 0%, rgba(177, 128, 255, 0.22), transparent 30%),
-    radial-gradient(circle at 82% 0%, rgba(126, 255, 161, 0.12), transparent 24%),
-    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent);
-  opacity: 0.95;
-}
-
-.global-nav-shell,
-.global-nav-account {
-  position: relative;
-}
-
-.global-footer-link {
-  color: var(--theme-accent);
-}
-
-.app-shell--evil .global-nav-shell,
-.app-shell--evil .global-nav-account {
-  border-color: rgba(137, 108, 178, 0.34);
-  background: linear-gradient(180deg, rgba(22, 17, 31, 0.88), rgba(10, 8, 15, 0.84));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 16px 34px rgba(0, 0, 0, 0.28),
-    0 0 0 1px rgba(206, 170, 255, 0.05);
-}
-
-.app-shell--evil .nav-tab-active {
-  color: #f2f5f7;
-  border-color: rgba(126, 255, 161, 0.24);
-  background:
-    linear-gradient(180deg, rgba(233, 241, 247, 0.16), rgba(233, 241, 247, 0.06)),
-    linear-gradient(180deg, rgba(38, 40, 48, 0.94), rgba(21, 24, 31, 0.94));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    0 14px 28px rgba(0, 0, 0, 0.32),
-    0 0 22px rgba(126, 255, 161, 0.08);
-}
-
-.app-shell--evil .nav-tab-inactive {
-  color: #a9b6c4;
-  border-color: rgba(137, 108, 178, 0.18);
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(10px);
-}
-
-.app-shell--evil .nav-tab-inactive:hover {
-  color: #d5ffe0;
-  border-color: rgba(126, 255, 161, 0.18);
-  background: rgba(126, 255, 161, 0.08);
-  transform: translateY(-1px);
-}
-
-.app-shell--evil .global-footer,
-.app-shell--evil .global-footer .app-frame {
-  color: #a9b6c4;
-}
-
-.app-shell--evil .global-footer-link {
-  color: #eef3f7;
-}
-
-.app-shell--evil .global-footer-link:hover {
-  color: #8effb1;
-}
-
-.app-shell--evil .global-nav :is(.chip),
-.app-shell--evil .global-footer :is(.chip) {
-  color: #d8fce2;
-  border-color: rgba(126, 255, 161, 0.22);
-  background: rgba(126, 255, 161, 0.08);
-}
-
-.evil-layout-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.evil-layout-layer--mist {
-  background:
-    radial-gradient(circle at 50% 4%, rgba(177, 128, 255, 0.14), transparent 28%),
-    radial-gradient(circle at 18% 24%, rgba(255, 107, 214, 0.09), transparent 22%),
-    radial-gradient(circle at 82% 18%, rgba(126, 255, 161, 0.08), transparent 18%);
-  filter: blur(34px);
-  opacity: 0.88;
-  animation: evil-layout-drift 26s ease-in-out infinite alternate;
-}
-
-.evil-layout-layer--veil {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.024), transparent 12%, transparent 84%, rgba(255, 255, 255, 0.02)),
-    radial-gradient(circle at 50% 108%, rgba(255, 138, 99, 0.08), transparent 28%);
-  opacity: 0.76;
-}
-
-.evil-layout-layer--glow {
-  background:
-    radial-gradient(circle at 50% 0%, rgba(206, 170, 255, 0.1), transparent 34%),
-    radial-gradient(circle at 50% 82%, rgba(126, 255, 161, 0.06), transparent 24%);
-  opacity: 0.82;
-  animation: evil-layout-pulse 14s ease-in-out infinite;
-}
-
-@keyframes evil-layout-drift {
-  0% {
-    transform: translate3d(-1.5%, -1%, 0) scale(1.02);
-  }
-  50% {
-    transform: translate3d(1.2%, 1.4%, 0) scale(1.08);
-  }
-  100% {
-    transform: translate3d(2.2%, 2%, 0) scale(1.1);
-  }
-}
-
-@keyframes evil-layout-pulse {
-  0%,
-  100% {
-    opacity: 0.72;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.94;
-    transform: scale(1.04);
-  }
-}
-
-/* ─── War theme (Factions / Rankings steel-brass aesthetic) ─── */
-
-.app-shell--war {
-  background:
-    radial-gradient(circle at 50% -12%, rgba(185, 197, 207, 0.12) 0%, rgba(185, 197, 207, 0.04) 24%, transparent 56%),
-    radial-gradient(circle at 14% 18%, rgba(182, 144, 91, 0.08) 0%, transparent 28%),
-    radial-gradient(circle at 88% 14%, rgba(108, 140, 131, 0.06) 0%, transparent 26%),
-    linear-gradient(180deg, #090c10 0%, #0f1318 48%, #080a0e 100%);
-}
-
-.app-shell--war .global-nav,
-.app-shell--war .global-footer {
-  border-color: rgba(164, 176, 189, 0.16);
-  background:
-    linear-gradient(180deg, rgba(14, 18, 23, 0.94), rgba(18, 23, 29, 0.92));
-  box-shadow:
-    0 18px 36px rgba(0, 0, 0, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-.app-shell--war .global-nav::after,
-.app-shell--war .global-footer::after {
-  opacity: 1;
-  background:
-    linear-gradient(180deg, rgba(185, 197, 207, 0.08), transparent 18%, transparent 80%, rgba(182, 144, 91, 0.06)),
-    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 14px);
-}
-
-.global-nav-veil--war {
-  background:
-    radial-gradient(circle at 18% 0%, rgba(182, 144, 91, 0.14), transparent 30%),
-    radial-gradient(circle at 82% 0%, rgba(108, 140, 131, 0.08), transparent 24%),
-    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.02), transparent);
-  opacity: 0.92;
-}
-
-.app-shell--war .global-nav-shell,
-.app-shell--war .global-nav-account {
-  border-color: rgba(164, 176, 189, 0.14);
-  background:
-    linear-gradient(180deg, rgba(22, 28, 34, 0.9), rgba(14, 18, 23, 0.88));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 16px 34px rgba(0, 0, 0, 0.28);
-}
-
-.app-shell--war .nav-tab-active {
-  color: #d7e0e8;
-  border-color: rgba(182, 144, 91, 0.24);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
-    linear-gradient(180deg, rgba(40, 48, 56, 0.94), rgba(24, 30, 37, 0.94));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 14px 28px rgba(0, 0, 0, 0.32),
-    0 0 0 1px rgba(182, 144, 91, 0.06);
-}
-
-.app-shell--war .nav-tab-inactive {
-  color: #8291a0;
-  border-color: rgba(164, 176, 189, 0.14);
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(10px);
-}
-
-.app-shell--war .nav-tab-inactive:hover {
-  color: #b9c5cf;
-  border-color: rgba(182, 144, 91, 0.18);
-  background: rgba(182, 144, 91, 0.06);
-  transform: translateY(-1px);
-}
-
-.app-shell--war .nav-account-btn {
-  color: #8291a0;
-  border-color: rgba(164, 176, 189, 0.14);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.app-shell--war .nav-account-btn:hover {
-  color: #b9c5cf;
-  border-color: rgba(182, 144, 91, 0.18);
-  background: rgba(182, 144, 91, 0.06);
-}
-
-.app-shell--war .global-footer,
-.app-shell--war .global-footer .app-frame {
-  color: #8291a0;
-}
-
-.app-shell--war .global-footer-link {
-  color: #b9c5cf;
-}
-
-.app-shell--war .global-footer-link:hover {
-  color: #d4ba8e;
-}
-
-.app-shell--war .global-nav :is(.chip),
-.app-shell--war .global-footer :is(.chip) {
-  color: #b4c0cc;
-  border-color: rgba(164, 176, 189, 0.18);
-  background: rgba(185, 197, 207, 0.06);
-}
-
-.war-layout-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.war-layout-layer--mist {
-  background:
-    radial-gradient(circle at 50% 4%, rgba(185, 197, 207, 0.1), transparent 28%),
-    radial-gradient(circle at 18% 24%, rgba(182, 144, 91, 0.06), transparent 22%),
-    radial-gradient(circle at 82% 18%, rgba(108, 140, 131, 0.06), transparent 18%);
-  filter: blur(34px);
-  opacity: 0.84;
-  animation: war-layout-drift 28s ease-in-out infinite alternate;
-}
-
-.war-layout-layer--veil {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 12%, transparent 84%, rgba(255, 255, 255, 0.018)),
-    radial-gradient(circle at 50% 108%, rgba(182, 144, 91, 0.06), transparent 28%);
+    linear-gradient(150deg, rgba(255, 255, 255, 0.02) 12%, transparent 12.5%, transparent 87%, rgba(255, 255, 255, 0.02) 87.5%, rgba(255, 255, 255, 0.02)),
+    linear-gradient(30deg, rgba(255, 255, 255, 0.012) 12%, transparent 12.5%, transparent 87%, rgba(255, 255, 255, 0.012) 87.5%, rgba(255, 255, 255, 0.012)),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.008) 2%, transparent 2%, transparent 98%, rgba(255, 255, 255, 0.008) 98%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.012), rgba(0, 0, 0, 0.18));
+  background-size: 48px 84px, 48px 84px, 48px 84px, 100% 100%;
+  background-position: 0 0, 24px 42px, 0 0, 0 0;
   opacity: 0.74;
+  pointer-events: none;
+  z-index: 0;
 }
 
-.war-layout-layer--glow {
+/* Atmospheric radial glow overlay */
+.app-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
   background:
-    radial-gradient(circle at 50% 0%, rgba(185, 197, 207, 0.08), transparent 34%),
-    radial-gradient(circle at 50% 82%, rgba(182, 144, 91, 0.04), transparent 24%);
-  opacity: 0.78;
-  animation: war-layout-pulse 16s ease-in-out infinite;
+    radial-gradient(circle at 18% 0%, rgba(190, 202, 214, 0.08), transparent 28%),
+    radial-gradient(circle at 82% 18%, rgba(255, 255, 255, 0.03), transparent 24%),
+    linear-gradient(115deg, transparent 18%, rgba(255, 255, 255, 0.03) 31%, transparent 44%),
+    linear-gradient(295deg, transparent 56%, rgba(255, 255, 255, 0.016) 67%, transparent 76%);
+  mix-blend-mode: screen;
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 0;
 }
 
-@keyframes war-layout-drift {
-  0% {
-    transform: translate3d(-1.2%, -0.8%, 0) scale(1.02);
-  }
-  50% {
-    transform: translate3d(1%, 1.2%, 0) scale(1.06);
-  }
-  100% {
-    transform: translate3d(1.8%, 1.6%, 0) scale(1.08);
-  }
+.app-content {
+  position: relative;
+  z-index: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
-@keyframes war-layout-pulse {
-  0%,
-  100% {
-    opacity: 0.68;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.88;
-    transform: scale(1.03);
-  }
+.global-footer {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid rgba(164, 176, 189, 0.16);
+  background: linear-gradient(180deg, rgba(14, 18, 23, 0.92), rgba(18, 23, 29, 0.88));
+  backdrop-filter: blur(18px);
+}
+
+.footer-link {
+  color: var(--war-steel);
+  transition: color 220ms ease;
+}
+
+.footer-link:hover {
+  color: var(--war-brass-light);
 }
 </style>

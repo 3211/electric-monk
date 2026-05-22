@@ -25,3 +25,6 @@ dist-ssr
 
 # Environment variables
 .env
+
+# Reference stash (scrap parts from pre-refactor)
+reference/

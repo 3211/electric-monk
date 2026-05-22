@@ -1,5 +1,6 @@
 import { ref, computed, reactive } from 'vue'
 import { supabase } from '@/lib/supabase'
+import { usePlayerState } from '@/composables/usePlayerState'
 
 /**
  * useAuth Composable (Singleton Pattern)
@@ -7,8 +8,6 @@ import { supabase } from '@/lib/supabase'
  * Handles user authentication via Google OAuth or Email/Password.
  * Manages session state, loading states, and auth errors.
  * Uses a shared state pattern so all components see the same auth state.
- *
- * @returns {Object} Authentication state and methods
  */
 
 // Shared state - created once, reused by all useAuth() calls
@@ -31,20 +30,18 @@ function createAuthState() {
    * Get current session and set up auth state change listener
    */
   async function initAuth() {
-    // Prevent multiple initializations
     if (initialized.value) return
 
     try {
       isInitializing.value = true
       error.value = null
 
-      // Get initial session
       const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession()
-      
+
       if (sessionError) {
         console.warn('[useAuth] getSession returned error:', sessionError)
       }
-      
+
       session.value = currentSession
       user.value = currentSession?.user || null
 
@@ -53,10 +50,12 @@ function createAuthState() {
         async (event, newSession) => {
           session.value = newSession
           user.value = newSession?.user || null
-          
+
           if (event === 'SIGNED_OUT') {
             session.value = null
             user.value = null
+            // Flush player state so no stale data leaks into next session
+            usePlayerState().flush()
           }
         }
       )
@@ -65,7 +64,7 @@ function createAuthState() {
     } catch (err) {
       error.value = err.message
       console.error('[useAuth] Init error:', err)
-      initialized.value = true // Still mark as initialized to prevent infinite retries
+      initialized.value = true
     } finally {
       isInitializing.value = false
     }
@@ -79,7 +78,6 @@ function createAuthState() {
       loading.value = true
       error.value = null
 
-      // Build clean redirect URL - strip any hash or query params to avoid double-hash issues
       const cleanRedirectUrl = `${window.location.origin}${window.location.pathname}`
 
       const { data, error: signInError } = await supabase.auth.signInWithOAuth({
@@ -103,8 +101,6 @@ function createAuthState() {
 
   /**
    * Sign up with email and password
-   * @param {string} email
-   * @param {string} password
    */
   async function signUp(email, password) {
     try {
@@ -119,8 +115,6 @@ function createAuthState() {
 
       if (signUpError) throw signUpError
 
-      // Check if user needs to confirm email
-      // Supabase returns a user object but no session if confirmation is required
       if (data.user && !data.session) {
         needsConfirmation.value = true
       }
@@ -137,8 +131,6 @@ function createAuthState() {
 
   /**
    * Sign in with email and password
-   * @param {string} email
-   * @param {string} password
    */
   async function signIn(email, password) {
     try {
@@ -187,7 +179,6 @@ function createAuthState() {
 
   /**
    * Send password reset email
-   * @param {string} email
    */
   async function resetPassword(email) {
     try {
@@ -211,17 +202,14 @@ function createAuthState() {
   }
 
   return reactive({
-    // State
     user,
     session,
     loading,
     isInitializing,
     error,
     needsConfirmation,
-    // Computed
     isAuthenticated,
     userEmail,
-    // Methods
     initAuth,
     signInWithGoogle,
     signUp,
@@ -234,7 +222,6 @@ function createAuthState() {
 export function useAuth() {
   if (!sharedState) {
     sharedState = createAuthState()
-    // Auto-initialize on first use
     sharedState.initAuth()
   }
   return sharedState
