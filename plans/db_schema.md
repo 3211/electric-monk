@@ -108,7 +108,7 @@ Detailed usage patterns can be found in [`plans/api_reference.md`](./api_referen
 | `get_available_sects()` | — | JSONB | Returns all sects including `ip_address`, ordered by `display_order` |
 
 ---
-
+//this section doesn't belong in the db scehma and will be removed later.
 ## Future Expansions
 
 The following tables are planned for future development:
