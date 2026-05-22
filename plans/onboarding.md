@@ -2,6 +2,8 @@
 
 This document defines the interactive onboarding sequence for new players in Holy War Online.
 
+**Last updated:** 2026-05-22
+
 ---
 
 ## Technical Sequence
@@ -9,7 +11,8 @@ This document defines the interactive onboarding sequence for new players in Hol
 ```
 1. User signs up via Supabase Auth
    └─> Trigger `create_player_on_signup()` creates players row
-       (username=NULL, sect_id=NULL, onboarding_complete=false)
+       (username=NULL, ip_address=auto-assigned, sect_id=NULL, onboarding_complete=false)
+       └─> ip_address is allocated via DEFAULT call to allocate_network_address('players')
 
 2. User logs in → Terminal runs boot sequence
    └─> Client calls `get_player_status()` RPC
@@ -29,7 +32,7 @@ This document defines the interactive onboarding sequence for new players in Hol
 
 4. Interactive Sect Selection (via terminal.readLine())
    └─> Wizard displays all sects with emoji, description, principles
-   └─> RPC: `get_available_sects()`
+   └─> RPC: `get_available_sects()` (includes ip_address per sect)
    └─> Wizard prompts: "Enter sect ID >"
    └─> Validates sect_id exists in list
    └─> Edge Function: `welcome-to-hwo` (phase: generate_welcome)
@@ -55,3 +58,9 @@ The onboarding process relies on a secure Edge Function to handle AI generation 
 - `validate_username`: Checks for profanity, availability, and format.
 - `complete_onboarding`: Finalizes the player profile.
 - `generate_welcome`: Uses Venice AI to create lore-accurate entry text.
+
+---
+
+## Network Identity
+
+Every player is assigned a unique IPv4 address (`ip_address`) at signup via the `allocate_network_address()` function. This IP is the player's network identity within the game world — used for routing, attacks, and faction interactions. Similarly, each sect has a static IP address defined in the seed data.

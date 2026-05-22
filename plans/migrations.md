@@ -2,16 +2,16 @@
 
 This document tracks the evolution of the Holy War Online database and defines the standards for re-runnable migrations.
 
+**Last updated:** 2026-05-22
+
 ---
 
 ## Migration History
 
 | Series | Files | Status | Description |
 |--------|-------|--------|-------------|
-| Genesis | `genesis_0.sql` | **ACTIVE** | Core player & sects foundation |
-| Genesis Hotfix | `genesis_0_hotfix.sql` | **ACTIVE** | GRANT permissions + fix `get_available_sects()` ORDER BY |
-| Genesis Hotfix | `genesis_0_hotfix_1.sql` | **ACTIVE** | Service role GRANTs for Edge Functions |
-| Revelations | `revelations_0.sql` | **ACTIVE** | Faction seed data (four core sects) |
+| Genesis | `genesis_0.sql` | **ACTIVE** | Core network registry, player & sects foundation with IP allocation |
+| Revelations | `revelations_0.sql` | **ACTIVE** | Faction seed data (four core sects with network identities) |
 
 Run all `.sql` files in lexicographic order to rebuild the full database from scratch.
 
@@ -21,9 +21,7 @@ Run all `.sql` files in lexicographic order to rebuild the full database from sc
 >
 > On Supabase, Edge Functions using the `SERVICE_ROLE_KEY` operate under the PostgreSQL `service_role` role — **not** `supabase_admin`, `postgres`, or `authenticator`.
 >
-> **The bug:** `genesis_0_hotfix.sql` initially granted permissions to `supabase_admin`, `postgres`, and `authenticator`, which did **not** cover Edge Functions. This caused `permission denied for table players` errors at runtime.
->
-> **The fix:** [`genesis_0_hotfix_1.sql`](../supabase/migrations/genesis_0_hotfix_1.sql) grants `ALL ON TABLE` and `EXECUTE ON FUNCTION` explicitly to `service_role`. Any future migration that creates new tables or functions **must** include `GRANT` statements for `service_role` if Edge Functions need to access them.
+> `genesis_0.sql` includes explicit `GRANT ALL ON TABLE` and `GRANT EXECUTE ON FUNCTION` statements for `service_role`, `supabase_admin`, `postgres`, and `authenticated` roles. Any future migration that creates new tables or functions **must** include `GRANT` statements for `service_role` if Edge Functions need to access them.
 >
 > **Pattern for new tables/functions:**
 > ```sql
