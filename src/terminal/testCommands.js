@@ -2,23 +2,6 @@ import { useAuth } from '@/composables/useAuth'
 import { supabase } from '@/lib/supabase'
 import { runBootSequence } from './boot'
 
-/**
- * Global terminal commands — auth, navigation, and utility.
- *
- * Onboarding is handled interactively via src/terminal/onboarding.js,
- * not through /commands. This keeps the onboarding flow isolated and
- * ensures /commands are blocked during readLine sessions.
- *
- * Each command entry:
- *   help   — single-line description (first sentence used in /help summary)
- *   usage  — (optional) usage string shown by /help [command]
- *   handler(args, ctx) → returns null | [{ text, class }]
- *
- * ctx contains: { terminal, tab, registry }
- *
- * To add a new global command, add an entry here and it will
- * automatically appear in /help.
- */
 export function testCommands() {
   return {
 //--

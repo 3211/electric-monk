@@ -1,5 +1,6 @@
 import { buildGlobalCommands } from './commands'
 import { buildTabCommands } from './tabCommands'
+import { testCommands } from './testCommands'
 
 /**
  * Build the full command registry for a single terminal instance.
@@ -17,6 +18,7 @@ export function buildCommandRegistry(context) {
   const registry = {
     ...buildGlobalCommands(),
     ...buildTabCommands(),
+    ...testCommands(),
   }
 
   // Inject registry into context so /help can enumerate all commands
