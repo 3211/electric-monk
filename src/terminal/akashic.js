@@ -61,9 +61,8 @@ export const BabelAPI = {
  */
 export async function scoreDecryptedText(fullText, uniqueWords, sourceWordsOrdered, computeSpeed = 0) {
   let score = 0;
-  let totalMatches = 0;
   const overlay = Array(BabelAPI.PAGE_LENGTH).fill(0);
-  let foundInstances = [];
+  let rawInstances = [];
 
   // Simulate compute delay if requested
   if (computeSpeed > 0) {
@@ -78,50 +77,76 @@ export async function scoreDecryptedText(fullText, uniqueWords, sourceWordsOrder
       const prevChar = pos > 0 ? fullText[pos - 1] : ' ';
       const nextChar = pos + word.length < fullText.length ? fullText[pos + word.length] : ' ';
       
-      // A character is a boundary if it is NOT a letter, hyphen, or apostrophe.
       const isBoundary = (ch) => !/[a-z'-]/.test(ch);
       const isSpaced = isBoundary(prevChar) && isBoundary(nextChar);
       
-      const isValid = isSpaced || (word.length >= 3);
+      // If it's a short word, it MUST be spaced to even be considered
+      const isValid = word.length >= 4 || isSpaced;
 
       if (isValid) {
-        foundInstances.push({ word: word, start: pos, end: pos + word.length });
-        for (let i = 0; i < word.length; i++) overlay[pos + i] = 1; // Mark as hit
-        totalMatches++;
+        rawInstances.push({ word: word, start: pos, end: pos + word.length });
       }
       pos = fullText.indexOf(word, pos + 1);
     }
   }
 
-  // Sort by position for proximity multiplier
-  foundInstances.sort((a, b) => a.start - b.start);
+  // Sort by position
+  rawInstances.sort((a, b) => a.start - b.start);
+
+  // Coherence Filter & Sequence Analysis
+  let finalMatches = [];
   let sequenceStreak = 1;
 
-  for (let i = 0; i < foundInstances.length; i++) {
-    const current = foundInstances[i];
-    let wordScore = current.word.length + 1; // 1 pt per char + 1 pt per valid word
-
+  for (let i = 0; i < rawInstances.length; i++) {
+    const current = rawInstances[i];
+    let isCoherent = current.word.length >= 4; // Long words are inherently coherent
     let distMult = 1;
+    let seqBonus = 1;
+
     if (i > 0) {
-      const prev = foundInstances[i-1];
+      const prev = rawInstances[i-1];
       const dist = current.start - prev.end;
       
-      // Proximity Multiplier: Up to x10 if very close
+      // Proximity check
       if (dist >= 0 && dist < 100) {
-        distMult = Math.max(1, 10 - Math.floor(dist/10)); 
+        distMult = Math.max(1, 10 - Math.floor(dist/10));
       }
 
-      // Sequence Multiplier: Check if it followed the prev word in the original source
-      const prevSourceIdx = sourceWordsOrdered.indexOf(prev.word);
-      if (prevSourceIdx !== -1 && prevSourceIdx + 1 < sourceWordsOrdered.length && sourceWordsOrdered[prevSourceIdx + 1] === current.word) {
+      // Sequence check (Check if current word follows prev word in source text)
+      // We look for any instance in the source where current word follows prev word
+      let isFollower = false;
+      let searchIdx = sourceWordsOrdered.indexOf(prev.word);
+      while (searchIdx !== -1 && searchIdx + 1 < sourceWordsOrdered.length) {
+        if (sourceWordsOrdered[searchIdx + 1] === current.word) {
+          isFollower = true;
+          break;
+        }
+        searchIdx = sourceWordsOrdered.indexOf(prev.word, searchIdx + 1);
+      }
+
+      if (isFollower) {
         sequenceStreak++;
+        seqBonus = sequenceStreak;
+        isCoherent = true; // Short word becomes coherent if part of a sequence
+        
+        // Retrospectively mark the previous word as coherent if it was short
+        if (prev.word.length < 4 && !finalMatches.includes(prev)) {
+           finalMatches.push(prev);
+           for (let j = prev.start; j < prev.end; j++) overlay[j] = 1;
+        }
       } else {
         sequenceStreak = 1;
       }
     }
 
-    score += (wordScore * distMult * sequenceStreak);
+    if (isCoherent) {
+      finalMatches.push(current);
+      for (let j = current.start; j < current.end; j++) overlay[j] = 1;
+      
+      let wordScore = current.word.length + 1;
+      score += (wordScore * distMult * seqBonus);
+    }
   }
 
-  return { score, matches: foundInstances, overlay };
+  return { score, matches: finalMatches, overlay };
 }
