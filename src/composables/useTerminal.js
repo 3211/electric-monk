@@ -27,7 +27,7 @@ export function useTerminal(id = 'default') {
   /** Context injected by buildRegistry(). Used by command handlers. */
   let context = null
 
-  /** Active interactive session (readLine/readKey promise resolvers) — MUST be reactive */
+  /** Active interactive session (readLine/readKey/readMenu promise resolvers) — MUST be reactive */
   const activeSession = ref(null)
 
   /** Event listeners registry */
@@ -56,10 +56,6 @@ export function useTerminal(id = 'default') {
 
   // ── Output Methods ──
 
-  /**
-   * Write a line to the terminal buffer.
-   * @param {string|object} input — plain string or { text, class, id }
-   */
   function write(input) {
     if (typeof input === 'string') {
       lines.push({ text: input, class: '', id: null })
@@ -73,37 +69,21 @@ export function useTerminal(id = 'default') {
     emit('lineAdded', lines[lines.length - 1])
   }
 
-  /**
-   * Write multiple lines at once.
-   */
   function writeAll(inputArr) {
     for (const item of inputArr) {
       write(item)
     }
   }
 
-  /**
-   * Clear the terminal buffer.
-   */
   function clear() {
     lines.length = 0
     emit('clear')
   }
 
-  /**
-   * Get a line by its ID.
-   * @param {string} lineId
-   * @returns {object|null}
-   */
   function getLine(lineId) {
     return lines.find(l => l.id === lineId) || null
   }
 
-  /**
-   * Update a line by its ID. Creates the line if it doesn't exist.
-   * @param {string} lineId
-   * @param {string|object} content — plain string or { text, class }
-   */
   function updateLine(lineId, content) {
     const existing = lines.findIndex(l => l.id === lineId)
     if (existing >= 0) {
@@ -114,7 +94,6 @@ export function useTerminal(id = 'default') {
         if (content.class !== undefined) lines[existing].class = content.class
       }
     } else {
-      // Create new line with this ID
       if (typeof content === 'string') {
         lines.push({ text: content, class: '', id: lineId })
       } else {
@@ -128,10 +107,6 @@ export function useTerminal(id = 'default') {
     emit('lineUpdated', { id: lineId, line: lines[existing >= 0 ? existing : lines.length - 1] })
   }
 
-  /**
-   * Remove a line by its ID.
-   * @param {string} lineId
-   */
   function removeLine(lineId) {
     const idx = lines.findIndex(l => l.id === lineId)
     if (idx >= 0) {
@@ -140,12 +115,6 @@ export function useTerminal(id = 'default') {
     }
   }
 
-  /**
-   * Typewriter effect — queues characters one by one.
-   * @param {string} text — text to animate
-   * @param {object} options — { speed: ms per char, class: css class, id }
-   * @returns {Promise<void>}
-   */
   function typewrite(text, options = {}) {
     const { speed = 28, class: cls = '', id: lineId = null } = options
     return new Promise((resolve) => {
@@ -168,10 +137,6 @@ export function useTerminal(id = 'default') {
     })
   }
 
-  /**
-   * Queue multiple typewriter sequences sequentially.
-   * @param {(string|object)[]} entries
-   */
   async function typewriteSequence(entries) {
     for (const entry of entries) {
       if (typeof entry === 'string') {
@@ -182,7 +147,7 @@ export function useTerminal(id = 'default') {
     }
   }
 
-  // ── Progress Bars ──
+  // ── Progress Bars & Spinners ──
 
   function showProgress(progressId, percent, label, options = {}) {
     const bar = _buildProgressBar(percent, label)
@@ -202,17 +167,8 @@ export function useTerminal(id = 'default') {
     return label ? `${label} [${bar}] ${pctStr}%` : `[${bar}] ${pctStr}%`
   }
 
-  // ── Classic Windows-style Spinner ──
-
   const SPINNER_FRAMES = ['|', '/', '-', '\\']
 
-  /**
-   * Start a spinning animation on a line.
-   * @param {string} spinnerId
-   * @param {string} label — optional text before spinner
-   * @param {object} options — { speed: ms per frame, class }
-   * @returns {function} — call to stop the spinner
-   */
   function startSpinner(spinnerId, label = '', options = {}) {
     const { speed = 80, class: cls = 'term-steel' } = options
     let frameIndex = 0
@@ -233,13 +189,8 @@ export function useTerminal(id = 'default') {
     }
   }
 
-  // ── Interactive Input (readLine / readKey) ──
+  // ── Interactive Input (readLine / readKey / readMenu) ──
 
-  /**
-   * Wait for the user to type a line and press Enter.
-   * @param {string} promptText — optional prompt to display
-   * @returns {Promise<string>}
-   */
   function readLine(promptText = '') {
     return new Promise((resolve) => {
       emit('focusRequest')
@@ -255,11 +206,6 @@ export function useTerminal(id = 'default') {
     })
   }
 
-  /**
-   * Wait for the user to press any key.
-   * @param {string} message — optional message to display
-   * @returns {Promise<string>} — the key pressed
-   */
   function readKey(message = '') {
     return new Promise((resolve) => {
       emit('focusRequest')
@@ -276,28 +222,100 @@ export function useTerminal(id = 'default') {
   }
 
   /**
-   * Check if an interactive session is active.
+   * Triggers an interactive blocking menu block.
+   * @param {string} promptText - The title above the menu
+   * @param {Array<string|object>} options - Array of strings or { label, value } objects
+   * @returns {Promise<string|any>}
    */
+  function readMenu(promptText = '', options = []) {
+    return new Promise((resolve) => {
+      emit('focusRequest')
+      if (promptText) {
+        write({ text: promptText, class: 'term-prompt' })
+      }
+
+      // Generate stable line IDs for each menu option
+      const lineIds = options.map((_, i) => `menu-opt-${Date.now()}-${i}`)
+
+      activeSession.value = {
+        type: 'readMenu',
+        options,
+        selectedIndex: 0,
+        lineIds,
+        resolve,
+      }
+
+      _renderMenu()
+      emit('sessionStart', { type: 'readMenu' })
+    })
+  }
+
+  /** Internally rewrites the menu lines based on selectedIndex */
+  function _renderMenu() {
+    const session = activeSession.value
+    if (!session || session.type !== 'readMenu') return
+
+    session.options.forEach((opt, idx) => {
+      const isSelected = idx === session.selectedIndex
+      const label = typeof opt === 'string' ? opt : opt.label
+      
+      const prefix = isSelected ? '  > ' : '    '
+      const cls = isSelected ? 'term-ally' : 'term-dim'
+
+      updateLine(session.lineIds[idx], {
+        text: `${prefix}${label}`,
+        class: cls
+      })
+    })
+  }
+
+  /**
+   * Catches intercepted menu key presses from the UI window
+   */
+  function handleInteractiveKey(key) {
+    if (!activeSession.value) return false
+
+    if (activeSession.value.type === 'readMenu') {
+      const session = activeSession.value
+      
+      if (key === 'ArrowUp') {
+        session.selectedIndex = (session.selectedIndex - 1 + session.options.length) % session.options.length
+        _renderMenu()
+        return true
+      } 
+      else if (key === 'ArrowDown') {
+        session.selectedIndex = (session.selectedIndex + 1) % session.options.length
+        _renderMenu()
+        return true
+      } 
+      else if (key === 'Enter') {
+        const selected = session.options[session.selectedIndex]
+        const result = typeof selected === 'string' ? selected : selected.value
+        
+        // Clean up the interactive menu block to save vertical space
+        session.lineIds.forEach(id => removeLine(id))
+        
+        // Output the final selection statically so it remains in history
+        const label = typeof selected === 'string' ? selected : (selected.label || selected.value)
+        write({ text: `  > Selected: ${label}`, class: 'term-ally' })
+
+        session.resolve(result)
+        activeSession.value = null
+        emit('sessionEnd', { type: 'readMenu' })
+        return true
+      }
+    }
+    return false
+  }
+
   function hasActiveSession() {
     return activeSession.value !== null
   }
 
-  /**
-   * Canonical "get user input" entry point.
-   * Emits focusRequest so the UI layer can scroll-to-bottom and
-   * focus the textarea if this terminal was the last focused window.
-   * Delegates to readLine for the actual prompt.
-   *
-   * @param {string} prompt - Prompt text to display
-   * @returns {Promise<string>} - User input (trimmed)
-   */
   async function getInput(prompt) {
     return (await readLine(prompt)).trim()
   }
 
-  /**
-   * End the current interactive session.
-   */
   function endSession() {
     if (activeSession.value) {
       emit('sessionEnd', { type: activeSession.value.type })
@@ -305,22 +323,12 @@ export function useTerminal(id = 'default') {
     }
   }
 
-  // ── Prompt ──
-
-  /**
-   * Generate the prompt string for the current location.
-   * Format:  /root >
-   */
   function getPrompt() {
     return `${location.value} >`
   }
 
   // ── Command Processing ──
 
-  /**
-   * Build the command registry for this terminal instance.
-   * Must be called after creation but before the first user input.
-   */
   function buildRegistry(ctx = {}) {
     context = {
       terminal: instance,
@@ -330,9 +338,6 @@ export function useTerminal(id = 'default') {
     return registry
   }
 
-  /**
-   * Print the welcome banner. Call after buildRegistry().
-   */
   function startup() {
     writeAll([
       { text: '  Welcome to Holy War Online. Type /help for help.', class: 'term-brass' },
@@ -340,18 +345,12 @@ export function useTerminal(id = 'default') {
     ])
   }
 
-  /**
-   * Handle raw input from the user (called on Enter or keypress).
-   * @param {string} input
-   * @returns {boolean} — true if input was handled by a session, false if processed as command
-   */
   function handleInput(input) {
     if (activeSession.value) {
       const session = activeSession.value
       activeSession.value = null
 
       if (session.type === 'readLine') {
-        // Echo the input if there was a prompt
         if (session.prompt) {
           write({ text: input, class: 'term-text' })
         }
@@ -367,17 +366,10 @@ export function useTerminal(id = 'default') {
     return false
   }
 
-  /**
-   * Process a raw command string from the input line.
-   */
   async function processCommand(raw) {
     const trimmed = (raw || '').trim()
 
-    // RE-ENTRY GUARD: if already processing a command (and not in an interactive
-    // session), silently ignore. This prevents command queuing / double-execution.
     if (processingCommand.value && !activeSession.value) return
-
-    // Check if an interactive session is active
     if (activeSession.value) {
       handleInput(trimmed)
       return
@@ -385,19 +377,12 @@ export function useTerminal(id = 'default') {
 
     if (!trimmed) return
 
-    // Block input while this command resolves
     processingCommand.value = true
-
-    // Echo the command with prompt
     write({ text: `${getPrompt()} ${trimmed}`, class: 'term-prompt' })
-
-    // Add to history
     history.push(trimmed)
     historyIndex.value = history.length
-
     emit('command', { command: trimmed })
 
-    // Commands must start with /
     if (!trimmed.startsWith('/')) {
       write({
         text: `  ${trimmed} not recognized, type /help for help.`,
@@ -407,19 +392,13 @@ export function useTerminal(id = 'default') {
       return
     }
 
-    // Parse: drop the leading /, split on whitespace
     const parts = trimmed.slice(1).split(/\s+/)
     const cmd = parts[0].toLowerCase()
     const args = parts.slice(1)
 
-    // Lazy-fallback: build a default registry if none was injected
-    if (!registry) {
-      buildRegistry()
-    }
-
+    if (!registry) buildRegistry()
     const handler = registry[cmd]
     
-    // If the command exists BUT is flagged as hidden, treat it as non-existent
     if (handler && !handler.hidden) {
       try {
         const result = await handler.handler(args, context)
@@ -439,8 +418,6 @@ export function useTerminal(id = 'default') {
     processingCommand.value = false
   }
 
-  // ── History Navigation ──
-
   function navigateHistory(direction) {
     if (direction === 'up') {
       if (historyIndex.value > 0) {
@@ -459,11 +436,7 @@ export function useTerminal(id = 'default') {
     return null
   }
 
-  // ── Lifecycle ──
-
-  function unsubscribe() {
-    // TODO: wire up Supabase channel unsubscriptions here
-  }
+  function unsubscribe() {}
 
   // ── Public API ──
 
@@ -477,6 +450,7 @@ export function useTerminal(id = 'default') {
     processingCommand,
     busy,
     activeProgressBars,
+    activeSession, // Exposed for Vue template reactivity 
 
     // Output
     write,
@@ -490,7 +464,7 @@ export function useTerminal(id = 'default') {
     updateLine,
     removeLine,
 
-    // Progress
+    // Progress & Spinners
     showProgress,
     removeProgress,
     startSpinner,
@@ -498,6 +472,8 @@ export function useTerminal(id = 'default') {
     // Interactive
     readLine,
     readKey,
+    readMenu,
+    handleInteractiveKey,
     getInput,
     hasActiveSession,
     handleInput,

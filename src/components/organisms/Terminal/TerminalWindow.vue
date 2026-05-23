@@ -21,8 +21,12 @@
         <span v-else class="term-line-spacer">&nbsp;</span>
       </div>
 
-      <!-- Input line (inline with content) -->
-      <div class="term-input-row" ref="inputRowRef">
+      <!-- Input line (inline with content). Drops opacity to 0 during menus to hide cursor seamlessly -->
+      <div 
+        class="term-input-row" 
+        ref="inputRowRef" 
+        :style="{ opacity: terminal.activeSession?.type === 'readMenu' ? 0 : 1 }"
+      >
         <span class="term-prompt">{{ terminal.getPrompt() }}</span>
         <textarea
           ref="inputRef"
@@ -59,18 +63,12 @@ const inputRef = ref(null)
 const inputValue = ref('')
 const isFocused = ref(false)
 
-/** Vue component instance — used to check if this terminal's DOM owns activeElement */
 const instance = getCurrentInstance()
 
-/**
- * Block user input when:
- * - Manually flagged as busy (boot sequence, client scripts), OR
- * - A typewriter animation is running, OR
- * - A command is processing AND no interactive session (readLine/readKey) is waiting
- */
 const isBlocked = computed(() => {
   if (props.terminal.busy) return true
   if (props.terminal.isTyping) return true
+  // Note: We DO NOT block during 'readMenu' so the textarea can still capture Arrow/Enter keystrokes!
   if (props.terminal.processingCommand && !props.terminal.hasActiveSession()) return true
   return false
 })
@@ -85,23 +83,16 @@ function hasSelection() {
 }
 
 function handleMouseUp(e) {
-  // Let the user select/copy text without stealing focus
   if (hasSelection()) return
-  // Don't focus if clicking a link-like element or interactive child
   if (e.target.closest('a, button, [role="button"]')) return
   focusInput()
 }
 
 function handleDblClick() {
-  // After double-click selects a word, don't steal focus
   if (hasSelection()) return
   focusInput()
 }
 
-/**
- * Auto-resize the textarea to fit its content, allowing multi-line
- * input that properly pushes down elements below.
- */
 function autoResize() {
   const el = inputRef.value
   if (!el) return
@@ -110,13 +101,21 @@ function autoResize() {
 }
 
 function handleKeydown(e) {
+  // 1. Intercept keystrokes if an interactive block/menu is active
+  if (props.terminal.activeSession?.type === 'readMenu') {
+    e.preventDefault() // Stop characters from typing invisibly into the textarea
+    if (['ArrowUp', 'ArrowDown', 'Enter'].includes(e.key)) {
+      props.terminal.handleInteractiveKey(e.key)
+    }
+    return // Skip normal command processing completely
+  }
+
+  // 2. Normal text entry and history logic
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
-    // Guard: don't process if blocked
     if (isBlocked.value) return
     const cmd = inputValue.value
     inputValue.value = ''
-    // Reset textarea height
     if (inputRef.value) {
       inputRef.value.style.height = 'auto'
     }
@@ -133,7 +132,6 @@ function handleKeydown(e) {
     nextTick(() => autoResize())
   } else if (e.key === 'Tab') {
     e.preventDefault()
-    // Tab completion — future feature
   } else if (e.key === 'l' && e.ctrlKey) {
     e.preventDefault()
     props.terminal.clear()
@@ -148,37 +146,25 @@ function scrollToBottom() {
   })
 }
 
-// Auto-scroll on new lines or input changes
 watch(
   () => [props.terminal.lines.length, inputValue.value],
-  () => {
-    nextTick(() => scrollToBottom())
-  },
+  () => { nextTick(() => scrollToBottom()) },
   { deep: true }
 )
 
-// Also scroll when input row content changes (wrapping)
 watch(
   () => inputRowRef.value?.offsetHeight,
-  () => {
-    nextTick(() => scrollToBottom())
-  }
+  () => { nextTick(() => scrollToBottom()) }
 )
 
-// Typewriter effect: scroll on every character typed
 watch(
   () => {
     const lastLine = props.terminal.lines[props.terminal.lines.length - 1]
     return lastLine?.text?.length ?? 0
   },
-  () => {
-    nextTick(() => scrollToBottom())
-  }
+  () => { nextTick(() => scrollToBottom()) }
 )
 
-// When the terminal becomes unblocked (onboarding done, command finished, typewriter
-// ended, etc.), scroll to bottom and focus the input — but only if this terminal
-// was the last-active window. Universal catch-all for "ready to type" state.
 watch(
   isBlocked,
   (blocked, wasBlocked) => {
@@ -191,40 +177,25 @@ watch(
   }
 )
 
-// ── Focus & Scroll Handlers ──
-
-/**
- * Check if the currently focused element belongs to THIS terminal instance.
- * Returns false if focus is on body, null, or in a different terminal tab/window.
- */
 function isThisTerminalFocused() {
   const el = document.activeElement
-  if (!el || el === document.body) return true // nothing focused = safe to claim
-  // If the active element is inside this component's DOM tree, it's ours
+  if (!el || el === document.body) return true 
   if (instance && instance.vnode && instance.vnode.el) {
     return instance.vnode.el.contains(el)
   }
   return true
 }
 
-/**
- * Focus the input textarea — but only if this terminal was the last-focused window.
- * Prevents stealing focus from another terminal tab or external element.
- */
 function safeFocusInput() {
   if (!isThisTerminalFocused()) return
   focusInput()
 }
 
-/** Cleanup handles for event listeners */
 const cleanupFns = []
 
 onMounted(() => {
-  // Initial auto-focus
   focusInput()
 
-  // When anything requests focus (readLine, readKey, getInput):
-  // scroll to bottom unconditionally, then focus if this terminal was last active.
   cleanupFns.push(
     props.terminal.on('focusRequest', () => {
       nextTick(() => {
@@ -234,7 +205,6 @@ onMounted(() => {
     })
   )
 
-  // Belt-and-suspenders: scroll to bottom whenever a session starts.
   cleanupFns.push(
     props.terminal.on('sessionStart', () => {
       nextTick(() => scrollToBottom())
@@ -408,6 +378,7 @@ onUnmounted(() => {
   white-space: pre-wrap;
   word-break: break-all;
   margin-top: 0.25rem;
+  transition: opacity 100ms ease; /* Smooth fade when entering menu mode */
 }
 
 .term-input-row .term-prompt {

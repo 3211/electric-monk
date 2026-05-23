@@ -6,7 +6,7 @@ export function testCommands() {
   return {
 //--
     'test2': {
-      help: 'Demo: Interactive terminal features (spinner, progress bar, readLine).',
+      help: 'Demo: Interactive terminal features (spinner, progress bar, readLine, menu).',
       usage: '/test2',
       async handler(args, ctx) {
         const { terminal } = ctx
@@ -42,6 +42,16 @@ export function testCommands() {
         terminal.updateLine('status-line', { text: '  Status: Complete!', class: 'term-ally' })
         await new Promise(r => setTimeout(r, 500))
         terminal.removeLine('status-line')
+
+        // Demo 5: Interactive Arrow Key Menu
+        terminal.write({ text: '  Interactive Menu demo:', class: 'term-brass' })
+        const selection = await terminal.readMenu('  Select a starting class:', [
+          { label: 'Cyber-Knight', value: 'knight' },
+          { label: 'Neon-Mage', value: 'mage' },
+          { label: 'Data-Rogue', value: 'rogue' },
+          { label: 'Sys-Admin', value: 'admin' }
+        ])
+        terminal.write({ text: `  System registered class choice: [${selection.toUpperCase()}]`, class: 'term-steel' })
 
         return [{ text: '  Demo complete.', class: 'term-brass' }]
       },
