@@ -62,6 +62,7 @@ export function buildGlobalCommands() {
     clear: {
       help: 'Clear the terminal buffer.',
       handler(_args, ctx) {
+        ctx.tab.setTitle("Terminal")
         ctx.terminal.clear()
         return null // no output — buffer is just emptied
       },
@@ -103,7 +104,7 @@ export function buildGlobalCommands() {
       usage: '/test-interactive',
       async handler(args, ctx) {
         const { terminal } = ctx
-
+        ctx.tab.setTitle("Test")
         // Demo 1: Classic Windows-style spinner
         terminal.write({ text: '  Starting spinner demo...', class: 'term-brass' })
         const stopSpinner = terminal.startSpinner('demo-spinner', '  Loading', { speed: 80, class: 'term-steel' })
@@ -147,7 +148,9 @@ export function buildGlobalCommands() {
       async handler(args, ctx) {
         const { terminal } = ctx
         terminal.clear()
+        ctx.tab.setTitle("Booting HWO")
         await runBootSequence(terminal, 3500)
+        ctx.tab.setTitle("Welcome to HWO")
         return null
       },
     },
@@ -157,6 +160,7 @@ export function buildGlobalCommands() {
       usage: '/status',
       async handler(args, ctx) {
         const { terminal } = ctx
+        ctx.tab.setTitle("Status")
         const { data, error } = await supabase.rpc('get_player_status')
         
         if (error || !data) {
@@ -183,8 +187,8 @@ export function buildGlobalCommands() {
       help: 'List available sects to join.',
       usage: '/list-sects',
       async handler(args, ctx) {
-        const { terminal } = ctx
-        
+        const { terminal } = ctx        
+        ctx.tab.setTitle("Sects")
         const { data: sects, error } = await supabase.rpc('get_available_sects')
         
         if (error || !sects) {

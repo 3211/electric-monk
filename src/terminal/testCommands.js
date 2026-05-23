@@ -9,8 +9,8 @@ export function testCommands() {
       help: 'Demo: Interactive terminal features (spinner, progress bar, readLine, menu).',
       usage: '/test2',
       async handler(args, ctx) {
-        const { terminal, tab } = ctx
-
+        const { terminal, tab } = ctx     
+        ctx.tab.setTitle("Test 2")
         // Demo 1: Classic Windows-style spinner
         terminal.write({ text: '  Starting spinner demo...', class: 'term-brass' })
         const stopSpinner = terminal.startSpinner('demo-spinner', '  Loading', { speed: 80, class: 'term-steel' })
