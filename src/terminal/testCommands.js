@@ -57,7 +57,7 @@ export function testCommands() {
         if (tab && tab.newTab) {
            terminal.write({ text: '  Opening process in new tab...', class: 'term-brass' })
            await new Promise(r => setTimeout(r, 1000))
-           tab.newTab()
+           tab.newTab('/help')
         }
 
         return [{ text: '  Demo complete.', class: 'term-brass' }]

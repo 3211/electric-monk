@@ -135,7 +135,7 @@ function _injectTabContext(term, paneId, tabId) {
     tab: {
       paneId,
       tabId,
-      newTab: () => handleNewTab({ paneId }),
+      newTab: (initialCommand) => handleNewTab({ paneId, initialCommand }),
       closeThis: () => handleCloseTab({ paneId, tabId }),
       closeOthers: () => {
         const pane = findPane(layout, paneId)
@@ -215,6 +215,12 @@ function handleNewTab({ paneId }) {
   activeIds.set(paneId, tabId)
   activeTerminalId.value = termId
   _injectTabContext(term, paneId, tabId)
+  if (initialCommand) {
+    // A tiny timeout ensures the DOM has rendered the new tab first
+    setTimeout(() => {
+      term.processCommand(initialCommand)
+    }, 50)
+  }
 }
 
 function handleCloseTab({ paneId, tabId }) {
