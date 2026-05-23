@@ -2,7 +2,7 @@ import { generateFibonacci } from './fibonacci'
 import { BabelAPI, scoreDecryptedText } from './akashic'
 import bibleUrl from '@/assets/bible_stripped.txt?url'
 
-const GLITCH_GLYPHS = "!@#$%^&*()░▒▓█▄▀╔╗╚╝║═╬┼";
+const GLITCH_GLYPHS = "!@#$%^&*([|/\\:;_-.,])░▒▓█▄▀╔╗╚╝║═╬┼";
 
 export function buildAkashicCommands() {
   const scannerState = { running: false };
@@ -93,7 +93,7 @@ async function runScanner(ctx, scannerState) {
     const blockId = (seedIndex + 1).toString().padStart(2, '0')
     const address = seed.toString()
     
-    terminal.write({ text: `  [BLK-${blockId}] Locating Address: ${address.substring(0, 16)}...`, class: 'term-brass' })
+    terminal.write({ text: `  [BLK-${blockId}] Locating Address: 0x${address.substring(0, 16)}...`, class: 'term-brass' })
     
     const progBar = terminal.createProgressBar(`prog-${blockId}`, {
       width: 20,
