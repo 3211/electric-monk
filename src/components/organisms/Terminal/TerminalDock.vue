@@ -114,43 +114,47 @@ function createTerminal() {
 }
 
 function _injectTabContext(term, paneId, tabId) {
-  term.buildRegistry({
-    tab: {
-      paneId,
-      tabId,
-      newTab: (initialCommand) => handleNewTab({ paneId, initialCommand }),
-      closeThis: () => handleCloseTab({ paneId, tabId }),
-      closeOthers: () => {
-        const pane = findPane(layout, paneId)
-        if (!pane) return
-        const toClose = pane.tabs.filter((t) => t.id !== tabId)
-        for (const t of toClose) {
-          handleCloseTab({ paneId, tabId: t.id })
-        }
-      },
-      closeAll: () => {
-        const allPanes = []
-        ;(function collect(node) {
-          if (node.type === 'pane') allPanes.push(node)
-          else if (node.children) node.children.forEach(collect)
-        })(layout)
-        for (const p of allPanes) {
-          const tabs = [...p.tabs]
-          for (const t of tabs) {
-            handleCloseTab({ paneId: p.id, tabId: t.id })
-          }
-        }
-      },
-      setTitle: (title) => {
-        const pane = findPane(layout, paneId)
-        if (!pane) return
-        const tab = pane.tabs.find(t => t.id === tabId)
-        if (tab) {
-          tab.title = title
-        }
-      },
+  const tabContext = {
+    paneId,
+    tabId,
+    newTab: (initialCommand) => handleNewTab({ paneId, initialCommand }),
+    closeThis: () => handleCloseTab({ paneId, tabId }),
+    closeOthers: () => {
+      const pane = findPane(layout, paneId)
+      if (!pane) return
+      const toClose = pane.tabs.filter((t) => t.id !== tabId)
+      for (const t of toClose) {
+        handleCloseTab({ paneId, tabId: t.id })
+      }
     },
-  })
+    closeAll: () => {
+      const allPanes = []
+      ;(function collect(node) {
+        if (node.type === 'pane') allPanes.push(node)
+        else if (node.children) node.children.forEach(collect)
+      })(layout)
+      for (const p of allPanes) {
+        const tabs = [...p.tabs]
+        for (const t of tabs) {
+          handleCloseTab({ paneId: p.id, tabId: t.id })
+        }
+      }
+    },
+    setTitle: (title) => {
+      const pane = findPane(layout, paneId)
+      if (!pane) return
+      const tab = pane.tabs.find(t => t.id === tabId)
+      if (tab) {
+        tab.title = title
+      }
+    },
+  }
+
+  term.buildRegistry({ tab: tabContext })
+  
+  // Expose directly on the instance to guarantee easy access from external JS systems
+  term.tab = tabContext
+
   term.startup()
 }
 

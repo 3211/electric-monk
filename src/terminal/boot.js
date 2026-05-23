@@ -118,9 +118,8 @@ const OK_CLASSES = ['term-ally', 'term-success', 'term-brass', 'term-gilded', 't
 
 export async function runBootSequence(terminal, duration = 3500) {
   const startTime = Date.now();
-  console.log(terminal);
-  if (terminal.registry?.tab?.setTitle) {
-    terminal.registry.tab.setTitle("booting HWO");
+  if (terminal.tab?.setTitle) {
+    terminal.tab.setTitle("booting HWO");
   }
   // ASCII Art Header — DO NOT MODIFY
   const bootLogo = [
