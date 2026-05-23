@@ -152,9 +152,13 @@ export function buildAkashicCommands() {
 
              // Shift lines up
              for (let i = 0; i < windowSize - 1; i++) {
-                const prevLine = terminal.getLine(lineIds[i+1]);
+                const prevLine = terminal.lines.find(l => l.id === lineIds[i+1]);
                 if (prevLine) {
-                   terminal.updateLine(lineIds[i], { text: prevLine.text, class: prevLine.class });
+                   terminal.updateLine(lineIds[i], {
+                     text: prevLine.text,
+                     class: prevLine.class,
+                     segments: prevLine.segments ? JSON.parse(JSON.stringify(prevLine.segments)) : undefined
+                   });
                 }
              }
 
@@ -164,71 +168,80 @@ export function buildAkashicCommands() {
              // Horizontal scanner effect with glitch trail and active bottom row glitching
              for (let scanPos = 0; scanPos < chunkSize; scanPos += 4) {
                let segments = [];
-               let lastIdx = 0;
+               let currentClass = null;
+               let currentText = "";
                
-               // The unscanned portion of the line constantly glitches
-               const unscannedGlitched = glitchString(targetStr.substring(scanPos + 4), 0.9);
+               const pushSegment = (char, cls) => {
+                 if (currentClass === cls) {
+                   currentText += char;
+                 } else {
+                   if (currentText.length > 0) {
+                     segments.push({ text: currentText, class: currentClass });
+                   }
+                   currentClass = cls;
+                   currentText = char;
+                 }
+               };
 
                for (let c = 0; c < chunkSize; c++) {
-                 const charIdx = startOffset + c;
-                 const isHit = overlay[charIdx] === 1;
+                 const isHit = overlay[startOffset + c] === 1;
                  const actualChar = targetStr[c];
                  
                  if (c >= scanPos && c < scanPos + 4) {
                     // The Scanner Head
-                    if (c > lastIdx) {
-                      segments.push({ text: targetStr.substring(lastIdx, c), class: 'term-dim' });
-                    }
-                    segments.push({ text: actualChar !== ' ' ? actualChar : '█', class: 'term-ally' });
-                    lastIdx = c + 1;
+                    pushSegment(actualChar !== ' ' ? actualChar : '█', 'term-ally');
                  } else if (c < scanPos && c >= scanPos - 12) {
                     // Glitch Trail right behind the scanner
-                    if (c > lastIdx) {
-                      segments.push({ text: targetStr.substring(lastIdx, c), class: 'term-dim' });
-                    }
-                    segments.push({ text: glitchString(actualChar, 0.6), class: 'term-enemy' });
-                    lastIdx = c + 1;
+                    pushSegment(glitchString(actualChar, 0.6), 'term-enemy');
                  } else if (c < scanPos) {
                     // Fully resolved trail
                     if (isHit) {
-                       if (c > lastIdx) {
-                         segments.push({ text: targetStr.substring(lastIdx, c), class: 'term-steel' });
-                       }
-                       segments.push({ text: actualChar, class: 'term-success term-bold' });
-                       lastIdx = c + 1;
+                       pushSegment(actualChar, 'term-ally');
+                    } else {
+                       pushSegment(actualChar, 'term-steel');
                     }
                  } else {
                     // Unscanned Glitching Future
-                    if (c > lastIdx) {
-                       // We handle the whole unscanned block at once
-                       segments.push({ text: unscannedGlitched, class: 'term-enemy' });
-                       lastIdx = chunkSize;
-                       break;
-                    }
+                    pushSegment(glitchString(actualChar, 0.9), 'term-enemy');
                  }
                }
-               
-               if (lastIdx < chunkSize) {
-                 segments.push({ text: targetStr.substring(lastIdx), class: 'term-dim' });
+               if (currentText.length > 0) {
+                 segments.push({ text: currentText, class: currentClass });
                }
 
                // Create a dummy text string of correct length to satisfy updateLine's text requirement
-               terminal.updateLine(currentLineId, { text: " ".repeat(chunkSize), segments: segments });
+               terminal.updateLine(currentLineId, { text: targetStr, segments: segments });
                await sleep(25); // Horizontal scan speed
              }
 
              // Final resolution for the line
              let finalSegments = [];
-             let lastIdx = 0;
+             let currentClass = null;
+             let currentText = "";
+             
+             const pushFinalSegment = (char, cls) => {
+               if (currentClass === cls) {
+                 currentText += char;
+               } else {
+                 if (currentText.length > 0) {
+                   finalSegments.push({ text: currentText, class: currentClass });
+                 }
+                 currentClass = cls;
+                 currentText = char;
+               }
+             };
+
              for (let c = 0; c < chunkSize; c++) {
                 const isHit = overlay[startOffset + c] === 1;
                 if (isHit) {
-                  if (c > lastIdx) finalSegments.push({ text: targetStr.substring(lastIdx, c), class: 'term-steel' });
-                  finalSegments.push({ text: targetStr[c], class: 'term-success term-bold' });
-                  lastIdx = c + 1;
+                  pushFinalSegment(targetStr[c], 'term-ally');
+                } else {
+                  pushFinalSegment(targetStr[c], 'term-steel');
                 }
              }
-             if (lastIdx < chunkSize) finalSegments.push({ text: targetStr.substring(lastIdx), class: 'term-steel' });
+             if (currentText.length > 0) {
+               finalSegments.push({ text: currentText, class: currentClass });
+             }
              
              // Occasional Glitch during scroll
              if (Math.random() < 0.05) {
