@@ -342,6 +342,14 @@ export async function runOnboarding(terminal, player) {
       { text: '', class: '' },
     ])
 
+    // After completely finishing onboarding, the player record will have their real IP.
+    // Fetch it and update the terminal prompt.
+    const { data: statusData } = await supabase.rpc('get_player_status')
+    if (statusData && statusData.ip_address) {
+      usePlayerState().hydrate(statusData)
+      terminal.setLocation(statusData.ip_address)
+    }
+
     terminal.busy = false
 
     // Force terminal scroll calculation once layout shifts (tab bar unhides)

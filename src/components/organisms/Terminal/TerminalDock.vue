@@ -79,6 +79,9 @@ onMounted(() => {
           onboardingComplete.value = true
         } else {
           onboardingComplete.value = true
+          if (playerState.ipAddress.value) {
+            terminal.setLocation(playerState.ipAddress.value)
+          }
           terminal.writeAll([
             { text: '', class: '' },
             { text: '  Welcome to Holy War Online. Type /help for help.', class: 'term-brass' },
@@ -154,6 +157,11 @@ function _injectTabContext(term, paneId, tabId) {
   
   // Expose directly on the instance to guarantee easy access from external JS systems
   term.tab = tabContext
+
+  const ps = usePlayerState()
+  if (ps.ipAddress.value) {
+    term.setLocation(ps.ipAddress.value)
+  }
 
   term.startup()
 }

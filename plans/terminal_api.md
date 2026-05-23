@@ -14,6 +14,7 @@ The terminal is managed via the `useTerminal` composable (`src/composables/useTe
 - `lines`: Reactive array of line objects `{ text, class, id }`.
 - `busy`: Boolean. When true, user input is typically blocked (except for interactive sessions).
 - `activeSession`: Reactive object containing the current `readLine`, `readKey`, or `readMenu` state.
+- `location`: Ref string representing the current environment or IP address.
 
 ---
 
@@ -47,6 +48,9 @@ Updates an existing line by its ID. If the ID doesn't exist, it creates a new li
 
 ### `removeLine(lineId)`
 Removes a line from the buffer by its ID.
+
+### `setLocation(newLocation)`
+Updates the terminal's location state, which changes the prompt display (e.g. `/[newLocation]>`). Default location is `0.0.0.0`.
 
 ---
 

@@ -13,7 +13,7 @@ import { buildCommandRegistry } from '@/terminal/index'
 export function useTerminal(id = 'default') {
   // ── Reactive State ──
   const lines = reactive([])
-  const location = ref('/.')
+  const location = ref('0.0.0.0')
   const history = reactive([])
   const historyIndex = ref(-1)
   const isTyping = ref(false)
@@ -589,7 +589,11 @@ export function useTerminal(id = 'default') {
   }
 
   function getPrompt() {
-    return `${location.value} >`
+    return `/${location.value}>`
+  }
+
+  function setLocation(newLocation) {
+    location.value = newLocation
   }
 
   // ── Command Processing ──
@@ -748,6 +752,7 @@ export function useTerminal(id = 'default') {
 
     // Prompt
     getPrompt,
+    setLocation,
 
     // Commands
     buildRegistry,

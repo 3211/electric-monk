@@ -22,6 +22,7 @@ function createPlayerState() {
   // ── Computed Conveniences ──
 
   const username = computed(() => data.username || null)
+  const ipAddress = computed(() => data.ip_address || null)
   const sectId = computed(() => data.sect_id || null)
   const sectName = computed(() => data.sect_name || null)
   const sectEmoji = computed(() => data.sect_emoji || null)
@@ -101,6 +102,7 @@ function createPlayerState() {
     data,
     // Computed conveniences
     username,
+    ipAddress,
     sectId,
     sectName,
     sectEmoji,
