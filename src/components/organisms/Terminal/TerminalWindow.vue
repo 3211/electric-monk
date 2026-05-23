@@ -1,84 +1,127 @@
 <template>
   <div class="term-window" @mouseup="handleMouseUp" @dblclick="handleDblClick">
-    <!-- Scanline overlay -->
-    <div class="term-scanlines" aria-hidden="true"></div>
-    <!-- Subtle CRT flicker -->
-    <div class="term-flicker" aria-hidden="true"></div>
+    <!-- Immersive CRT screen wrapper that subjects both screen and scanlines to the ripple warp -->
+    <div class="term-screen">
+      <!-- Scanline overlay -->
+      <div class="term-scanlines" aria-hidden="true"></div>
+      <!-- Subtle CRT flicker -->
+      <div class="term-flicker" aria-hidden="true"></div>
 
-    <!-- Terminal content area (scrollable, includes input) -->
-    <div class="term-content" ref="contentRef">
-      <!-- Output lines -->
-      <div
-        v-for="(line, i) in terminal.lines"
-        :key="i"
-        class="term-line"
-        :class="[
-          line.segments ? '' : (line.class || ''),
-          { 'term-line--typing': line._typing }
-        ]"
-      >
-        <template v-if="line.segments">
-          <span
-            v-for="(segment, idx) in line.segments"
-            :key="idx"
-            class="term-line-text"
-            :class="segment.class || line.class || ''"
-          >
-            <template v-for="(token, tIdx) in tokenize(segment.text)" :key="tIdx">
-              <span v-if="token.isSpace" class="term-space">{{ token.text }}</span>
-              <span v-else class="term-word">
-                <span
-                  v-for="(char, cIdx) in graphemeChars(token.text)"
-                  :key="cIdx"
-                  class="char"
-                >{{ char }}</span>
-              </span>
-            </template>
-          </span>
-        </template>
-        <template v-else-if="line.text">
-          <span class="term-line-text">
-            <template v-for="(token, tIdx) in tokenize(line.text)" :key="tIdx">
-              <span v-if="token.isSpace" class="term-space">{{ token.text }}</span>
-              <span v-else class="term-word">
-                <span
-                  v-for="(char, cIdx) in graphemeChars(token.text)"
-                  :key="cIdx"
-                  class="char"
-                >{{ char }}</span>
-              </span>
-            </template>
-          </span>
-        </template>
-        <span v-else class="term-line-spacer">&nbsp;</span>
-      </div>
+      <!-- Terminal content area (scrollable, includes input) -->
+      <div class="term-content" ref="contentRef">
+        <!-- Output lines -->
+        <div
+          v-for="(line, i) in terminal.lines"
+          :key="i"
+          class="term-line"
+          :class="[
+            line.segments ? '' : (line.class || ''),
+            { 'term-line--typing': line._typing }
+          ]"
+        >
+          <template v-if="line.segments">
+            <span
+              v-for="(segment, idx) in line.segments"
+              :key="idx"
+              class="term-line-text"
+              :class="segment.class || line.class || ''"
+            >
+              <template v-for="(token, tIdx) in tokenize(segment.text)" :key="tIdx">
+                <span v-if="token.isSpace" class="term-space">{{ token.text }}</span>
+                <span v-else class="term-word">
+                  <span
+                    v-for="(char, cIdx) in graphemeChars(token.text)"
+                    :key="cIdx"
+                    class="char"
+                  >{{ char }}</span>
+                </span>
+              </template>
+            </span>
+          </template>
+          <template v-else-if="line.text">
+            <span class="term-line-text">
+              <template v-for="(token, tIdx) in tokenize(line.text)" :key="tIdx">
+                <span v-if="token.isSpace" class="term-space">{{ token.text }}</span>
+                <span v-else class="term-word">
+                  <span
+                    v-for="(char, cIdx) in graphemeChars(token.text)"
+                    :key="cIdx"
+                    class="char"
+                  >{{ char }}</span>
+                </span>
+              </template>
+            </span>
+          </template>
+          <span v-else class="term-line-spacer">&nbsp;</span>
+        </div>
 
-      <!-- Input line (inline with content). Drops opacity to 0 during menus to hide cursor seamlessly -->
-      <div 
-        class="term-input-row" 
-        ref="inputRowRef" 
-        :style="{ opacity: terminal.activeSession?.type === 'readMenu' ? 0 : 1 }"
-      >
-        <span class="term-prompt">{{ terminal.getPrompt() }}</span>
-        <textarea
-          ref="inputRef"
-          v-model="inputValue"
-          class="term-input"
-          :class="{ 'term-input--blocked': isBlocked }"
-          :disabled="isBlocked"
-          :placeholder="isBlocked ? 'Please wait...' : ''"
-          rows="1"
-          spellcheck="false"
-          autocomplete="off"
-          autocapitalize="off"
-          :inputmode="terminal.activeSession?.type === 'readMenu' ? 'numeric' : 'text'"
-          @keydown="handleKeydown"
-          @input="autoResize"
-          @focus="isFocused = true"
-          @blur="isFocused = false"
-        ></textarea>
+        <!-- Input line (inline with content) -->
+        <div 
+          class="term-input-row" 
+          ref="inputRowRef" 
+          :style="{ opacity: terminal.activeSession?.type === 'readMenu' ? 0 : 1 }"
+        >
+          <span class="term-prompt">{{ terminal.getPrompt() }}</span>
+          <textarea
+            ref="inputRef"
+            v-model="inputValue"
+            class="term-input"
+            :class="{ 'term-input--blocked': isBlocked }"
+            :disabled="isBlocked"
+            :placeholder="isBlocked ? 'Please wait...' : ''"
+            rows="1"
+            spellcheck="false"
+            autocomplete="off"
+            autocapitalize="off"
+            :inputmode="terminal.activeSession?.type === 'readMenu' ? 'numeric' : 'text'"
+            @keydown="handleKeydown"
+            @input="autoResize"
+            @focus="isFocused = true"
+            @blur="isFocused = false"
+          ></textarea>
+        </div>
       </div>
     </div>
+
+    <!-- Invisible SVG filter definition for CRT diagonal wave ripple -->
+    <svg class="term-ripple-svg" aria-hidden="true" width="0" height="0" style="position: absolute; pointer-events: none;">
+      <defs>
+        <filter id="crt-ripple" x="0" y="0" width="100%" height="100%">
+          <!-- Generate a soft, organic wave noise layout -->
+          <feTurbulence 
+            type="turbulence" 
+            baseFrequency="0.008 0.006" 
+            numOctaves="1" 
+            result="noise" 
+          />
+          <!-- Offset noise diagonally to simulate waves sweeping from bottom-left to top-right -->
+          <feOffset result="diagonalWarp">
+            <animate 
+              attributeName="dx" 
+              from="0" 
+              to="-500" 
+              dur="25s" 
+              repeatCount="indefinite" 
+            />
+            <animate 
+              attributeName="dy" 
+              from="0" 
+              to="500" 
+              dur="25s" 
+              repeatCount="indefinite" 
+            />
+          </feOffset>
+          <!-- Apply soft, subtle deflection based on our animated diagonal coordinate shifts -->
+          <feDisplacementMap 
+            in="SourceGraphic" 
+            in2="diagonalWarp" 
+            scale="3" 
+            xChannelSelector="R" 
+            yChannelSelector="G" 
+          />
+        </filter>
+      </defs>
+    </svg>
   </div>
 </template>
 
@@ -300,6 +343,19 @@ onUnmounted(() => {
   text-shadow: 0 0 8px rgba(212, 163, 89, 0.6);
 }
 
+/* ─── Screen Wrapper with Raster Distortion ─── */
+.term-screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  filter: url('#crt-ripple');
+  will-change: filter;
+  transform: translateZ(0); /* Force GPU rasterization for smooth animation performance */
+}
+
 /* ─── Scanline Overlay ─── */
 .term-scanlines {
   position: absolute;
@@ -391,7 +447,6 @@ onUnmounted(() => {
 }
 
 /* Unbreakable word block to force native browser wrapping at word boundaries */
-/* FIX: Changed from inline-block to inline so the layout grid can split */
 .term-line .term-word {
   display: inline-block;
   max-width: 100%;
