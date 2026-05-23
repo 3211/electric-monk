@@ -371,8 +371,7 @@ onUnmounted(() => {
 /* ─── Line Styles ─── */
 .term-line {
   white-space: pre-wrap;
-  word-break: break-word;     /* Allows normal words to wrap at space boundaries */
-  overflow-wrap: break-word;  /* Breaks unbreakable strings if they hit the edge */
+  word-break: normal;
 }
 
 .term-line-text {
@@ -394,8 +393,10 @@ onUnmounted(() => {
 /* Unbreakable word block to force native browser wrapping at word boundaries */
 /* FIX: Changed from inline-block to inline so the layout grid can split */
 .term-line .term-word {
-  display: inline;
+  display: inline-block;
+  max-width: 100%;
   white-space: pre-wrap;
+  vertical-align: top; 
 }
 
 /* Standard breakable space to maintain monospace grid consistency */
