@@ -61,21 +61,6 @@ function getPropheticFragment(minWords = 1, maxWords = 10) {
   return cachedBibleWords.slice(start, start + count).join(' ');
 }
 
-/**
- * Glitch a string by randomly replacing characters with noise symbols.
- */
-function glitchText(text, intensity = 0.2) {
-  const glitchChars = '!@#$%^&*░▒▓█▄▀╔╗╚╝║═╬┼┤├┴└┘┐┌─│';
-  return text.split('').map(char => {
-    // Keep spaces intact to preserve visual word boundaries
-    if (char === ' ') return ' ';
-    if (Math.random() < intensity) {
-      return glitchChars[Math.floor(Math.random() * glitchChars.length)];
-    }
-    return char;
-  }).join('');
-}
-
 /** Random integer in [min, max] inclusive. */
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -179,77 +164,65 @@ export async function runBootSequence(terminal, duration = 3500) {
   // ── Procedural boot message loop ──
   for (let cycles = 0; cycles < targetCycles; cycles++) {
     const uid = Math.random().toString(36).substring(2, 9);
-    
+
     // 1. [INIT] line
     const initMsg = randomChoice(INIT_MESSAGES);
     terminal.write({ text: `  [INIT] ${initMsg}`, class: 'term-dim' });
-    
+
     const progId = `prog-${uid}`;
     const msgId = `msg-${uid}`;
-    
+
+    // Create a stateful progress bar controller (width 10, brass-colored)
+    const bar = terminal.createProgressBar(progId, {
+      width: 10,
+      class: 'term-brass',
+    });
+
     // Roll for an error scenario (25% chance)
     const isError = Math.random() < 0.25;
     const totalSteps = 10;
     const errorStep = isError ? randomInt(2, 8) : totalSteps + 1; // +1 means it never matches
-    
+
     // 2. Render Progress Bar Incrementally
     for (let i = 0; i <= totalSteps; i++) {
       if (i === errorStep) break;
-      
-      const pct = i * 10;
-      const bar = '█'.repeat(i) + '░'.repeat(totalSteps - i);
-      // Display yellow (term-brass) loading bar
-      terminal.updateLine(progId, { text: `  [${bar}] ${pct}%`, class: 'term-brass' });
+      bar.update(i * 10);
       await sleep(randomInt(20, 60));
     }
-    
+
     if (isError) {
-      const pct = errorStep * 10;
-      const bar = '█'.repeat(errorStep) + '░'.repeat(totalSteps - errorStep);
-      
-      // Stop and turn the bar RED
-      terminal.updateLine(progId, { text: `  [${bar}] ${pct}%`, class: 'term-enemy' });
+      // Stop and turn the bar RED at the error point
+      bar.update(null, { class: 'term-enemy' });
       await sleep(150);
-      
+
       const pureText = getPropheticFragment(2, 8);
-      let currentText = glitchText(pureText, 0.75); // Heavily corrupted
-      
-      // Output glitched [ERR] message
-      terminal.updateLine(msgId, { text: `  [ERR]  ${currentText}`, class: 'term-enemy' });
-      
-      // Start recovery spinner
+
+      // Start recovery spinner alongside the purification
       const spinId = `spin-${uid}`;
       const stopSpinner = terminal.startSpinner(spinId, '  Purifying payload...', { speed: 80, class: 'term-steel' });
-      
-      // De-corrupt the text progressively
-      const recoverySteps = 6;
-      for (let r = 0; r < recoverySteps; r++) {
-        await sleep(150);
-        let nextText = '';
-        for (let c = 0; c < pureText.length; c++) {
-          // Keep pure text chars, randomly fix corrupted chars. Force fix all on the last step.
-          if (currentText[c] !== pureText[c] && (Math.random() < 0.4 || r === recoverySteps - 1)) {
-            nextText += pureText[c];
-          } else {
-            nextText += currentText[c];
-          }
-        }
-        currentText = nextText;
-        terminal.updateLine(msgId, { text: `  [ERR]  ${currentText}`, class: 'term-enemy' });
-      }
-      
+
+      // Animate the line from glitched [ERR] → pure [OK] using the terminal API
+      await terminal.purifyLine(msgId, pureText, {
+        glitchPrefix: '  [ERR]  ',
+        purePrefix: '  [OK]   ',
+        glitchClass: 'term-enemy',
+        pureClass: randomChoice(OK_CLASSES),
+        intensity: 0.75,
+        steps: 6,
+        stepDelay: 150,
+        fixChance: 0.4,
+      });
+
       // Stop spinner once recovered
       stopSpinner();
       await sleep(100);
-      
+
       // Turn progress bar full GREEN
-      terminal.updateLine(progId, { text: `  [██████████] 100%`, class: 'term-ally' });
-      // Convert to [OK]
-      terminal.updateLine(msgId, { text: `  [OK]   ${pureText}`, class: randomChoice(OK_CLASSES) });
+      bar.finish();
 
     } else {
       // Success branch: Finish progress bar (GREEN)
-      terminal.updateLine(progId, { text: `  [██████████] 100%`, class: 'term-ally' });
+      bar.finish();
       const pureText = getPropheticFragment(2, 8);
       terminal.updateLine(msgId, { text: `  [OK]   ${pureText}`, class: randomChoice(OK_CLASSES) });
     }

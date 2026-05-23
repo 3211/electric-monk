@@ -9,39 +9,65 @@ export function testCommands() {
       help: 'Demo: Interactive terminal features (spinner, progress bar, readLine, menu).',
       usage: '/test2',
       async handler(args, ctx) {
-        const { terminal, tab } = ctx     
+        const { terminal, tab } = ctx
         ctx.tab.setTitle("Test 2")
+        const sleep = ms => new Promise(r => setTimeout(r, ms))
+
         // Demo 1: Classic Windows-style spinner
         terminal.write({ text: '  Starting spinner demo...', class: 'term-brass' })
         const stopSpinner = terminal.startSpinner('demo-spinner', '  Loading', { speed: 80, class: 'term-steel' })
-
-        // Wait 2 seconds
-        await new Promise(r => setTimeout(r, 2000))
+        await sleep(2000)
         stopSpinner()
 
-        // Demo 2: Progress bar with live updates
-        terminal.write({ text: '  Progress bar demo:', class: 'term-brass' })
+        // Demo 2: Legacy showProgress (still works!)
+        terminal.write({ text: '  Legacy progress bar (showProgress):', class: 'term-brass' })
         for (let i = 0; i <= 100; i += 10) {
           terminal.showProgress('demo-progress', i, '  Downloading')
-          await new Promise(r => setTimeout(r, 150))
+          await sleep(150)
         }
         terminal.removeProgress('demo-progress')
 
-        // Demo 3: readLine interaction
+        // Demo 3: Stateful createProgressBar with puppetry
+        terminal.write({ text: '  Stateful progress bar (createProgressBar):', class: 'term-brass' })
+        const bar = terminal.createProgressBar('demo-bar', {
+          width: 20,
+          class: 'term-steel',
+          label: '  Processing',
+          format: '{label} [{bar}] {percent}%',
+        })
+
+        // Increment normally
+        for (let i = 0; i <= 50; i += 10) {
+          bar.update(i)
+          await sleep(200)
+        }
+
+        // ERROR! Change color mid-flight
+        bar.update(null, { class: 'term-enemy', label: '  CORRUPTED' })
+        await sleep(800)
+
+        // Recovery — purify a line while the bar is red
+        await terminal.purifyLine('demo-purify', 'PAYLOAD RECOVERED', {
+          glitchPrefix: '  [ERR]  ',
+          purePrefix: '  [OK]   ',
+          glitchClass: 'term-enemy',
+          pureClass: 'term-ally',
+          intensity: 0.8,
+          steps: 5,
+          stepDelay: 120,
+        })
+
+        // Back to normal — finish green
+        bar.finish({ class: 'term-ally', label: '  Restored' })
+        await sleep(500)
+        bar.remove()
+        terminal.removeLine('demo-purify')
+
+        // Demo 4: readLine interaction
         terminal.write({ text: '  Interactive input demo:', class: 'term-brass' })
         terminal.write({ text: '  What is your name?', class: 'term-text' })
         const name = await terminal.readLine('  > ')
         terminal.write({ text: `  Nice to meet you, ${name}!`, class: 'term-ally' })
-
-        // Demo 4: updateLine manipulation
-        terminal.write({ text: '  Line manipulation demo:', class: 'term-brass' })
-        terminal.updateLine('status-line', { text: '  Status: Initializing...', class: 'term-dim' })
-        await new Promise(r => setTimeout(r, 500))
-        terminal.updateLine('status-line', { text: '  Status: Processing...', class: 'term-text' })
-        await new Promise(r => setTimeout(r, 500))
-        terminal.updateLine('status-line', { text: '  Status: Complete!', class: 'term-ally' })
-        await new Promise(r => setTimeout(r, 500))
-        terminal.removeLine('status-line')
 
         // Demo 5: Interactive Arrow Key Menu
         terminal.write({ text: '  Interactive Menu demo:', class: 'term-brass' })
@@ -56,7 +82,7 @@ export function testCommands() {
         // Demo 6: Tab Control
         if (tab && tab.newTab) {
            terminal.write({ text: '  Opening process in new tab...', class: 'term-brass' })
-           await new Promise(r => setTimeout(r, 1000))
+           await sleep(1000)
            tab.newTab('/help')
         }
 

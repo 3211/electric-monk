@@ -76,6 +76,12 @@ export function useTerminal(id = 'default') {
   }
 
   function clear() {
+    // Tear down any active progress bar controllers so they don't ghost back
+    for (const id of Object.keys(activeProgressBars)) {
+      const bar = activeProgressBars[id]
+      bar._destroy()
+      delete activeProgressBars[id]
+    }
     lines.length = 0
     emit('clear')
   }
@@ -149,22 +155,163 @@ export function useTerminal(id = 'default') {
 
   // ── Progress Bars & Spinners ──
 
-  function showProgress(progressId, percent, label, options = {}) {
-    const bar = _buildProgressBar(percent, label)
-    updateLine(progressId, { text: bar, class: options.class || 'term-steel' })
+  /**
+   * Build a progress bar string from a template.
+   *
+   * @param {number} percent — 0–100
+   * @param {object} [options]
+   * @param {number} [options.width=32]    — character width of the bar
+   * @param {string} [options.label='']    — prefix label
+   * @param {string} [options.format='{label} [{bar}] {percent}%'] — template with {label}, {bar}, {percent}
+   * @param {object} [options.chars]       — { filled: '█', empty: '░' }
+   * @returns {string}
+   */
+  function _buildProgressBar(percent, options = {}) {
+    const {
+      width = 32,
+      label = '',
+      format = '{label} [{bar}] {percent}%',
+      chars = { filled: '█', empty: '░' },
+    } = options
+
+    const p = Math.min(100, Math.max(0, percent))
+    const filledLen = Math.round((p / 100) * width)
+    const bar = chars.filled.repeat(filledLen) + chars.empty.repeat(width - filledLen)
+
+    return format
+      .replace('{label}', label)
+      .replace('{bar}', bar)
+      .replace('{percent}', String(p).padStart(3, ' '))
   }
 
+  /**
+   * Quick-fire progress bar — update a single line by ID.
+   * Backward-compatible with the old 3-arg signature.
+   *
+   * @param {string} progressId — unique line ID
+   * @param {number} percent    — 0–100
+   * @param {string} [label]   — prefix text (legacy arg)
+   * @param {object} [options] — { class, width, format, chars, label }
+   */
+  function showProgress(progressId, percent, label, options = {}) {
+    // Merge legacy `label` string into options when both exist
+    const merged = { ...options }
+    if (label && typeof label === 'string') merged.label = label
+    const text = _buildProgressBar(percent, merged)
+    updateLine(progressId, { text, class: merged.class || 'term-steel' })
+  }
+
+  /**
+   * Remove a progress bar line by ID.
+   * Also cleans up any tracked controller.
+   */
   function removeProgress(progressId) {
+    if (activeProgressBars[progressId]) {
+      activeProgressBars[progressId]._destroy()
+      delete activeProgressBars[progressId]
+    }
     removeLine(progressId)
   }
 
-  function _buildProgressBar(percent, label = '') {
-    const width = 32
-    const filled = Math.round((Math.min(100, Math.max(0, percent)) / 100) * width)
-    const empty = width - filled
-    const bar = '█'.repeat(filled) + '░'.repeat(empty)
-    const pctStr = String(percent).padStart(3, ' ')
-    return label ? `${label} [${bar}] ${pctStr}%` : `[${bar}] ${pctStr}%`
+  /**
+   * Create a stateful progress bar controller.
+   *
+   * Returns an object that owns its terminal line and provides
+   * update(), finish(), and remove() methods. The controller
+   * is zombie-proof: if the line is cleared from the terminal
+   * buffer, further updates become no-ops.
+   *
+   * @param {string} id — unique line ID
+   * @param {object} [initialOptions]
+   * @param {number} [initialOptions.width=32]
+   * @param {string} [initialOptions.label='']
+   * @param {string} [initialOptions.format='  [{bar}] {percent}%']
+   * @param {object} [initialOptions.chars={ filled: '█', empty: '░' }]
+   * @param {string} [initialOptions.class='term-steel']
+   * @returns {{ update, finish, remove, id }}
+   */
+  function createProgressBar(id, initialOptions = {}) {
+    const defaults = {
+      width: 32,
+      label: '',
+      format: '  [{bar}] {percent}%',
+      chars: { filled: '█', empty: '░' },
+      class: 'term-steel',
+    }
+
+    let state = {
+      percent: 0,
+      options: { ...defaults, ...initialOptions },
+    }
+
+    let alive = true
+
+    /** Internal: write current state to the terminal line. No-op if zombie. */
+    const render = () => {
+      if (!alive) return
+      if (!getLine(id)) {
+        // Line was cleared externally — mark as dead so we stop ghosting
+        alive = false
+        delete activeProgressBars[id]
+        return
+      }
+      const text = _buildProgressBar(state.percent, state.options)
+      updateLine(id, { text, class: state.options.class })
+    }
+
+    const controller = {
+      id,
+
+      /**
+       * Update the progress bar.
+       *
+       * @param {number|null} percent — 0–100, or null to keep current
+       * @param {object} [newOptions] — override any option (class, label, format, width, chars)
+       */
+      update(percent, newOptions = {}) {
+        if (!alive) return
+        if (percent !== null && percent !== undefined) {
+          state.percent = Math.min(100, Math.max(0, percent))
+        }
+        state.options = { ...state.options, ...newOptions }
+        render()
+      },
+
+      /**
+       * Jump to 100% and apply success styling.
+       *
+       * @param {object} [finalOptions] — override class etc. for the completed bar
+       */
+      finish(finalOptions = {}) {
+        if (!alive) return
+        state.percent = 100
+        state.options = { ...state.options, class: 'term-ally', ...finalOptions }
+        render()
+      },
+
+      /**
+       * Remove the progress bar line from the terminal entirely.
+       */
+      remove() {
+        if (!alive) return
+        alive = false
+        delete activeProgressBars[id]
+        removeLine(id)
+      },
+
+      /** @private Internal cleanup — called by clear() or removeProgress(). */
+      _destroy() {
+        alive = false
+      },
+    }
+
+    // Register so clear() can tear us down
+    activeProgressBars[id] = controller
+
+    // Render the initial empty bar
+    render()
+
+    return controller
   }
 
   const SPINNER_FRAMES = ['|', '/', '-', '\\']
@@ -187,6 +334,84 @@ export function useTerminal(id = 'default') {
       clearInterval(intervalId)
       removeLine(spinnerId)
     }
+  }
+
+  // ── Text Animation ──
+
+  /**
+   * Default glitching function. Randomly replaces characters with noise symbols.
+   * Spaces are always preserved.
+   *
+   * @param {string} text — the pure text to corrupt
+   * @param {number} [intensity=0.2] — probability each char gets glitched (0–1)
+   * @returns {string} glitched text
+   */
+  function _glitchText(text, intensity = 0.2) {
+    const glitchChars = '!@#$%^&*░▒▓█▄▀╔╗╚╝║═╬┼┤├┴└┘┐┌─│'
+    return text.split('').map(char => {
+      if (char === ' ') return ' '
+      if (Math.random() < intensity) {
+        return glitchChars[Math.floor(Math.random() * glitchChars.length)]
+      }
+      return char
+    }).join('')
+  }
+
+  /**
+   * Animate a line from a glitched/corrupted state back to pure text.
+   *
+   * Displays the text as heavily corrupted, then progressively de-corrupts
+   * it over multiple steps until it matches the original. Useful for
+   * "data purification" or "decryption" visual effects.
+   *
+   * @param {string} lineId — unique line ID to animate
+   * @param {string} pureText — the final, clean text to reveal
+   * @param {object} [options]
+   * @param {string} [options.glitchPrefix='']   — prefix shown during corruption (e.g. '  [ERR]  ')
+   * @param {string} [options.purePrefix='']      — prefix shown once purified  (e.g. '  [OK]   ')
+   * @param {string} [options.glitchClass='term-enemy'] — CSS class during corruption
+   * @param {string} [options.pureClass='term-ally']    — CSS class once purified
+   * @param {number} [options.intensity=0.75]    — initial corruption intensity (0–1)
+   * @param {number} [options.steps=6]           — number of recovery steps
+   * @param {number} [options.stepDelay=150]      — ms between recovery steps
+   * @param {number} [options.fixChance=0.4]     — probability per corrupted char to fix per step
+   * @param {Function} [options.glitchFn]        — custom glitch function (text, intensity) => string
+   * @returns {Promise<void>} resolves when animation completes
+   */
+  async function purifyLine(lineId, pureText, options = {}) {
+    const {
+      glitchPrefix = '',
+      purePrefix = '',
+      glitchClass = 'term-enemy',
+      pureClass = 'term-ally',
+      intensity = 0.75,
+      steps = 6,
+      stepDelay = 150,
+      fixChance = 0.4,
+      glitchFn = _glitchText,
+    } = options
+
+    // Start fully corrupted
+    let currentText = glitchFn(pureText, intensity)
+    updateLine(lineId, { text: `${glitchPrefix}${currentText}`, class: glitchClass })
+
+    // Progressive recovery
+    for (let step = 0; step < steps; step++) {
+      await new Promise(r => setTimeout(r, stepDelay))
+      let nextText = ''
+      for (let c = 0; c < pureText.length; c++) {
+        if (currentText[c] !== pureText[c] && (Math.random() < fixChance || step === steps - 1)) {
+          nextText += pureText[c]
+        } else {
+          nextText += currentText[c]
+        }
+      }
+      currentText = nextText
+      updateLine(lineId, { text: `${glitchPrefix}${currentText}`, class: glitchClass })
+    }
+
+    // Final pure state
+    updateLine(lineId, { text: `${purePrefix}${pureText}`, class: pureClass })
   }
 
   // ── Interactive Input (readLine / readKey / readMenu) ──
@@ -467,7 +692,9 @@ export function useTerminal(id = 'default') {
     // Progress & Spinners
     showProgress,
     removeProgress,
+    createProgressBar,
     startSpinner,
+    purifyLine,
 
     // Interactive
     readLine,

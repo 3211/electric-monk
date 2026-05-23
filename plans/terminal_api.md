@@ -28,7 +28,7 @@ Appends a single line to the terminal.
 Appends multiple lines at once.
 
 ### `clear()`
-Empties the terminal buffer.
+Empties the terminal buffer and cleans up any active progress bar controllers to prevent "zombie" updates.
 
 ### `typewrite(text, options)`
 Simulates typing text character-by-character. Returns a `Promise`.
@@ -52,17 +52,39 @@ Removes a line from the buffer by its ID.
 
 ## Progress & Spinners
 
+### `createProgressBar(id, options)`
+Creates a stateful controller for a progress bar. This is the preferred way to handle "puppetry" (e.g., changing colors or labels mid-progress).
+- **Options**: `{ width: 32, label: '', format: '  [{bar}] {percent}%', class: 'term-steel', chars: { filled: '█', empty: '░' } }`
+- **Returns**: A controller object:
+  - `update(percent, newOptions)`: Update progress (0-100) or override options (like `class`).
+  - `finish(finalOptions)`: Jumps to 100% and sets class to `term-ally` by default.
+  - `remove()`: Removes the line from the terminal.
+
+### `showProgress(progressId, percent, label, options)`
+Quick-fire method to render or update a progress bar line.
+- `percent`: 0 to 100.
+- `label`: Text to display before the bar (legacy support).
+- `options`: Supports the same options as `createProgressBar`.
+
+### `removeProgress(progressId)`
+Removes the progress bar line and destroys its controller if one exists.
+
 ### `startSpinner(spinnerId, label, options)`
 Starts an interactive terminal spinner. Returns a `stop` function.
 - `options`: `{ speed: 80, class: 'term-steel' }`.
 
-### `showProgress(progressId, percent, label, options)`
-Renders or updates a progress bar.
-- `percent`: 0 to 100.
-- `label`: Text to display before the bar.
+---
 
-### `removeProgress(progressId)`
-Removes the progress bar line.
+## Text Animation
+
+### `purifyLine(lineId, pureText, options)`
+Animates a line from a "glitched" or corrupted state back to clean text.
+- `pureText`: The final target string.
+- **Options**:
+  - `glitchPrefix / purePrefix`: Text shown before the glitched/clean content.
+  - `glitchClass / pureClass`: CSS classes for the two states.
+  - `steps`: Number of recovery steps (default: 6).
+  - `stepDelay`: MS between steps (default: 150).
 
 ---
 
