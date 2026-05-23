@@ -1,5 +1,5 @@
 <template>
-  <div class="term-window" @mouseup="handleMouseUp" @dblclick="handleDblClick">
+  <div class="term-window" ref="windowRef" @mouseup="handleMouseUp" @dblclick="handleDblClick">
     <!-- Immersive CRT screen wrapper that subjects both screen and scanlines to the ripple warp -->
     <div class="term-screen">
       <!-- Scanline overlay -->
@@ -115,7 +115,7 @@
           <feDisplacementMap 
             in="SourceGraphic" 
             in2="diagonalWarp" 
-            scale="3" 
+            :scale="crtScale" 
             xChannelSelector="R" 
             yChannelSelector="G" 
           />
@@ -160,6 +160,7 @@ const props = defineProps({
   title: { type: String, default: 'Terminal' },
 })
 
+const windowRef = ref(null)
 const contentRef = ref(null)
 const inputRowRef = ref(null)
 const inputRef = ref(null)
@@ -175,16 +176,18 @@ let engineTimerId = null
 
 const GLITCH_CHARS = '!@#$%^&*()░▒▓█▄▀╔╗╚╝║═╬┼┤├┴└┘┐┌─│'
 
+const crtScale = ref(3)
+let crtDecayIntervalId = null
+
+let resizeObserver = null
+let isInitialized = false
+let lastWidth = 0
+let lastHeight = 0
+let lastPixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio : 1
+
 /**
  * Spawns a localized interference pattern that acts as a pure render mask.
  * Gracefully reverts upon expiration without mutating underlying data.
- * * @param {Object} options 
- * @param {number} options.lineIndex - Target terminal line
- * @param {number} options.startIndex - Starting character index
- * @param {number} options.span - Span of characters to cover
- * @param {number} options.intensity - Chance (0-1) of replacing a char
- * @param {number} options.speed - Speed of the scrambler (ms per reroll)
- * @param {number} options.duration - How long the glitch lasts (ms)
  */
 function spawnGlitch(options = {}) {
   const now = Date.now()
@@ -199,16 +202,69 @@ function spawnGlitch(options = {}) {
     lastTick: now,
     maskOffset: Math.floor(Math.random() * 1000)
   })
-  glitchTick.value++ // immediately register
+  glitchTick.value++
 }
 
 /**
- * Maps the live lines stream into a dynamic final presentation layout,
- * evaluating active interference masks directly against the pristine source text.
+ * Triggers a massive screen-wide physical layout distortion paired with intensive character scrambled masks.
+ */
+function triggerHardcoreScreenGlitch() {
+  if (crtDecayIntervalId) clearInterval(crtDecayIntervalId)
+
+  // Spike displacement value to aggressively warp display
+  crtScale.value = 25 + Math.random() * 15
+
+  const startTime = Date.now()
+  const duration = 500
+
+  // Linearly decay screen warp scale over time
+  crtDecayIntervalId = setInterval(() => {
+    const elapsed = Date.now() - startTime
+    if (elapsed >= duration) {
+      crtScale.value = 3
+      clearInterval(crtDecayIntervalId)
+      crtDecayIntervalId = null
+    } else {
+      const progress = elapsed / duration
+      crtScale.value = 3 + (crtScale.value - 3) * Math.pow(1 - progress, 2)
+    }
+  }, 16)
+
+  const linesCount = props.terminal.lines.length
+  if (linesCount === 0) return
+
+  // Limit viewport processing loop to the most recent 40 active lines to maintain performance
+  const startIdx = Math.max(0, linesCount - 40)
+  for (let idx = startIdx; idx < linesCount; idx++) {
+    const line = props.terminal.lines[idx]
+    if (!line || line._typing || (!line.text && !line.segments)) continue
+
+    const len = line.text ? line.text.length : line.segments.reduce((acc, s) => acc + s.text.length, 0)
+    if (len === 0) continue
+
+    const glitchLayers = Math.random() < 0.4 ? 2 : 1
+    for (let layer = 0; layer < glitchLayers; layer++) {
+      const span = Math.max(4, Math.floor(Math.random() * Math.min(len, 35)))
+      const startIndex = Math.floor(Math.random() * Math.max(1, len - span))
+
+      spawnGlitch({
+        lineIndex: idx,
+        startIndex: startIndex,
+        span: span,
+        intensity: 0.65 + Math.random() * 0.35,
+        speed: 16 + Math.random() * 24,
+        duration: 150 + Math.random() * 450
+      })
+    }
+  }
+}
+
+/**
+ * Evaluates active interference masks directly against the pristine source text.
  */
 const displayedLines = computed(() => {
   const baseLines = props.terminal.lines
-  const _tick = glitchTick.value // track reactivity
+  const _tick = glitchTick.value
   const currentGlitches = activeGlitches.value
 
   if (currentGlitches.length === 0) return baseLines
@@ -217,7 +273,6 @@ const displayedLines = computed(() => {
     const lineGlitches = currentGlitches.filter(g => g.lineIndex === idx)
     if (lineGlitches.length === 0 || line._typing) return line
 
-    // Pure mask char resolution
     const applyMaskToChar = (char, absoluteIdx) => {
       if (char === ' ' || char === '\n' || char === '\r') return { char, isGlitched: false }
       
@@ -226,7 +281,6 @@ const displayedLines = computed(() => {
 
       for (const g of lineGlitches) {
         if (absoluteIdx >= g.startIndex && absoluteIdx < g.startIndex + g.span) {
-          // Deterministic pseudo-random seed so it only flutters when maskOffset changes per tick
           const seed = absoluteIdx + g.maskOffset
           const rand1 = Math.abs(Math.sin(seed))
           const rand2 = Math.abs(Math.cos(seed))
@@ -234,14 +288,13 @@ const displayedLines = computed(() => {
           if (rand1 < g.intensity) {
             outputChar = GLITCH_CHARS[Math.floor(rand2 * GLITCH_CHARS.length)]
             isGlitched = true
-            break // Top-most overlapping glitch dictates character resolution
+            break
           }
         }
       }
       return { char: outputChar, isGlitched }
     }
 
-    // Apply to unsegmented text
     if (!line.segments && line.text) {
       let newText = ''
       let hasGlitch = false
@@ -258,7 +311,6 @@ const displayedLines = computed(() => {
       }
     }
 
-    // Apply to structured semantic segments gracefully
     if (line.segments) {
       let currentOffset = 0
       let lineHasGlitch = false
@@ -291,22 +343,27 @@ const displayedLines = computed(() => {
   })
 })
 
+function checkDpiZoom() {
+  if (typeof window === 'undefined') return
+  if (window.devicePixelRatio !== lastPixelRatio) {
+    lastPixelRatio = window.devicePixelRatio
+    triggerHardcoreScreenGlitch()
+  }
+}
+
 function startInterferenceEngine() {
   let nextSpawnTime = Date.now() + 1500 + Math.random() * 4500
 
-  // Central animation loop for all glitches (runs at 60fps)
   engineTimerId = setInterval(() => {
     const now = Date.now()
     let changed = false
     
-    // Clean up expired glitches gracefully restoring original text
     const living = activeGlitches.value.filter(g => g.expiresAt > now)
     if (living.length !== activeGlitches.value.length) {
       activeGlitches.value = living
       changed = true
     }
 
-    // Tick active glitches based on their individual set speeds
     activeGlitches.value.forEach(g => {
       if (now - g.lastTick >= g.speed) {
         g.lastTick = now
@@ -319,7 +376,6 @@ function startInterferenceEngine() {
       glitchTick.value++
     }
 
-    // Background ambient spawner
     if (now >= nextSpawnTime && props.terminal.lines.length > 0 && !props.terminal.busy) {
       const targetIdx = Math.floor(Math.random() * props.terminal.lines.length)
       const line = props.terminal.lines[targetIdx]
@@ -328,20 +384,19 @@ function startInterferenceEngine() {
         const len = line.text ? line.text.length : line.segments.reduce((acc, s) => acc + s.text.length, 0)
         
         if (len > 0) {
-          const span = 1 + Math.floor(Math.random() * Math.min(len, 40)) // Ranges from isolated chars to huge line bursts
+          const span = 1 + Math.floor(Math.random() * Math.min(len, 40))
           const startIndex = Math.floor(Math.random() * (len - span + 1))
           
           spawnGlitch({
             lineIndex: targetIdx,
             startIndex: startIndex,
             span: span,
-            intensity: 0.15 + Math.random() * 0.7, // Some very solid, some ghostly
-            speed: 20 + Math.random() * 100,       // Fast jitter to slow crawling shift
-            duration: 150 + Math.random() * 1200   // Quick flashes or lingering damage
+            intensity: 0.15 + Math.random() * 0.7,
+            speed: 20 + Math.random() * 100,
+            duration: 150 + Math.random() * 1200
           })
         }
       }
-      // Re-queue the next random glitch strike between 1.5s to 6s
       nextSpawnTime = now + 1500 + Math.random() * 4500
     }
   }, 16)
@@ -477,6 +532,32 @@ onMounted(() => {
   focusInput()
   startInterferenceEngine()
 
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', checkDpiZoom)
+  }
+
+  // Set up container tracking to catch splitted viewports and browser zooming
+  resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const { width, height } = entry.contentRect
+      if (!isInitialized) {
+        lastWidth = width
+        lastHeight = height
+        isInitialized = true
+        continue
+      }
+      if (Math.abs(width - lastWidth) > 3 || Math.abs(height - lastHeight) > 3) {
+        lastWidth = width
+        lastHeight = height
+        triggerHardcoreScreenGlitch()
+      }
+    }
+  })
+
+  if (windowRef.value) {
+    resizeObserver.observe(windowRef.value)
+  }
+
   cleanupFns.push(
     props.terminal.on('focusRequest', () => {
       nextTick(() => {
@@ -496,6 +577,13 @@ onMounted(() => {
 onUnmounted(() => {
   cleanupFns.forEach(fn => { if (typeof fn === 'function') fn() })
   if (engineTimerId) clearInterval(engineTimerId)
+  if (crtDecayIntervalId) clearInterval(crtDecayIntervalId)
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', checkDpiZoom)
+  }
 })
 </script>
 
