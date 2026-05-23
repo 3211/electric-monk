@@ -2,19 +2,19 @@
  * Holy War Online - Interactive Onboarding Flow
  *
  * Standalone module that handles new player onboarding using
- * interactive console-style prompts (readLine), NOT /commands.
+ * interactive console-style prompts (readLine, readMenu), NOT /commands.
  *
  * The activeSession mechanism in useTerminal.js naturally blocks
  * /commands during readLine sessions — if a user types /help during
  * a name prompt, it will be rejected as an invalid name (symbols).
  *
  * Flow:
- *   1. Check player.username / player.sect_id
- *   2. Stream welcome message for new users
- *   3. Interactive username selection (validate → confirm)
- *   4. Interactive sect selection (numbered list → confirm)
- *   5. Stream AI welcome message
- *   6. Show standard greeting
+ * 1. Check player.username / player.sect_id
+ * 2. Stream welcome message for new users
+ * 3. Interactive username selection (validate → confirm)
+ * 4. Interactive sect selection (arrow key menu → confirm)
+ * 5. Stream AI welcome message
+ * 6. Show standard greeting
  */
 
 import { supabase } from '@/lib/supabase'
@@ -54,6 +54,21 @@ async function promptLine(terminal, prompt) {
   const input = await terminal.readLine(prompt)
   terminal.busy = true
   return input.trim()
+}
+
+/**
+ * Prompt the user with an interactive arrow-key menu.
+ *
+ * @param {Object} terminal - Terminal instance
+ * @param {string} prompt - Text to display above the menu
+ * @param {Array} options - Array of { label, value } objects
+ * @returns {Promise<any>} - The selected value
+ */
+async function promptMenu(terminal, prompt, options) {
+  terminal.busy = false
+  const selection = await terminal.readMenu(prompt, options)
+  terminal.busy = true
+  return selection
 }
 
 /**
@@ -165,8 +180,8 @@ async function runUsernameFlow(terminal) {
 
 /**
  * Interactive sect selection flow.
- * Fetches available sects, displays them numbered 1-N,
- * prompts for selection, shows details, confirms.
+ * Fetches available sects, displays their lore,
+ * prompts for selection via interactive menu, and confirms.
  *
  * @param {Object} terminal - Terminal instance
  * @returns {Promise<Object|null>} - The chosen sect object, or null on failure
@@ -181,7 +196,7 @@ async function runSectFlow(terminal, username) {
     { text: '  ════════════════════════════════════════', class: 'term-dim' },
     { text: '', class: '' },
     { text: '  Every soul must pledge to a sect.', class: 'term-text' },
-    { text: '  Choose wisely — your sect shapes your path.', class: 'term-dim' },
+    { text: '  Review the archives below, then make your choice.', class: 'term-dim' },
     { text: '', class: '' },
   ])
 
@@ -194,34 +209,31 @@ async function runSectFlow(terminal, username) {
     return null
   }
 
-  // Display sects numbered 1-N
+  // Display sect lore (without numbers)
   terminal.write({ text: '', class: '' })
-  for (let i = 0; i < sects.length; i++) {
-    const sect = sects[i]
-    terminal.write({ text: `  ${i + 1}. ${sect.emoji} ${sect.name}`, class: 'term-ally' })
-    terminal.write({ text: `     ${sect.description || ''}`, class: 'term-text' })
+  for (const sect of sects) {
+    terminal.write({ text: `  ${sect.emoji} ${sect.name}`, class: 'term-ally' })
+    terminal.write({ text: `    ${sect.description || ''}`, class: 'term-text' })
     if (sect.principles && sect.principles.length > 0) {
-      terminal.write({ text: `     Principles: ${sect.principles.join(', ')}`, class: 'term-dim' })
+      terminal.write({ text: `    Principles: ${sect.principles.join(', ')}`, class: 'term-dim' })
     }
     terminal.write({ text: '', class: '' })
   }
 
+  // Map sects to menu options
+  const menuOptions = sects.map(sect => ({
+    label: `${sect.emoji} ${sect.name}`,
+    value: sect
+  }))
+
   while (true) {
-    const input = await promptLine(terminal, `  Select a sect (1-${sects.length}) > `)
+    // Interactive arrow-key selection
+    const sect = await promptMenu(terminal, '  Select your sect (Arrow Keys + Enter):', menuOptions)
 
-    const selection = parseInt(input, 10)
-    if (isNaN(selection) || selection < 1 || selection > sects.length) {
-      terminal.write({ text: `  Invalid selection. Enter a number from 1 to ${sects.length}.`, class: 'term-enemy' })
-      continue
-    }
-
-    const sect = sects[selection - 1]
+    // Confirm choice
     terminal.write({ text: '', class: '' })
-    terminal.write({ text: `  You selected: ${sect.emoji} ${sect.name}`, class: 'term-brass' })
-    terminal.write({ text: `  ${sect.description || ''}`, class: 'term-text' })
-    terminal.write({ text: '', class: '' })
-
     const confirmed = await confirmYesNo(terminal, `Swear your vow to ${sect.name}?`)
+    
     if (!confirmed) {
       terminal.write({ text: '  Very well. Choose again.', class: 'term-dim' })
       terminal.write({ text: '', class: '' })
