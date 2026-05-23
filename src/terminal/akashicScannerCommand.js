@@ -57,6 +57,14 @@ export function buildAkashicCommands() {
         let running = true;
         let seedIndex = 0;
 
+        // Non-blocking listener for /end command
+        const stopListener = terminal.on('lineAdded', (line) => {
+          if (line.text.trim().toLowerCase() === '/end') {
+            running = false;
+            terminal.write({ text: '  [SYS] Terminate signal received. Halting after current cycle...', class: 'term-enemy' });
+          }
+        });
+
         while (running && seedIndex < seeds.length) {
           const seed = seeds[seedIndex];
           const blockId = (seedIndex + 1).toString().padStart(2, '0')
@@ -84,57 +92,58 @@ export function buildAkashicCommands() {
           const textPos = BabelAPI.addressToText(address)
           const { score, matches, overlay } = await scoreDecryptedText(textPos, uniqueBibleWords, bibleWords, 0)
           
-          // Defrag Animation Simulation (Show 5 chunks of the 3200 char text)
-          const chunkSize = 64;
-          const displayLines = 5;
-          const startOffsets = [];
-          for(let i=0; i<displayLines; i++) {
-            startOffsets.push(Math.floor(Math.random() * (BabelAPI.PAGE_LENGTH - chunkSize)));
+          // Full Akashic Record Scroll Animation
+          const chunkSize = 64; // Characters per terminal line
+          const totalChunks = Math.ceil(BabelAPI.PAGE_LENGTH / chunkSize);
+          
+          // We'll maintain a rolling window of 6 visible lines to avoid spamming the history too fast,
+          // but we effectively "scroll" through the entire 3200 characters.
+          const windowSize = 6;
+          const lineIds = [];
+          for (let i = 0; i < windowSize; i++) {
+             const id = `defrag-${blockId}-${i}`;
+             lineIds.push(id);
+             terminal.write({ id, text: `    ...`, class: 'term-dim' });
           }
 
-          // Initialize display lines
-          for(let i=0; i<displayLines; i++) {
-             terminal.write({ id: `defrag-${blockId}-${i}`, text: `    ${glitchString(textPos.substring(startOffsets[i], startOffsets[i] + chunkSize), 0.8)}`, class: 'term-enemy' });
-          }
+          // Scroll through the entire page
+          for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
+             if (!running) break;
 
-          // Animate defrag
-          const animSteps = 10;
-          for(let step=1; step<=animSteps; step++) {
-            for(let i=0; i<displayLines; i++) {
-               const targetStr = textPos.substring(startOffsets[i], startOffsets[i] + chunkSize);
-               const glitchIntensity = 0.8 * (1 - (step/animSteps));
-               
-               // Check if there's a hit in this chunk to highlight
-               let hasHit = false;
-               for(let j=0; j<chunkSize; j++) {
-                  if (overlay[startOffsets[i] + j] === 1) hasHit = true;
-               }
-
-               const currentStr = glitchString(targetStr, glitchIntensity);
-               let displayClass = 'term-steel';
-               if (step === animSteps && hasHit) displayClass = 'term-success';
-               else if (step < animSteps) displayClass = 'term-dim';
-
-               terminal.updateLine(`defrag-${blockId}-${i}`, { text: `    ${currentStr}`, class: displayClass });
-            }
-            await sleep(100);
-          }
-
-          // Occasional Error Glitch
-          if (Math.random() < 0.3) {
-             const errorLineIdx = Math.floor(Math.random() * displayLines);
-             terminal.updateLine(`defrag-${blockId}-${errorLineIdx}`, { text: `    [CRITICAL CORRUPTION DETECTED]`, class: 'term-enemy' });
-             const stopRecover = terminal.startSpinner(`recover-${blockId}`, '  Recovering sector...', { speed: 60, class: 'term-enemy' });
-             await sleep(800);
-             stopRecover();
+             const startOffset = chunkIdx * chunkSize;
+             const targetStr = textPos.substring(startOffset, startOffset + chunkSize).padEnd(chunkSize, ' ');
              
-             const targetStr = textPos.substring(startOffsets[errorLineIdx], startOffsets[errorLineIdx] + chunkSize);
              let hasHit = false;
              for(let j=0; j<chunkSize; j++) {
-                if (overlay[startOffsets[errorLineIdx] + j] === 1) hasHit = true;
+                if (overlay[startOffset + j] === 1) hasHit = true;
              }
-             terminal.updateLine(`defrag-${blockId}-${errorLineIdx}`, { text: `    ${targetStr}`, class: hasHit ? 'term-success' : 'term-steel' });
-             terminal.write({ text: `  [SYS] Sector recovered.`, class: 'term-ally' });
+
+             // Shift lines up
+             for (let i = 0; i < windowSize - 1; i++) {
+                const prevLine = terminal.getLine(lineIds[i+1]);
+                if (prevLine) {
+                   terminal.updateLine(lineIds[i], { text: prevLine.text, class: prevLine.class });
+                }
+             }
+
+             // Render new line at the bottom
+             const currentLineId = lineIds[windowSize - 1];
+             
+             // Occasional Glitch during scroll
+             if (Math.random() < 0.05) { // 5% chance per line
+               terminal.updateLine(currentLineId, { text: `    [CORRUPTION IN SECTOR ${chunkIdx}]`, class: 'term-enemy' });
+               await sleep(200);
+               terminal.updateLine(currentLineId, { text: `    ${glitchString(targetStr, 0.5)}`, class: 'term-enemy' });
+               await sleep(200);
+               terminal.updateLine(currentLineId, { text: `    ${targetStr}`, class: hasHit ? 'term-success' : 'term-steel' });
+             } else {
+               // Normal reveal
+               terminal.updateLine(currentLineId, { text: `    ${glitchString(targetStr, 0.8)}`, class: 'term-dim' });
+               await sleep(30); // Fast scan
+               terminal.updateLine(currentLineId, { text: `    ${targetStr}`, class: hasHit ? 'term-success' : 'term-steel' });
+             }
+             
+             await sleep(20);
           }
 
           // Registering
@@ -153,23 +162,11 @@ export function buildAkashicCommands() {
 
           terminal.write({ text: '  ' + '─'.repeat(50), class: 'term-dim' })
           
-          // Await User Input
-          let validInput = false;
-          while (!validInput) {
-             const input = await terminal.readLine('  [SCAN ACTIVE] Press ENTER to continue, or type /end to abort > ');
-             if (input.trim() === '') {
-                 validInput = true;
-             } else if (input.trim().toLowerCase() === '/end') {
-                 validInput = true;
-                 running = false;
-             } else {
-                 terminal.write({ text: '  [ERR] Scan running. Press ENTER to continue or type /end to abort.', class: 'term-enemy' });
-             }
-          }
-
           seedIndex++;
+          await sleep(500); // Brief pause before next block
         }
 
+        if (stopListener) stopListener();
         terminal.write({ text: '  [SYS] Sequence Terminated.', class: 'term-brass' })
         return null
       }
