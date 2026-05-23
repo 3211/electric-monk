@@ -343,6 +343,12 @@ export async function runOnboarding(terminal, player) {
     ])
 
     terminal.busy = false
+
+    // Force terminal scroll calculation once layout shifts (tab bar unhides)
+    setTimeout(() => {
+      terminal.emit('focusRequest')
+    }, 100)
+
     return true
   } catch (err) {
     console.error('[onboarding] Error:', err)
