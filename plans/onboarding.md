@@ -2,65 +2,82 @@
 
 This document defines the interactive onboarding sequence for new players in Holy War Online.
 
-**Last updated:** 2026-05-22
+**Last updated:** 2026-05-23
 
 ---
 
 ## Technical Sequence
 
+```mermaid
+graph TD
+    A[User Logs In] --> B[Boot Sequence]
+    B --> C{onboarding_complete?}
+    C -- No --> D[runOnboarding]
+    C -- Yes --> E[Enter Game]
+
+    D --> F[runUsernameFlow]
+    F --> G[runSectFlow]
+    G --> H[Final Greeting]
+    H --> E
+
+    subgraph Username Flow
+    F1[readLine: Username] --> F2[Client Validation]
+    F2 --> F3[Edge Function: validate_username]
+    F3 --> F4[confirmYesNo]
+    F4 -- Yes --> F5[Edge Function: complete_onboarding]
+    F4 -- No --> F1
+    end
+
+    subgraph Sect Flow
+    G1[get_available_sects RPC] --> G2[readMenu: Select Sect]
+    G2 --> G3[confirmYesNo]
+    G3 -- Yes --> G4[Edge Function: generate_welcome]
+    G4 --> G5[typewrite: AI Welcome Message]
+    G3 -- No --> G2
+    end
 ```
-1. User signs up via Supabase Auth
-   └─> Trigger `create_player_on_signup()` creates players row
-       (username=NULL, ip_address=auto-assigned, sect_id=NULL, onboarding_complete=false)
-       └─> ip_address is allocated via DEFAULT call to allocate_network_address('players')
 
-2. User logs in → Terminal runs boot sequence
-   └─> Client calls `get_player_status()` RPC
-       └─> If onboarding_complete=false, start onboarding wizard
+### 1. Initialization & Boot
+- User logs in and the terminal runs the `boot.js` sequence.
+- Client calls `get_player_status()` RPC.
+- If `onboarding_complete` is false, or if `username` or `sect_id` are missing, `runOnboarding()` is triggered.
+- `usePlayerState` is hydrated with any existing player data.
 
-3. Interactive Username Entry (via terminal.readLine())
-   └─> Wizard displays naming rules (3-16 chars, alphanumeric + _)
-   └─> Wizard prompts: "Enter your username >"
-   └─> Client-side format validation on input
-   └─> Edge Function: `welcome-to-hwo` (phase: validate_username)
-       - User identity from JWT Authorization header (NOT request body)
-       - Format validation
-       - Database availability check
-       - OSS AI classification (openai-gpt-oss-120b)
-   └─> On failure → Shows error, re-prompts
-   └─> On success → Edge Function saves username (phase: complete_onboarding)
+### 2. Username Selection (`runUsernameFlow`)
+- **Input:** `terminal.readLine()`
+- **Validation:**
+    - **Client-side:** Length (3-16), Characters (`^[a-zA-Z0-9_]+$`).
+    - **Server-side:** Edge Function `welcome-to-hwo` (phase: `validate_username`). Checks for profanity and availability.
+- **Confirmation:** `confirmYesNo()` helper asks for confirmation before proceeding.
+- **Persistence:** Edge Function `welcome-to-hwo` (phase: `complete_onboarding`) saves the username.
 
-4. Interactive Sect Selection (via terminal.readLine())
-   └─> Wizard displays all sects with emoji, description, principles
-   └─> RPC: `get_available_sects()` (includes ip_address per sect)
-   └─> Wizard prompts: "Enter sect ID >"
-   └─> Validates sect_id exists in list
-   └─> Edge Function: `welcome-to-hwo` (phase: generate_welcome)
-       - User identity from JWT Authorization header (NOT request body)
-       - Fetch sect data (principles, tone) from DB
-       - Venice API (gemma-4-uncensored) generates welcome message
-       - Updates player.sect_id + onboarding_complete
-   └─> On failure → Shows error, re-prompts
+### 3. Sect Affiliation (`runSectFlow`)
+- **Fetch:** `getAvailableSects()` RPC retrieves current sects.
+- **Selection:** `terminal.readMenu()` provides an interactive arrow-key selection menu.
+- **Confirmation:** `confirmYesNo()` helper asks for confirmation.
+- **Lore Generation:**
+    - Edge Function `welcome-to-hwo` (phase: `generate_welcome`) uses Venice AI (gemma-4-uncensored) to generate a faction-appropriate welcome message.
+    - The message is streamed to the terminal using `terminal.typewrite()`.
+- **Persistence:** The Edge Function updates the player's `sect_id` and marks `onboarding_complete = true`.
 
-5. Welcome Message & Enter Game
-   └─> AI-generated welcome displayed with faction-appropriate tone
-   └─> Player enters main game terminal
-   └─> "Type /help for available commands"
-```
+### 4. Completion
+- Final greeting is displayed.
+- `usePlayerState` is updated with the new `username`, `sect_id`, `sect_name`, and `sect_emoji`.
+- Terminal unblocks (`terminal.busy = false`) and user enters the main game loop.
 
 ---
 
 ## Edge Function: `welcome-to-hwo`
 
-The onboarding process relies on a secure Edge Function to handle AI generation and sensitive database updates that bypass standard client-side RLS where necessary (using the service role).
+The onboarding process relies on this secure Edge Function for AI generation and sensitive database updates.
 
 **Phases:**
 - `validate_username`: Checks for profanity, availability, and format.
-- `complete_onboarding`: Finalizes the player profile.
-- `generate_welcome`: Uses Venice AI to create lore-accurate entry text.
+- `complete_onboarding`: Finalizes the player profile username.
+- `generate_welcome`: Uses Venice AI to create lore-accurate entry text and sets `onboarding_complete`.
 
 ---
 
 ## Network Identity
 
-Every player is assigned a unique IPv4 address (`ip_address`) at signup via the `allocate_network_address()` function. This IP is the player's network identity within the game world — used for routing, attacks, and faction interactions. Similarly, each sect has a static IP address defined in the seed data.
+Every player is assigned a unique IPv4 address (`ip_address`) at signup via the `allocate_network_address()` function. This IP is the player's network identity within the game world — used for routing, attacks, and faction interactions. Each sect also has a static IP address defined in the seed data.

@@ -69,7 +69,6 @@ export function buildTabCommands() {
           ]
         }
         ctx.tab.closeAll()
-        ctx.tab.newTab()
         return null
       },
     },

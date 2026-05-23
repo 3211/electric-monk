@@ -204,6 +204,11 @@ function handleCloseTab({ paneId, tabId }) {
   const pane = findPane(layout, paneId)
   if (!pane) return
 
+  const totalTabs = getTotalTabCount()
+  if (totalTabs <= 1) {
+    handleNewTab({ paneId })
+  }
+
   const idx = pane.tabs.findIndex(t => t.id === tabId)
   if (idx < 0) return
 
@@ -272,6 +277,19 @@ function handleSplit({ paneId, direction }) {
       Object.assign(layout, splitNode)
     }
   }
+}
+
+function getTotalTabCount() {
+  let count = 0
+  function collect(node) {
+    if (node.type === 'pane') {
+      count += node.tabs.length
+    } else if (node.type === 'split' && node.children) {
+      node.children.forEach(collect)
+    }
+  }
+  collect(layout)
+  return count
 }
 
 function findPane(node, paneId) {

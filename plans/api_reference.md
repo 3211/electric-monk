@@ -41,7 +41,24 @@ const { data, error } = await supabase.functions.invoke('virtual-computers', {
   method: 'GET',
   queries: { machine_id: '...', target_path: '/etc' }
 });
+
+// Welcome / Onboarding API
+const { data, error } = await supabase.functions.invoke('welcome-to-hwo', {
+  body: { phase: 'validate_username', username: '...' }
+});
 ```
+
+---
+
+## Edge Function: `welcome-to-hwo`
+
+Handles interactive onboarding phases, AI lore generation, and sensitive player updates.
+
+| Phase | Body Parameters | Description |
+|-------|-----------------|-------------|
+| `validate_username` | `username` | Checks name availability, format, and profanity. |
+| `complete_onboarding` | `username` | Finalizes the player's username in the database. |
+| `generate_welcome` | `sect_id`, `username` | Sets player sect, marks onboarding complete, and returns AI-generated welcome text. |
 
 ---
 
