@@ -24,12 +24,12 @@
             class="term-line-text"
             :class="segment.class || line.class || ''"
           >
-            <span class="char" v-for="(char, cIdx) in segment.text" :key="cIdx">{{ char === ' ' ? '&nbsp;' : char }}</span>
+            <span class="char" v-for="(char, cIdx) in graphemeChars(segment.text)" :key="cIdx">{{ char === ' ' ? '\u00A0' : char }}</span>
           </span>
         </template>
         <template v-else-if="line.text">
           <span class="term-line-text">
-            <span class="char" v-for="(char, cIdx) in line.text" :key="cIdx">{{ char === ' ' ? '&nbsp;' : char }}</span>
+            <span class="char" v-for="(char, cIdx) in graphemeChars(line.text)" :key="cIdx">{{ char === ' ' ? '\u00A0' : char }}</span>
           </span>
         </template>
         <span v-else class="term-line-spacer">&nbsp;</span>
@@ -66,6 +66,24 @@
 
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, getCurrentInstance } from 'vue'
+
+// ── Emoji-safe grapheme splitting ──
+let _segmenter = null
+function getSegmenter() {
+  if (!_segmenter) {
+    _segmenter = new Intl.Segmenter('en', { granularity: 'grapheme' })
+  }
+  return _segmenter
+}
+
+/**
+ * Split text into grapheme clusters so emoji surrogate pairs stay intact.
+ * Used by the char-level v-for in the template to prevent splitting emojis in half.
+ */
+function graphemeChars(text) {
+  if (typeof text !== 'string') return []
+  return Array.from(getSegmenter().segment(text)).map(s => s.segment)
+}
 
 const props = defineProps({
   terminal: { type: Object, required: true },
