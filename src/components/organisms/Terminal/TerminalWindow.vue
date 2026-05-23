@@ -1,7 +1,7 @@
 <template>
   <div class="term-window" ref="windowRef" @mouseup="handleMouseUp" @dblclick="handleDblClick">
     <!-- Immersive CRT screen wrapper that subjects both screen and scanlines to the ripple warp -->
-    <div class="term-screen">
+    <div class="term-screen" :style="{ filter: `url(#${filterId})` }">
       <!-- Scanline overlay -->
       <div class="term-scanlines" aria-hidden="true"></div>
       <!-- Subtle CRT flicker -->
@@ -86,7 +86,7 @@
     <!-- Invisible SVG filter definition for CRT diagonal wave ripple -->
     <svg class="term-ripple-svg" aria-hidden="true" width="0" height="0" style="position: absolute; pointer-events: none;">
       <defs>
-        <filter id="crt-ripple" x="-10%" y="-10%" width="120%" height="120%">
+        <filter :id="filterId" x="-10%" y="-10%" width="120%" height="120%">
           <!-- Generate a soft, organic wave noise layout -->
           <feTurbulence 
             type="turbulence" 
@@ -174,6 +174,8 @@ const inputValue = ref('')
 const isFocused = ref(false)
 
 const instance = getCurrentInstance()
+
+const filterId = computed(() => `crt-ripple-${props.terminal.id}`)
 
 // ── Advanced Multi-Layer Glitch Engine (Pure Mask) ──
 const activeGlitches = ref([])
@@ -271,7 +273,6 @@ function handleScroll() {
     scrollDecayIntervalId = null
   }
 
-  // Calculate motion deviation dynamically. Max bound of 8 avoids severe illegibility.
   scrollBlur.value = Math.min(delta * 0.18, 8)
   lastScrollTop = currentScrollTop
 
@@ -446,6 +447,7 @@ const isBlocked = computed(() => {
   return false
 })
 
+// Focus helper methods
 function focusInput() {
   inputRef.value?.focus()
 }
@@ -658,7 +660,6 @@ onUnmounted(() => {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  filter: url('#crt-ripple');
   will-change: filter;
   transform: translateZ(0); /* Force GPU rasterization for smooth animation performance */
 }
