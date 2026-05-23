@@ -168,7 +168,14 @@ async function runUsernameFlow(terminal) {
     }
 
     // Cache username in global player state
-    usePlayerState().set('username', username)
+    const playerState = usePlayerState()
+    playerState.set('username', username)
+
+    // Immediately fetch and hydrate player status to get the assigned IP address
+    const { data: statusData } = await supabase.rpc('get_player_status')
+    if (statusData) {
+      playerState.hydrate(statusData)
+    }
 
     terminal.write({ text: `  ✓ Name set: "${username}"`, class: 'term-success' })
     terminal.write({ text: '', class: '' })
@@ -334,7 +341,20 @@ export async function runOnboarding(terminal, player) {
       }
     }
 
-    // Onboarding complete — show greeting
+    // Onboarding complete — wait for any key, then boot
+    terminal.write({ text: '', class: '' })
+    terminal.write({ text: '  Press any key to initialize your connection...', class: 'term-gilded' })
+    
+    // Wait for any key press (busy must be false for readLine to work)
+    terminal.busy = false
+    await terminal.readLine('')
+    terminal.busy = true
+
+    // Clear and run full boot sequence
+    terminal.clear()
+    await runBootSequence(terminal, 4000)
+
+    // Final welcome greeting
     terminal.write({ text: '', class: '' })
     await writeLines(terminal, [
       { text: '  ════════════════════════════════════════', class: 'term-dim' },
@@ -344,17 +364,17 @@ export async function runOnboarding(terminal, player) {
       { text: '', class: '' },
     ])
 
-    // After completely finishing onboarding, the player record will have their real IP.
-    // Fetch it and update the terminal prompt.
+    // Update the terminal prompt with the player's IP
+    const playerState = usePlayerState()
     const { data: statusData } = await supabase.rpc('get_player_status')
     if (statusData && statusData.ip_address) {
-      usePlayerState().hydrate(statusData)
+      playerState.hydrate(statusData)
       terminal.setLocation(statusData.ip_address)
     }
 
     terminal.busy = false
 
-    // Force terminal scroll calculation once layout shifts (tab bar unhides)
+    // Force terminal scroll calculation once layout shifts
     setTimeout(() => {
       terminal.emit('focusRequest')
     }, 100)
