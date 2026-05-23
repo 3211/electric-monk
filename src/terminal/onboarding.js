@@ -18,7 +18,7 @@
  */
 
 import { supabase } from '@/lib/supabase'
-import { getAvailableSects } from './boot'
+import { getAvailableSects, runBootSequence } from './boot'
 import { usePlayerState } from '@/composables/usePlayerState'
 
 // ── Utility Helpers ──
