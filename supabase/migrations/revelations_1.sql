@@ -124,6 +124,29 @@ ON CONFLICT (id) DO UPDATE SET
     available_in_shops = EXCLUDED.available_in_shops;
 
 -- ==========================================
+-- 5.5 HARDWARE: SECURITY CHIPS
+-- ==========================================
+
+CREATE TABLE IF NOT EXISTS public.catalog_security_chips (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    base_price INT NOT NULL,
+    encryption_bonus INT NOT NULL,
+    power_draw_watts INT NOT NULL,
+    available_in_shops TEXT[] NOT NULL DEFAULT '{}'
+);
+
+INSERT INTO public.catalog_security_chips (id, name, base_price, encryption_bonus, power_draw_watts, available_in_shops)
+VALUES
+    ('chip_basic', 'Basic Encryption Module', 200, 50, 5, ARRAY['public_hub']),
+    ('chip_gilded', 'Gilded Cipher Core', 1200, 250, 15, ARRAY['gilded_market']),
+    ('chip_shadow', 'Shadow Decryption Barrier', 2500, 500, 30, ARRAY['shadow_node'])
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name, base_price = EXCLUDED.base_price, encryption_bonus = EXCLUDED.encryption_bonus, 
+    power_draw_watts = EXCLUDED.power_draw_watts, available_in_shops = EXCLUDED.available_in_shops;
+
+
+-- ==========================================
 -- 6. HARDWARE: CASES / CHASSIS
 -- ==========================================
 
@@ -181,8 +204,9 @@ DO $$
 DECLARE
     t_name text;
 BEGIN
+-- Update the array in step 8 to include the new table:
     FOR t_name IN 
-        SELECT unnest(ARRAY['hardware_shops', 'catalog_cpus', 'catalog_memory', 'catalog_storage', 'catalog_network_cards', 'catalog_cases', 'catalog_power_supplies']) 
+        SELECT unnest(ARRAY['hardware_shops', 'catalog_cpus', 'catalog_memory', 'catalog_storage', 'catalog_network_cards', 'catalog_cases', 'catalog_power_supplies', 'catalog_security_chips']) 
     LOOP
         EXECUTE format('DROP POLICY IF EXISTS "Public Read Access" ON public.%I;', t_name);
         EXECUTE format('CREATE POLICY "Public Read Access" ON public.%I FOR SELECT USING (true);', t_name);
@@ -190,5 +214,5 @@ BEGIN
         EXECUTE format('CREATE POLICY "Service Role Access" ON public.%I FOR ALL USING (auth.jwt()->>''role'' = ''service_role'');', t_name);
     END LOOP;
 END $$;
-
+-- yes run and enable rls if asked
 COMMIT;
