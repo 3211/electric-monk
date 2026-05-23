@@ -245,11 +245,14 @@ export function useTerminal(id = 'default') {
     }
 
     let alive = true
+    let born = false  // Tracks whether the line has been created at least once
 
     /** Internal: write current state to the terminal line. No-op if zombie. */
     const render = () => {
       if (!alive) return
-      if (!getLine(id)) {
+      // Only check for zombie lines AFTER the first successful render.
+      // On the first call the line doesn't exist yet — updateLine will create it.
+      if (born && !getLine(id)) {
         // Line was cleared externally — mark as dead so we stop ghosting
         alive = false
         delete activeProgressBars[id]
@@ -257,6 +260,7 @@ export function useTerminal(id = 'default') {
       }
       const text = _buildProgressBar(state.percent, state.options)
       updateLine(id, { text, class: state.options.class })
+      born = true
     }
 
     const controller = {
