@@ -1,11 +1,9 @@
 /**
  * Holy War Online - Boot Sequence
- * 
- * A themed terminal animation that plays when a user logs in.
+ * * A themed terminal animation that plays when a user logs in.
  * Simulates connecting to Holy War Online with procedurally generated
  * progress bars, error injection, and interactive text purification.
- * 
- * @param {Object} terminal - Terminal instance
+ * * @param {Object} terminal - Terminal instance
  * @param {number} duration - Total duration in milliseconds
  * @returns {Promise<void>}
  */
@@ -35,7 +33,6 @@ async function loadSacredTexts() {
       return cachedBibleWords;
     } catch (err) {
       console.error('[boot] Failed to load sacred texts:', err);
-      // Fallback so the boot still works even if the file is missing
       cachedBibleWords = [
         'THE', 'VOID', 'SPEAKS', 'IN', 'SILENCE',
         'AND', 'THE', 'WORD', 'WAS', 'WITH',
@@ -69,6 +66,20 @@ function randomInt(min, max) {
 /** Random element from an array. */
 function randomChoice(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/**
+ * Scrambles characters in a string selectively.
+ */
+function glitchString(str, intensity = 0.15) {
+  const glitchChars = '!@#$%^&*()░▒▓█▄▀╔╗╚╝║═╬┼┤├┴└┘┐┌─│';
+  return str.split('').map(char => {
+    if (char === ' ' || char === '\n' || char === '\r') return char;
+    if (Math.random() < intensity) {
+      return glitchChars[Math.floor(Math.random() * glitchChars.length)];
+    }
+    return char;
+  }).join('');
 }
 
 // ── Procedural boot message pools ──
@@ -106,7 +117,7 @@ export async function runBootSequence(terminal, duration = 3500) {
   if (terminal.tab?.setTitle) {
     terminal.tab.setTitle("booting HWO");
   }
-  // ASCII Art Header — DO NOT MODIFY
+  
   const bootLogo = [
     '',
     '#  ╔═══════════════════════════════════════════════════════════╗',
@@ -124,7 +135,6 @@ export async function runBootSequence(terminal, duration = 3500) {
     '',
   ];
 
-  // 1. Start background loaders BEFORE drawing the logo
   const bibleLoad = loadSacredTexts();
   
   const ps = usePlayerState();
@@ -135,25 +145,22 @@ export async function runBootSequence(terminal, duration = 3500) {
   terminal.clear();
   terminal.busy = true;
 
-  // 2. Render logo (This takes ~1 second, masking the DB request latency!)
+  // 2. Render logo lines with persistent unique IDs to target them during boot sequence
   const logoLines = [...bootLogo];
-  for (const line of logoLines) {
-    terminal.write({ text: line, class: 'term-brass' });
+  for (let idx = 0; idx < logoLines.length; idx++) {
+    const line = logoLines[idx];
+    terminal.write({ id: `boot-logo-${idx}`, text: line, class: 'term-brass' });
     await sleep(randomInt(20, 50));
   }
 
-  // 3. Ensure both the text file AND database request have finished
   await Promise.all([bibleLoad, dbLoad]);
   await sleep(300);
 
-  // Now the data is guaranteed to be fully hydrated from the server
   const needsOnboarding = !ps.username.value || !ps.sectId.value;
 
-  // Base cycle range for returning players
   let minCycles = 5;
   let maxCycles = 7;
 
-  // Extend the sequence if they are a new player missing a username/sect
   if (needsOnboarding) {
     minCycles = 8;
     maxCycles = 12;
@@ -165,43 +172,62 @@ export async function runBootSequence(terminal, duration = 3500) {
   for (let cycles = 0; cycles < targetCycles; cycles++) {
     const uid = Math.random().toString(36).substring(2, 9);
 
-    // 1. [INIT] line
     const initMsg = randomChoice(INIT_MESSAGES);
     terminal.write({ text: `  [INIT] ${initMsg}`, class: 'term-dim' });
 
     const progId = `prog-${uid}`;
     const msgId = `msg-${uid}`;
 
-    // Create a stateful progress bar controller (width 10, brass-colored)
     const bar = terminal.createProgressBar(progId, {
       width: 10,
       class: 'term-brass',
     });
 
-    // Roll for an error scenario (25% chance)
     const isError = Math.random() < 0.25;
     const totalSteps = 10;
-    const errorStep = isError ? randomInt(2, 8) : totalSteps + 1; // +1 means it never matches
+    const errorStep = isError ? randomInt(2, 8) : totalSteps + 1;
 
-    // 2. Render Progress Bar Incrementally
+    // 2. Render Progress Bar Incrementally and occasionally glitch lines of the logo
     for (let i = 0; i <= totalSteps; i++) {
       if (i === errorStep) break;
       bar.update(i * 10);
+
+      // 15% chance to momentarily glitch a random logo line matching progress stream activity
+      if (Math.random() < 0.15) {
+        const lineIdx = randomInt(1, bootLogo.length - 2);
+        const originalText = bootLogo[lineIdx];
+        const glitched = glitchString(originalText, 0.12);
+        terminal.updateLine(`boot-logo-${lineIdx}`, { text: glitched, class: 'term-enemy' });
+        
+        // Swiftly restore line to keep glitch effect punchy and transient
+        setTimeout(() => {
+          terminal.updateLine(`boot-logo-${lineIdx}`, { text: originalText, class: 'term-brass' });
+        }, 150);
+      }
+
       await sleep(randomInt(20, 60));
     }
 
     if (isError) {
-      // Stop and turn the bar RED at the error point
       bar.update(null, { class: 'term-enemy' });
       await sleep(150);
 
+      // Surges error state glitch directly across multiple lines of the logo header
+      const glitchedIndices = [];
+      const numGlitches = randomInt(3, 6);
+      for (let k = 0; k < numGlitches; k++) {
+        const lineIdx = randomInt(1, bootLogo.length - 2);
+        glitchedIndices.push(lineIdx);
+        const originalText = bootLogo[lineIdx];
+        const glitched = glitchString(originalText, 0.4);
+        terminal.updateLine(`boot-logo-${lineIdx}`, { text: glitched, class: 'term-enemy' });
+      }
+
       const pureText = getPropheticFragment(2, 8);
 
-      // Start recovery spinner alongside the purification
       const spinId = `spin-${uid}`;
       const stopSpinner = terminal.startSpinner(spinId, '  Purifying payload...', { speed: 80, class: 'term-steel' });
 
-      // Animate the line from glitched [ERR] → pure [OK] using the terminal API
       await terminal.purifyLine(msgId, pureText, {
         glitchPrefix: '  [ERR]  ',
         purePrefix: '  [OK]   ',
@@ -213,22 +239,28 @@ export async function runBootSequence(terminal, duration = 3500) {
         fixChance: 0.4,
       });
 
-      // Stop spinner once recovered
       stopSpinner();
       await sleep(100);
 
-      // Turn progress bar full GREEN
+      // Restore the glitched header segments once the payload is verified/purified
+      for (const idx of glitchedIndices) {
+        terminal.updateLine(`boot-logo-${idx}`, { text: bootLogo[idx], class: 'term-brass' });
+      }
+
       bar.finish();
 
     } else {
-      // Success branch: Finish progress bar (GREEN)
       bar.finish();
       const pureText = getPropheticFragment(2, 8);
       terminal.updateLine(msgId, { text: `  [OK]   ${pureText}`, class: randomChoice(OK_CLASSES) });
     }
 
-    // Jitter between major blocks
     await sleep(randomInt(100, 250));
+  }
+
+  // 3. Revert the logo entirely back to its proper uncorrupted, pristine state
+  for (let idx = 0; idx < bootLogo.length; idx++) {
+    terminal.updateLine(`boot-logo-${idx}`, { text: bootLogo[idx], class: 'term-brass' });
   }
 
   // Final separator
@@ -239,7 +271,7 @@ export async function runBootSequence(terminal, duration = 3500) {
   if (terminal.tab?.setTitle) {
     terminal.tab.setTitle("Terminal");
   }
-  // Unblock input
+  
   terminal.busy = false;
   await sleep(300);
 }
@@ -254,8 +286,7 @@ function sleep(ms) {
 /**
  * Check if player needs onboarding
  * Calls the database to check onboarding status
- * 
- * @param {Object} supabase - Supabase client instance
+ * * @param {Object} supabase - Supabase client instance
  * @returns {Promise<Object>} - { needsOnboarding: boolean, player: Object|null }
  */
 export async function checkOnboardingStatus(supabase) {
@@ -287,8 +318,7 @@ export async function checkOnboardingStatus(supabase) {
 
 /**
  * Get available sects from database
- * 
- * @param {Object} supabase - Supabase client instance
+ * * @param {Object} supabase - Supabase client instance
  * @returns {Promise<Array>} - Array of sect objects
  */
 export async function getAvailableSects(supabase) {
