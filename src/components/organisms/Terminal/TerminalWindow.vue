@@ -1,17 +1,12 @@
 <template>
   <div class="term-window" @mouseup="handleMouseUp" @dblclick="handleDblClick">
-    <!-- Immersive CRT screen wrapper that subjects both screen and scanlines to the ripple warp -->
     <div class="term-screen">
-      <!-- Scanline overlay -->
       <div class="term-scanlines" aria-hidden="true"></div>
-      <!-- Subtle CRT flicker -->
       <div class="term-flicker" aria-hidden="true"></div>
 
-      <!-- Terminal content area (scrollable, includes input) -->
       <div class="term-content" ref="contentRef">
-        <!-- Output lines -->
         <div
-          v-for="(line, i) in terminal.lines"
+          v-for="(line, i) in displayedLines"
           :key="i"
           class="term-line"
           :class="[
@@ -55,7 +50,6 @@
           <span v-else class="term-line-spacer">&nbsp;</span>
         </div>
 
-        <!-- Input line (inline with content) -->
         <div 
           class="term-input-row" 
           ref="inputRowRef" 
@@ -83,18 +77,15 @@
       </div>
     </div>
 
-    <!-- Invisible SVG filter definition for CRT diagonal wave ripple -->
     <svg class="term-ripple-svg" aria-hidden="true" width="0" height="0" style="position: absolute; pointer-events: none;">
       <defs>
         <filter id="crt-ripple" x="0" y="0" width="100%" height="100%">
-          <!-- Generate a soft, organic wave noise layout -->
           <feTurbulence 
             type="turbulence" 
             baseFrequency="0.008 0.006" 
             numOctaves="1" 
             result="noise" 
           />
-          <!-- Offset noise diagonally to simulate waves sweeping from bottom-left to top-right -->
           <feOffset result="diagonalWarp">
             <animate 
               attributeName="dx" 
@@ -111,7 +102,6 @@
               repeatCount="indefinite" 
             />
           </feOffset>
-          <!-- Apply soft, subtle deflection based on our animated diagonal coordinate shifts -->
           <feDisplacementMap 
             in="SourceGraphic" 
             in2="diagonalWarp" 
@@ -167,6 +157,98 @@ const inputValue = ref('')
 const isFocused = ref(false)
 
 const instance = getCurrentInstance()
+
+// ── Background Passive Interference Glitch Engine ──
+const glitchedLineIndex = ref(-1)
+const glitchIntensity = ref(0.12)
+let glitchIntervalId = null
+let glitchTimeoutId = null
+
+const GLITCH_CHARS = '!@#$%^&*()░▒▓█▄▀╔╗╚╝║═╬┼┤├┴└┘┐┌─│'
+
+function applyLocalScramble(str, intensity) {
+  if (!str) return ''
+  return str.split('').map(char => {
+    if (char === ' ' || char === '\n' || char === '\r') return char
+    return Math.random() < intensity ? GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)] : char
+  }).join('')
+}
+
+/**
+ * Maps the live lines stream into a dynamic final presentation layout,
+ * seamlessly executing a deep procedural pass if a row index is actively targeted by background electromagnetic jitter.
+ */
+const displayedLines = computed(() => {
+  const baseLines = props.terminal.lines
+  if (glitchedLineIndex.value === -1 || glitchedLineIndex.value >= baseLines.length) {
+    return baseLines
+  }
+
+  return baseLines.map((line, idx) => {
+    if (idx !== glitchedLineIndex.value || line._typing) return line
+
+    const intensity = glitchIntensity.value
+    
+    // Scramble standard plain-text lines
+    if (!line.segments && line.text) {
+      return {
+        ...line,
+        text: applyLocalScramble(line.text, intensity),
+        class: line.class ? `${line.class} term-enemy` : 'term-enemy'
+      }
+    }
+
+    // Deep-scramble structured semantic segments gracefully
+    if (line.segments) {
+      const alteredSegments = line.segments.map(seg => ({
+        ...seg,
+        text: applyLocalScramble(seg.text, intensity),
+        class: seg.class ? `${seg.class} term-enemy` : 'term-enemy'
+      }))
+      return {
+        ...line,
+        segments: alteredSegments
+      }
+    }
+
+    return line
+  })
+})
+
+function triggerRandomLineGlitch() {
+  const total = props.terminal.lines.length
+  if (total === 0 || props.terminal.busy) return
+
+  // Select a random rendering row index
+  const targetIdx = Math.floor(Math.random() * total)
+  const line = props.terminal.lines[targetIdx]
+  if (!line || line._typing || (!line.text && !line.segments)) return
+
+  // Vary how bad the corruption spike is
+  glitchIntensity.value = 0.08 + Math.random() * 0.16
+  glitchedLineIndex.value = targetIdx
+
+  // Clear previous transient restoration loops if lingering
+  if (glitchTimeoutId) clearTimeout(glitchTimeoutId)
+
+  // Hold the electromagnetic shift for a split moment (60ms to 180ms)
+  const traceDuration = 60 + Math.floor(Math.random() * 120)
+  glitchTimeoutId = setTimeout(() => {
+    glitchedLineIndex.value = -1
+  }, traceDuration)
+}
+
+function startInterferenceEngine() {
+  const loop = () => {
+    // Variable frequency: fire subsequent glitches at random gaps between 1.5s to 6s
+    const nextTickDelay = 1500 + Math.floor(Math.random() * 4500)
+    glitchIntervalId = setTimeout(() => {
+      triggerRandomLineGlitch()
+      loop()
+    }, nextTickDelay)
+  }
+  loop()
+}
 
 const isBlocked = computed(() => {
   if (props.terminal.busy) return true
@@ -296,6 +378,7 @@ const cleanupFns = []
 
 onMounted(() => {
   focusInput()
+  startInterferenceEngine()
 
   cleanupFns.push(
     props.terminal.on('focusRequest', () => {
@@ -315,6 +398,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   cleanupFns.forEach(fn => { if (typeof fn === 'function') fn() })
+  if (glitchIntervalId) clearTimeout(glitchIntervalId)
+  if (glitchTimeoutId) clearTimeout(glitchTimeoutId)
 })
 </script>
 
@@ -362,7 +447,7 @@ onUnmounted(() => {
   inset: 0;
   pointer-events: none;
   z-index: 50;
-  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 255, 0, 0.06));
   background-size: 100% 4px, 6px 100%;
 }
 

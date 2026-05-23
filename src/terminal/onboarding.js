@@ -343,7 +343,7 @@ export async function runOnboarding(terminal, player) {
 
     // Onboarding complete — wait for any key, then boot
     terminal.write({ text: '', class: '' })
-    terminal.write({ text: '  Press any key to initialize your connection...', class: 'term-gilded' })
+    terminal.write({ text: '  Press return to initialize your connection...', class: 'term-gilded' })
     
     // Wait for any key press (busy must be false for readLine to work)
     terminal.busy = false
