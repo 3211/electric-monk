@@ -348,12 +348,18 @@ export async function runOnboarding(terminal, player) {
     setTimeout(() => {
       terminal.emit('focusRequest')
     }, 100)
-
+    
+    if (terminal.tab?.setTitle) {
+    terminal.tab.setTitle("Welcome");
+    }  
     return true
   } catch (err) {
     console.error('[onboarding] Error:', err)
     terminal.write({ text: `  Onboarding error: ${err.message}`, class: 'term-enemy' })
     terminal.busy = false
+    if (terminal.tab?.setTitle) {
+    terminal.tab.setTitle("Error registering");
+    }    
     return false
   }
 }
