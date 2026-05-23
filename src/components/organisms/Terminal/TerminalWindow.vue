@@ -24,20 +24,30 @@
             class="term-line-text"
             :class="segment.class || line.class || ''"
           >
-            <span
-              v-for="(char, cIdx) in graphemeChars(segment.text)"
-              :key="cIdx"
-              :class="char === ' ' ? 'term-space' : 'char'"
-            >{{ char }}</span>
+            <template v-for="(token, tIdx) in tokenize(segment.text)" :key="tIdx">
+              <span v-if="token.isSpace" class="term-space">{{ token.text }}</span>
+              <span v-else class="term-word">
+                <span
+                  v-for="(char, cIdx) in graphemeChars(token.text)"
+                  :key="cIdx"
+                  class="char"
+                >{{ char }}</span>
+              </span>
+            </template>
           </span>
         </template>
         <template v-else-if="line.text">
           <span class="term-line-text">
-            <span
-              v-for="(char, cIdx) in graphemeChars(line.text)"
-              :key="cIdx"
-              :class="char === ' ' ? 'term-space' : 'char'"
-            >{{ char }}</span>
+            <template v-for="(token, tIdx) in tokenize(line.text)" :key="tIdx">
+              <span v-if="token.isSpace" class="term-space">{{ token.text }}</span>
+              <span v-else class="term-word">
+                <span
+                  v-for="(char, cIdx) in graphemeChars(token.text)"
+                  :key="cIdx"
+                  class="char"
+                >{{ char }}</span>
+              </span>
+            </template>
           </span>
         </template>
         <span v-else class="term-line-spacer">&nbsp;</span>
@@ -86,6 +96,20 @@ function getSegmenter() {
 function graphemeChars(text) {
   if (typeof text !== 'string') return []
   return Array.from(getSegmenter().segment(text)).map(s => s.segment)
+}
+
+function tokenize(text) {
+  if (typeof text !== 'string') return []
+  const parts = text.split(/(\s+)/)
+  const tokens = []
+  for (const part of parts) {
+    if (!part) continue
+    tokens.push({
+      text: part,
+      isSpace: /^\s+$/.test(part)
+    })
+  }
+  return tokens
 }
 
 const props = defineProps({
@@ -367,7 +391,13 @@ onUnmounted(() => {
   text-align: center;
 }
 
-/* Breakable standard space maintaining perfect terminal width */
+/* Unbreakable word block to force native browser wrapping at word boundaries */
+.term-line .term-word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* Standard breakable space to maintain monospace grid consistency */
 .term-line .term-space {
   display: inline;
   white-space: pre-wrap;
