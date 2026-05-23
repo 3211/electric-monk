@@ -2,6 +2,60 @@ import { ref, reactive } from 'vue'
 import { buildCommandRegistry } from '@/terminal/index'
 
 /**
+ * Parses markdown inline formats (**bold**, *italic*, `code`, and ### headers)
+ * into a structured segment array for rendering. Returns null if no markdown exists.
+ */
+function parseMarkdownToSegments(rawText) {
+  if (typeof rawText !== 'string') return null
+
+  const headerMatch = rawText.match(/^(#{1,6})\s+(.*)$/)
+  let baseText = rawText
+  let isHeader = false
+  if (headerMatch) {
+    baseText = headerMatch[2]
+    isHeader = true
+  }
+
+  const tokenRegex = /(\*\*.*?\*\*|\*.*?\*|`.*?`)/g
+  const parts = baseText.split(tokenRegex)
+
+  if (parts.length === 1 && !isHeader) {
+    return null
+  }
+
+  const segments = []
+  const headerClass = isHeader ? 'term-brass' : ''
+
+  for (const part of parts) {
+    if (!part) continue
+
+    if (part.startsWith('**') && part.endsWith('**')) {
+      segments.push({
+        text: part.slice(2, -2),
+        class: [headerClass, 'term-brass', 'term-bold'].filter(Boolean).join(' ')
+      })
+    } else if (part.startsWith('*') && part.endsWith('*')) {
+      segments.push({
+        text: part.slice(1, -1),
+        class: [headerClass, 'term-dim', 'term-italic'].filter(Boolean).join(' ')
+      })
+    } else if (part.startsWith('`') && part.endsWith('`')) {
+      segments.push({
+        text: part.slice(1, -1),
+        class: [headerClass, 'term-steel', 'term-code'].filter(Boolean).join(' ')
+      })
+    } else {
+      segments.push({
+        text: part,
+        class: headerClass || ''
+      })
+    }
+  }
+
+  return segments
+}
+
+/**
  * Create a new terminal instance.
  *
  * Each terminal tab gets its own lines buffer, location, history, and
@@ -57,15 +111,23 @@ export function useTerminal(id = 'default') {
   // ── Output Methods ──
 
   function write(input) {
+    let lineObj = { text: '', class: '', id: null, segments: null }
+
     if (typeof input === 'string') {
-      lines.push({ text: input, class: '', id: null })
+      lineObj.text = input
+      lineObj.segments = parseMarkdownToSegments(input)
     } else {
-      lines.push({
-        text: input.text || '',
-        class: input.class || '',
-        id: input.id || null,
-      })
+      lineObj.text = input.text || ''
+      lineObj.class = input.class || ''
+      lineObj.id = input.id || null
+      if (input.segments) {
+        lineObj.segments = input.segments
+      } else if (input.text) {
+        lineObj.segments = parseMarkdownToSegments(input.text)
+      }
     }
+
+    lines.push(lineObj)
     emit('lineAdded', lines[lines.length - 1])
   }
 
@@ -76,7 +138,6 @@ export function useTerminal(id = 'default') {
   }
 
   function clear() {
-    // Tear down any active progress bar controllers so they don't ghost back
     for (const id of Object.keys(activeProgressBars)) {
       const bar = activeProgressBars[id]
       bar._destroy()
@@ -95,21 +156,35 @@ export function useTerminal(id = 'default') {
     if (existing >= 0) {
       if (typeof content === 'string') {
         lines[existing].text = content
-        lines[existing].segments = null
+        lines[existing].segments = parseMarkdownToSegments(content)
       } else {
-        if (content.text !== undefined) lines[existing].text = content.text
+        if (content.text !== undefined) {
+          lines[existing].text = content.text
+          if (content.segments === undefined) {
+            lines[existing].segments = parseMarkdownToSegments(content.text)
+          }
+        }
         if (content.class !== undefined) lines[existing].class = content.class
         if (content.segments !== undefined) lines[existing].segments = content.segments
       }
     } else {
       if (typeof content === 'string') {
-        lines.push({ text: content, class: '', id: lineId, segments: null })
+        lines.push({
+          text: content,
+          class: '',
+          id: lineId,
+          segments: parseMarkdownToSegments(content)
+        })
       } else {
+        let segments = content.segments || null
+        if (!segments && content.text) {
+          segments = parseMarkdownToSegments(content.text)
+        }
         lines.push({
           text: content.text || '',
           class: content.class || '',
           id: lineId,
-          segments: content.segments || null
+          segments
         })
       }
     }
@@ -153,15 +228,16 @@ export function useTerminal(id = 'default') {
     const { speed = 28, class: cls = '', id: lineId = null } = options
     return new Promise((resolve) => {
       const lineIndex = lines.length
-      lines.push({ text: '', class: cls, id: lineId, _typing: true })
+      lines.push({ text: '', class: cls, id: lineId, _typing: true, segments: null })
       isTyping.value = true
 
-      // This keeps emoji surrogate pairs intact!
       const chars = Array.from(text)
       let charIndex = 0
       const interval = setInterval(() => {
         if (charIndex < chars.length) {
-          lines[lineIndex].text = chars.slice(0, charIndex + 1).join('')
+          const currentSlice = chars.slice(0, charIndex + 1).join('')
+          lines[lineIndex].text = currentSlice
+          lines[lineIndex].segments = parseMarkdownToSegments(currentSlice)
           charIndex++
         } else {
           clearInterval(interval)
@@ -185,17 +261,6 @@ export function useTerminal(id = 'default') {
 
   // ── Progress Bars & Spinners ──
 
-  /**
-   * Build a progress bar string from a template.
-   *
-   * @param {number} percent — 0–100
-   * @param {object} [options]
-   * @param {number} [options.width=32]    — character width of the bar
-   * @param {string} [options.label='']    — prefix label
-   * @param {string} [options.format='{label} [{bar}] {percent}%'] — template with {label}, {bar}, {percent}
-   * @param {object} [options.chars]       — { filled: '█', empty: '░' }
-   * @returns {string}
-   */
   function _buildProgressBar(percent, options = {}) {
     const {
       width = 32,
@@ -214,27 +279,13 @@ export function useTerminal(id = 'default') {
       .replace('{percent}', String(p).padStart(3, ' '))
   }
 
-  /**
-   * Quick-fire progress bar — update a single line by ID.
-   * Backward-compatible with the old 3-arg signature.
-   *
-   * @param {string} progressId — unique line ID
-   * @param {number} percent    — 0–100
-   * @param {string} [label]   — prefix text (legacy arg)
-   * @param {object} [options] — { class, width, format, chars, label }
-   */
   function showProgress(progressId, percent, label, options = {}) {
-    // Merge legacy `label` string into options when both exist
     const merged = { ...options }
     if (label && typeof label === 'string') merged.label = label
     const text = _buildProgressBar(percent, merged)
     updateLine(progressId, { text, class: merged.class || 'term-steel' })
   }
 
-  /**
-   * Remove a progress bar line by ID.
-   * Also cleans up any tracked controller.
-   */
   function removeProgress(progressId) {
     if (activeProgressBars[progressId]) {
       activeProgressBars[progressId]._destroy()
@@ -243,23 +294,6 @@ export function useTerminal(id = 'default') {
     removeLine(progressId)
   }
 
-  /**
-   * Create a stateful progress bar controller.
-   *
-   * Returns an object that owns its terminal line and provides
-   * update(), finish(), and remove() methods. The controller
-   * is zombie-proof: if the line is cleared from the terminal
-   * buffer, further updates become no-ops.
-   *
-   * @param {string} id — unique line ID
-   * @param {object} [initialOptions]
-   * @param {number} [initialOptions.width=32]
-   * @param {string} [initialOptions.label='']
-   * @param {string} [initialOptions.format='  [{bar}] {percent}%']
-   * @param {object} [initialOptions.chars={ filled: '█', empty: '░' }]
-   * @param {string} [initialOptions.class='term-steel']
-   * @returns {{ update, finish, remove, id }}
-   */
   function createProgressBar(id, initialOptions = {}) {
     const defaults = {
       width: 32,
@@ -275,15 +309,11 @@ export function useTerminal(id = 'default') {
     }
 
     let alive = true
-    let born = false  // Tracks whether the line has been created at least once
+    let born = false
 
-    /** Internal: write current state to the terminal line. No-op if zombie. */
     const render = () => {
       if (!alive) return
-      // Only check for zombie lines AFTER the first successful render.
-      // On the first call the line doesn't exist yet — updateLine will create it.
       if (born && !getLine(id)) {
-        // Line was cleared externally — mark as dead so we stop ghosting
         alive = false
         delete activeProgressBars[id]
         return
@@ -295,13 +325,6 @@ export function useTerminal(id = 'default') {
 
     const controller = {
       id,
-
-      /**
-       * Update the progress bar.
-       *
-       * @param {number|null} percent — 0–100, or null to keep current
-       * @param {object} [newOptions] — override any option (class, label, format, width, chars)
-       */
       update(percent, newOptions = {}) {
         if (!alive) return
         if (percent !== null && percent !== undefined) {
@@ -310,39 +333,24 @@ export function useTerminal(id = 'default') {
         state.options = { ...state.options, ...newOptions }
         render()
       },
-
-      /**
-       * Jump to 100% and apply success styling.
-       *
-       * @param {object} [finalOptions] — override class etc. for the completed bar
-       */
       finish(finalOptions = {}) {
         if (!alive) return
         state.percent = 100
         state.options = { ...state.options, class: 'term-ally', ...finalOptions }
         render()
       },
-
-      /**
-       * Remove the progress bar line from the terminal entirely.
-       */
       remove() {
         if (!alive) return
         alive = false
         delete activeProgressBars[id]
         removeLine(id)
       },
-
-      /** @private Internal cleanup — called by clear() or removeProgress(). */
       _destroy() {
         alive = false
       },
     }
 
-    // Register so clear() can tear us down
     activeProgressBars[id] = controller
-
-    // Render the initial empty bar
     render()
 
     return controller
@@ -372,17 +380,8 @@ export function useTerminal(id = 'default') {
 
   // ── Text Animation ──
 
-  /**
-   * Default glitching function. Randomly replaces characters with noise symbols.
-   * Spaces are always preserved.
-   *
-   * @param {string} text — the pure text to corrupt
-   * @param {number} [intensity=0.2] — probability each char gets glitched (0–1)
-   * @returns {string} glitched text
-   */
   function _glitchText(text, intensity = 0.2) {
     const glitchChars = '!@#$%^&*()░▒▓█▄▀╔╗╚╝║═╬┼┤├┴└┘┐┌─│'
-    // This keeps emoji surrogate pairs intact!
     return Array.from(text).map(char => {
       if (char === ' ') return ' '
       if (Math.random() < intensity) {
@@ -392,27 +391,6 @@ export function useTerminal(id = 'default') {
     }).join('')
   }
 
-  /**
-   * Animate a line from a glitched/corrupted state back to pure text.
-   *
-   * Displays the text as heavily corrupted, then progressively de-corrupts
-   * it over multiple steps until it matches the original. Useful for
-   * "data purification" or "decryption" visual effects.
-   *
-   * @param {string} lineId — unique line ID to animate
-   * @param {string} pureText — the final, clean text to reveal
-   * @param {object} [options]
-   * @param {string} [options.glitchPrefix='']   — prefix shown during corruption (e.g. '  [ERR]  ')
-   * @param {string} [options.purePrefix='']      — prefix shown once purified  (e.g. '  [OK]   ')
-   * @param {string} [options.glitchClass='term-enemy'] — CSS class during corruption
-   * @param {string} [options.pureClass='term-ally']    — CSS class once purified
-   * @param {number} [options.intensity=0.75]    — initial corruption intensity (0–1)
-   * @param {number} [options.steps=6]           — number of recovery steps
-   * @param {number} [options.stepDelay=150]      — ms between recovery steps
-   * @param {number} [options.fixChance=0.4]     — probability per corrupted char to fix per step
-   * @param {Function} [options.glitchFn]        — custom glitch function (text, intensity) => string
-   * @returns {Promise<void>} resolves when animation completes
-   */
   async function purifyLine(lineId, pureText, options = {}) {
     const {
       glitchPrefix = '',
@@ -428,14 +406,11 @@ export function useTerminal(id = 'default') {
       highlightClass = 'term-brass'
     } = options
 
-    // Start fully corrupted
     let currentText = glitchFn(pureText, intensity)
     updateLine(lineId, { text: `${glitchPrefix}${currentText}`, class: glitchClass })
 
-    // This keeps emoji surrogate pairs intact!
     const pureChars = Array.from(pureText)
 
-    // Progressive recovery
     for (let step = 0; step < steps; step++) {
       await new Promise(r => setTimeout(r, stepDelay))
       const currentChars = Array.from(currentText)
@@ -444,7 +419,7 @@ export function useTerminal(id = 'default') {
         if (currentChars[c] !== pureChars[c] && (Math.random() < fixChance || step === steps - 1)) {
           nextText += pureChars[c]
         } else if (currentChars[c] !== pureChars[c] && Math.random() < 0.3) {
-          nextText += glitchFn(pureChars[c], 1) // scramble glitch chars mid-flight
+          nextText += glitchFn(pureChars[c], 1)
         } else {
           nextText += currentChars[c] || ''
         }
@@ -453,7 +428,6 @@ export function useTerminal(id = 'default') {
       updateLine(lineId, { text: `${glitchPrefix}${currentText}`, class: glitchClass })
     }
 
-    // Final pure state
     updateLine(lineId, { text: `${purePrefix}${pureText}`, class: pureClass })
     
     if (highlightRegex) {
@@ -461,7 +435,7 @@ export function useTerminal(id = 'default') {
     }
   }
 
-  // ── Interactive Input (readLine / readKey / readMenu) ──
+  // ── Interactive Input ──
 
   function readLine(promptText = '') {
     return new Promise((resolve) => {
@@ -493,12 +467,6 @@ export function useTerminal(id = 'default') {
     })
   }
 
-  /**
-   * Triggers an interactive blocking menu block.
-   * @param {string} promptText - The title above the menu
-   * @param {Array<string|object>} options - Array of strings or { label, value } objects
-   * @returns {Promise<string|any>}
-   */
   function readMenu(promptText = '', options = []) {
     return new Promise((resolve) => {
       emit('focusRequest')
@@ -506,7 +474,6 @@ export function useTerminal(id = 'default') {
         write({ text: promptText, class: 'term-prompt' })
       }
 
-      // Generate stable line IDs for each menu option
       const lineIds = options.map((_, i) => `menu-opt-${Date.now()}-${i}`)
 
       activeSession.value = {
@@ -522,7 +489,6 @@ export function useTerminal(id = 'default') {
     })
   }
 
-  /** Internally rewrites the menu lines based on selectedIndex */
   function _renderMenu() {
     const session = activeSession.value
     if (!session || session.type !== 'readMenu') return
@@ -541,9 +507,6 @@ export function useTerminal(id = 'default') {
     })
   }
 
-  /**
-   * Catches intercepted menu key presses from the UI window
-   */
   function handleInteractiveKey(key) {
     if (!activeSession.value) return false
 
@@ -567,10 +530,8 @@ export function useTerminal(id = 'default') {
         const selected = session.options[session.selectedIndex]
         const result = typeof selected === 'string' ? selected : selected.value
         
-        // Clean up the interactive menu block to save vertical space
         session.lineIds.forEach(id => removeLine(id))
         
-        // Output the final selection statically so it remains in history
         const label = typeof selected === 'string' ? selected : (selected.label || selected.value)
         write({ text: `  > Selected: ${label}`, class: 'term-ally' })
 
@@ -729,7 +690,7 @@ export function useTerminal(id = 'default') {
     processingCommand,
     busy,
     activeProgressBars,
-    activeSession, // Exposed for Vue template reactivity 
+    activeSession,
 
     // Output
     write,
