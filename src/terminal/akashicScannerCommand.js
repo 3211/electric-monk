@@ -86,11 +86,19 @@ export function buildAkashicCommands() {
           progBar.finish({ class: 'term-ally', label: '  Isolated   ' })
           await sleep(200);
 
-          terminal.write({ text: `  [BLK-${blockId}+] Decrypting payload...`, class: 'term-steel' })
-          
-          // Generate text from address
+          // Generate text from address & score it entirely first so we can reveal it sequentially
           const textPos = BabelAPI.addressToText(address)
           const { score, matches, overlay } = await scoreDecryptedText(textPos, uniqueBibleWords, bibleWords, 0)
+
+          // Setup Marquees & Stats
+          const bestHitId = `best-hit-${blockId}`;
+          const allHitsId = `all-hits-${blockId}`;
+          const liveScoreId = `live-score-${blockId}`;
+
+          terminal.write({ id: bestHitId, text: `  [BEST] --`, class: 'term-brass' });
+          terminal.write({ id: allHitsId, text: `  [WORDS] --`, class: 'term-dim' });
+          terminal.write({ id: liveScoreId, text: `  [SCORE] 0`, class: 'term-steel' });
+          terminal.write({ text: `  [BLK-${blockId}+] Decrypting payload...`, class: 'term-steel' })
           
           // Full Akashic Record Scroll Animation
           const chunkSize = 64; // Characters per terminal line
@@ -106,17 +114,41 @@ export function buildAkashicCommands() {
              terminal.write({ id, text: `    ...`, class: 'term-dim' });
           }
 
+          let currentScore = 0;
+          let foundWordsList = [];
+          let bestStreakStr = "";
+          let bestStreakScore = 0;
+
           // Scroll through the entire page
           for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
              if (!running) break;
 
              const startOffset = chunkIdx * chunkSize;
-             const targetStr = textPos.substring(startOffset, startOffset + chunkSize).padEnd(chunkSize, ' ');
+             const endOffset = startOffset + chunkSize;
+             const targetStr = textPos.substring(startOffset, endOffset).padEnd(chunkSize, ' ');
              
-             let hasHit = false;
-             for(let j=0; j<chunkSize; j++) {
-                if (overlay[startOffset + j] === 1) hasHit = true;
+             // Identify words that fall within this chunk to update live stats
+             const chunkMatches = matches.filter(m => m.start >= startOffset && m.start < endOffset);
+             if (chunkMatches.length > 0) {
+               chunkMatches.forEach(m => {
+                 foundWordsList.push(m.word);
+                 // We don't have the exact sequenced streak score per word easily available here from the
+                 // original function, so we'll just track length as a proxy for "best string" for the marquee
+                 if (m.word.length > bestStreakScore) {
+                   bestStreakScore = m.word.length;
+                   bestStreakStr = m.word;
+                 }
+               });
+               
+               // Keep word list marquee bounded
+               const displayWords = foundWordsList.slice(-8).join(', ');
+               terminal.updateLine(allHitsId, { text: `  [WORDS] ${displayWords}`, class: 'term-success' });
+               terminal.updateLine(bestHitId, { text: `  [BEST] ${bestStreakStr.toUpperCase()}`, class: 'term-brass' });
              }
+
+             // Estimate live score (rough progression based on chunk index)
+             currentScore = Math.floor((chunkIdx / totalChunks) * score);
+             terminal.updateLine(liveScoreId, { text: `  [SCORE] ${currentScore}`, class: 'term-steel' });
 
              // Shift lines up
              for (let i = 0; i < windowSize - 1; i++) {
@@ -129,22 +161,69 @@ export function buildAkashicCommands() {
              // Render new line at the bottom
              const currentLineId = lineIds[windowSize - 1];
              
+             // Horizontal scanner effect
+             for (let scanPos = 0; scanPos < chunkSize; scanPos += 8) {
+               let renderStr = "";
+               let segments = [];
+               let lastIdx = 0;
+
+               for (let c = 0; c < chunkSize; c++) {
+                 const charIdx = startOffset + c;
+                 const isHit = overlay[charIdx] === 1;
+                 const actualChar = targetStr[c];
+                 
+                 // If the scanner is passing over this block, render it as white/highlighted
+                 if (c >= scanPos && c < scanPos + 8) {
+                    if (c > lastIdx) {
+                      segments.push({ text: targetStr.substring(lastIdx, c), class: 'term-dim' });
+                    }
+                    segments.push({ text: actualChar !== ' ' ? actualChar : '█', class: 'term-ally' });
+                    lastIdx = c + 1;
+                 } else if (isHit) {
+                    if (c > lastIdx) {
+                      segments.push({ text: targetStr.substring(lastIdx, c), class: 'term-dim' });
+                    }
+                    segments.push({ text: actualChar, class: 'term-success term-bold' });
+                    lastIdx = c + 1;
+                 }
+               }
+               
+               if (lastIdx < chunkSize) {
+                 segments.push({ text: targetStr.substring(lastIdx), class: 'term-dim' });
+               }
+
+               terminal.updateLine(currentLineId, { text: targetStr, segments: segments });
+               await sleep(30); // Horizontal scan speed
+             }
+
+             // Final resolution for the line
+             let finalSegments = [];
+             let lastIdx = 0;
+             for (let c = 0; c < chunkSize; c++) {
+                const isHit = overlay[startOffset + c] === 1;
+                if (isHit) {
+                  if (c > lastIdx) finalSegments.push({ text: targetStr.substring(lastIdx, c), class: 'term-steel' });
+                  finalSegments.push({ text: targetStr[c], class: 'term-success term-bold' });
+                  lastIdx = c + 1;
+                }
+             }
+             if (lastIdx < chunkSize) finalSegments.push({ text: targetStr.substring(lastIdx), class: 'term-steel' });
+             
              // Occasional Glitch during scroll
-             if (Math.random() < 0.05) { // 5% chance per line
+             if (Math.random() < 0.05) {
                terminal.updateLine(currentLineId, { text: `    [CORRUPTION IN SECTOR ${chunkIdx}]`, class: 'term-enemy' });
-               await sleep(200);
+               await sleep(300);
                terminal.updateLine(currentLineId, { text: `    ${glitchString(targetStr, 0.5)}`, class: 'term-enemy' });
-               await sleep(200);
-               terminal.updateLine(currentLineId, { text: `    ${targetStr}`, class: hasHit ? 'term-success' : 'term-steel' });
-             } else {
-               // Normal reveal
-               terminal.updateLine(currentLineId, { text: `    ${glitchString(targetStr, 0.8)}`, class: 'term-dim' });
-               await sleep(30); // Fast scan
-               terminal.updateLine(currentLineId, { text: `    ${targetStr}`, class: hasHit ? 'term-success' : 'term-steel' });
+               await sleep(300);
              }
              
-             await sleep(20);
+             terminal.updateLine(currentLineId, { text: targetStr, segments: finalSegments.length > 0 ? finalSegments : null, class: finalSegments.length > 0 ? '' : 'term-steel' });
+             
+             await sleep(150); // Slower vertical scroll
           }
+          
+          // Ensure final score is accurate
+          terminal.updateLine(liveScoreId, { text: `  [SCORE] ${score}`, class: 'term-success term-bold' });
 
           // Registering
           const stopReg = terminal.startSpinner(`reg-${blockId}`, '  Registering positive matrix...', { speed: 80, class: 'term-steel' });
