@@ -9,7 +9,7 @@ export function testCommands() {
       help: 'Demo: Interactive terminal features (spinner, progress bar, readLine, menu).',
       usage: '/test2',
       async handler(args, ctx) {
-        const { terminal } = ctx
+        const { terminal, tab } = ctx
 
         // Demo 1: Classic Windows-style spinner
         terminal.write({ text: '  Starting spinner demo...', class: 'term-brass' })
@@ -52,6 +52,13 @@ export function testCommands() {
           { label: 'Sys-Admin', value: 'admin' }
         ])
         terminal.write({ text: `  System registered class choice: [${selection.toUpperCase()}]`, class: 'term-steel' })
+
+        // Demo 6: Tab Control
+        if (tab && tab.newTab) {
+           terminal.write({ text: '  Opening process in new tab...', class: 'term-brass' })
+           await new Promise(r => setTimeout(r, 1000))
+           tab.newTab()
+        }
 
         return [{ text: '  Demo complete.', class: 'term-brass' }]
       },
