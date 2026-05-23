@@ -53,6 +53,7 @@
           spellcheck="false"
           autocomplete="off"
           autocapitalize="off"
+          :inputmode="terminal.activeSession?.type === 'readMenu' ? 'numeric' : 'text'"
           @keydown="handleKeydown"
           @input="autoResize"
           @focus="isFocused = true"
@@ -118,7 +119,8 @@ function handleKeydown(e) {
   // 1. Intercept keystrokes if an interactive block/menu is active
   if (props.terminal.activeSession?.type === 'readMenu') {
     e.preventDefault() // Stop characters from typing invisibly into the textarea
-    if (['ArrowUp', 'ArrowDown', 'Enter'].includes(e.key)) {
+    const interactiveKeys = ['ArrowUp', 'ArrowDown', 'Enter', 'w', 'a', 's', 'd', 'i', 'j', 'k', 'l', '8', '2', '4', '6', ',', '.', '<', '>', '+', '-']
+    if (interactiveKeys.includes(e.key)) {
       props.terminal.handleInteractiveKey(e.key)
     }
     return // Skip normal command processing completely

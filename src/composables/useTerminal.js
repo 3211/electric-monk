@@ -156,10 +156,12 @@ export function useTerminal(id = 'default') {
       lines.push({ text: '', class: cls, id: lineId, _typing: true })
       isTyping.value = true
 
+      // This keeps emoji surrogate pairs intact!
+      const chars = Array.from(text)
       let charIndex = 0
       const interval = setInterval(() => {
-        if (charIndex < text.length) {
-          lines[lineIndex].text = text.slice(0, charIndex + 1)
+        if (charIndex < chars.length) {
+          lines[lineIndex].text = chars.slice(0, charIndex + 1).join('')
           charIndex++
         } else {
           clearInterval(interval)
@@ -380,7 +382,8 @@ export function useTerminal(id = 'default') {
    */
   function _glitchText(text, intensity = 0.2) {
     const glitchChars = '!@#$%^&*()░▒▓█▄▀╔╗╚╝║═╬┼┤├┴└┘┐┌─│'
-    return text.split('').map(char => {
+    // This keeps emoji surrogate pairs intact!
+    return Array.from(text).map(char => {
       if (char === ' ') return ' '
       if (Math.random() < intensity) {
         return glitchChars[Math.floor(Math.random() * glitchChars.length)]
@@ -429,17 +432,21 @@ export function useTerminal(id = 'default') {
     let currentText = glitchFn(pureText, intensity)
     updateLine(lineId, { text: `${glitchPrefix}${currentText}`, class: glitchClass })
 
+    // This keeps emoji surrogate pairs intact!
+    const pureChars = Array.from(pureText)
+
     // Progressive recovery
     for (let step = 0; step < steps; step++) {
       await new Promise(r => setTimeout(r, stepDelay))
+      const currentChars = Array.from(currentText)
       let nextText = ''
-      for (let c = 0; c < pureText.length; c++) {
-        if (currentText[c] !== pureText[c] && (Math.random() < fixChance || step === steps - 1)) {
-          nextText += pureText[c]
-        } else if (currentText[c] !== pureText[c] && Math.random() < 0.3) {
-          nextText += glitchFn(pureText[c], 1) // scramble glitch chars mid-flight
+      for (let c = 0; c < pureChars.length; c++) {
+        if (currentChars[c] !== pureChars[c] && (Math.random() < fixChance || step === steps - 1)) {
+          nextText += pureChars[c]
+        } else if (currentChars[c] !== pureChars[c] && Math.random() < 0.3) {
+          nextText += glitchFn(pureChars[c], 1) // scramble glitch chars mid-flight
         } else {
-          nextText += currentText[c]
+          nextText += currentChars[c] || ''
         }
       }
       currentText = nextText
@@ -543,16 +550,19 @@ export function useTerminal(id = 'default') {
     if (activeSession.value.type === 'readMenu') {
       const session = activeSession.value
       
-      if (key === 'ArrowUp') {
+      const upKeys = ['ArrowUp', 'w', 'a', 'i', 'j', '8', '4', ',', '<', '+']
+      const downKeys = ['ArrowDown', 's', 'd', 'k', 'l', '2', '6', '.', '>', '-']
+      
+      if (upKeys.includes(key)) {
         session.selectedIndex = (session.selectedIndex - 1 + session.options.length) % session.options.length
         _renderMenu()
         return true
-      } 
-      else if (key === 'ArrowDown') {
+      }
+      else if (downKeys.includes(key)) {
         session.selectedIndex = (session.selectedIndex + 1) % session.options.length
         _renderMenu()
         return true
-      } 
+      }
       else if (key === 'Enter') {
         const selected = session.options[session.selectedIndex]
         const result = typeof selected === 'string' ? selected : selected.value
