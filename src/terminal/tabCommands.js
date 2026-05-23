@@ -72,5 +72,20 @@ export function buildTabCommands() {
         return null
       },
     },
+
+    title: {
+      help: 'Rename the current tab. Usage: /title <new name>',
+      handler(args, ctx) {
+        if (!ctx.tab || typeof ctx.tab.setTitle !== 'function') {
+          return [{ text: '  /title: unavailable — no docking context.', class: 'term-enemy' }]
+        }
+        const newTitle = args.join(' ').trim()
+        if (!newTitle) {
+          return [{ text: '  Usage: /title <new name>', class: 'term-muted' }]
+        }
+        ctx.tab.setTitle(newTitle)
+        return null
+      }
+    },
   }
 }

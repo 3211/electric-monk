@@ -141,6 +141,14 @@ function _injectTabContext(term, paneId, tabId) {
           }
         }
       },
+      setTitle: (title) => {
+        const pane = findPane(layout, paneId)
+        if (!pane) return
+        const tab = pane.tabs.find(t => t.id === tabId)
+        if (tab) {
+          tab.title = title
+        }
+      },
     },
   })
   term.startup()
