@@ -1,10 +1,15 @@
 <template>
   <div class="term-window" @mouseup="handleMouseUp" @dblclick="handleDblClick">
+    <!-- Immersive CRT screen wrapper that subjects both screen and scanlines to the ripple warp -->
     <div class="term-screen">
+      <!-- Scanline overlay -->
       <div class="term-scanlines" aria-hidden="true"></div>
+      <!-- Subtle CRT flicker -->
       <div class="term-flicker" aria-hidden="true"></div>
 
+      <!-- Terminal content area (scrollable, includes input) -->
       <div class="term-content" ref="contentRef">
+        <!-- Output lines -->
         <div
           v-for="(line, i) in displayedLines"
           :key="i"
@@ -50,6 +55,7 @@
           <span v-else class="term-line-spacer">&nbsp;</span>
         </div>
 
+        <!-- Input line (inline with content) -->
         <div 
           class="term-input-row" 
           ref="inputRowRef" 
@@ -77,15 +83,18 @@
       </div>
     </div>
 
+    <!-- Invisible SVG filter definition for CRT diagonal wave ripple -->
     <svg class="term-ripple-svg" aria-hidden="true" width="0" height="0" style="position: absolute; pointer-events: none;">
       <defs>
         <filter id="crt-ripple" x="0" y="0" width="100%" height="100%">
+          <!-- Generate a soft, organic wave noise layout -->
           <feTurbulence 
             type="turbulence" 
             baseFrequency="0.008 0.006" 
             numOctaves="1" 
             result="noise" 
           />
+          <!-- Offset noise diagonally to simulate waves sweeping from bottom-left to top-right -->
           <feOffset result="diagonalWarp">
             <animate 
               attributeName="dx" 
@@ -102,6 +111,7 @@
               repeatCount="indefinite" 
             />
           </feOffset>
+          <!-- Apply soft, subtle deflection based on our animated diagonal coordinate shifts -->
           <feDisplacementMap 
             in="SourceGraphic" 
             in2="diagonalWarp" 
@@ -158,53 +168,119 @@ const isFocused = ref(false)
 
 const instance = getCurrentInstance()
 
-// ── Background Passive Interference Glitch Engine ──
-const glitchedLineIndex = ref(-1)
-const glitchIntensity = ref(0.12)
-let glitchIntervalId = null
-let glitchTimeoutId = null
+// ── Advanced Multi-Layer Glitch Engine (Pure Mask) ──
+const activeGlitches = ref([])
+const glitchTick = ref(0)
+let engineTimerId = null
 
 const GLITCH_CHARS = '!@#$%^&*()░▒▓█▄▀╔╗╚╝║═╬┼┤├┴└┘┐┌─│'
 
-function applyLocalScramble(str, intensity) {
-  if (!str) return ''
-  return str.split('').map(char => {
-    if (char === ' ' || char === '\n' || char === '\r') return char
-    return Math.random() < intensity ? GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)] : char
-  }).join('')
+/**
+ * Spawns a localized interference pattern that acts as a pure render mask.
+ * Gracefully reverts upon expiration without mutating underlying data.
+ * * @param {Object} options 
+ * @param {number} options.lineIndex - Target terminal line
+ * @param {number} options.startIndex - Starting character index
+ * @param {number} options.span - Span of characters to cover
+ * @param {number} options.intensity - Chance (0-1) of replacing a char
+ * @param {number} options.speed - Speed of the scrambler (ms per reroll)
+ * @param {number} options.duration - How long the glitch lasts (ms)
+ */
+function spawnGlitch(options = {}) {
+  const now = Date.now()
+  activeGlitches.value.push({
+    id: Math.random().toString(36).substring(2, 9),
+    lineIndex: options.lineIndex,
+    startIndex: options.startIndex || 0,
+    span: options.span || 10,
+    intensity: options.intensity || 0.5,
+    speed: options.speed || 60, 
+    expiresAt: now + (options.duration || 500),
+    lastTick: now,
+    maskOffset: Math.floor(Math.random() * 1000)
+  })
+  glitchTick.value++ // immediately register
 }
 
 /**
  * Maps the live lines stream into a dynamic final presentation layout,
- * seamlessly executing a deep procedural pass if a row index is actively targeted by background electromagnetic jitter.
+ * evaluating active interference masks directly against the pristine source text.
  */
 const displayedLines = computed(() => {
   const baseLines = props.terminal.lines
-  if (glitchedLineIndex.value === -1 || glitchedLineIndex.value >= baseLines.length) {
-    return baseLines
-  }
+  const _tick = glitchTick.value // track reactivity
+  const currentGlitches = activeGlitches.value
+
+  if (currentGlitches.length === 0) return baseLines
 
   return baseLines.map((line, idx) => {
-    if (idx !== glitchedLineIndex.value || line._typing) return line
+    const lineGlitches = currentGlitches.filter(g => g.lineIndex === idx)
+    if (lineGlitches.length === 0 || line._typing) return line
 
-    const intensity = glitchIntensity.value
-    
-    // Scramble standard plain-text lines
+    // Pure mask char resolution
+    const applyMaskToChar = (char, absoluteIdx) => {
+      if (char === ' ' || char === '\n' || char === '\r') return { char, isGlitched: false }
+      
+      let outputChar = char
+      let isGlitched = false
+
+      for (const g of lineGlitches) {
+        if (absoluteIdx >= g.startIndex && absoluteIdx < g.startIndex + g.span) {
+          // Deterministic pseudo-random seed so it only flutters when maskOffset changes per tick
+          const seed = absoluteIdx + g.maskOffset
+          const rand1 = Math.abs(Math.sin(seed))
+          const rand2 = Math.abs(Math.cos(seed))
+          
+          if (rand1 < g.intensity) {
+            outputChar = GLITCH_CHARS[Math.floor(rand2 * GLITCH_CHARS.length)]
+            isGlitched = true
+            break // Top-most overlapping glitch dictates character resolution
+          }
+        }
+      }
+      return { char: outputChar, isGlitched }
+    }
+
+    // Apply to unsegmented text
     if (!line.segments && line.text) {
+      let newText = ''
+      let hasGlitch = false
+      for (let i = 0; i < line.text.length; i++) {
+        const res = applyMaskToChar(line.text[i], i)
+        newText += res.char
+        if (res.isGlitched) hasGlitch = true
+      }
+      if (!hasGlitch) return line
       return {
         ...line,
-        text: applyLocalScramble(line.text, intensity),
+        text: newText,
         class: line.class ? `${line.class} term-enemy` : 'term-enemy'
       }
     }
 
-    // Deep-scramble structured semantic segments gracefully
+    // Apply to structured semantic segments gracefully
     if (line.segments) {
-      const alteredSegments = line.segments.map(seg => ({
-        ...seg,
-        text: applyLocalScramble(seg.text, intensity),
-        class: seg.class ? `${seg.class} term-enemy` : 'term-enemy'
-      }))
+      let currentOffset = 0
+      let lineHasGlitch = false
+      const alteredSegments = line.segments.map(seg => {
+        let newText = ''
+        let segHasGlitch = false
+        for (let i = 0; i < seg.text.length; i++) {
+          const res = applyMaskToChar(seg.text[i], currentOffset + i)
+          newText += res.char
+          if (res.isGlitched) segHasGlitch = true
+        }
+        currentOffset += seg.text.length
+        if (segHasGlitch) lineHasGlitch = true
+        
+        return {
+          ...seg,
+          text: newText,
+          class: segHasGlitch ? (seg.class ? `${seg.class} term-enemy` : 'term-enemy') : seg.class
+        }
+      })
+      
+      if (!lineHasGlitch) return line
       return {
         ...line,
         segments: alteredSegments
@@ -215,39 +291,60 @@ const displayedLines = computed(() => {
   })
 })
 
-function triggerRandomLineGlitch() {
-  const total = props.terminal.lines.length
-  if (total === 0 || props.terminal.busy) return
-
-  // Select a random rendering row index
-  const targetIdx = Math.floor(Math.random() * total)
-  const line = props.terminal.lines[targetIdx]
-  if (!line || line._typing || (!line.text && !line.segments)) return
-
-  // Vary how bad the corruption spike is
-  glitchIntensity.value = 0.08 + Math.random() * 0.16
-  glitchedLineIndex.value = targetIdx
-
-  // Clear previous transient restoration loops if lingering
-  if (glitchTimeoutId) clearTimeout(glitchTimeoutId)
-
-  // Hold the electromagnetic shift for a split moment (60ms to 180ms)
-  const traceDuration = 60 + Math.floor(Math.random() * 120)
-  glitchTimeoutId = setTimeout(() => {
-    glitchedLineIndex.value = -1
-  }, traceDuration)
-}
-
 function startInterferenceEngine() {
-  const loop = () => {
-    // Variable frequency: fire subsequent glitches at random gaps between 1.5s to 6s
-    const nextTickDelay = 1500 + Math.floor(Math.random() * 4500)
-    glitchIntervalId = setTimeout(() => {
-      triggerRandomLineGlitch()
-      loop()
-    }, nextTickDelay)
-  }
-  loop()
+  let nextSpawnTime = Date.now() + 1500 + Math.random() * 4500
+
+  // Central animation loop for all glitches (runs at 60fps)
+  engineTimerId = setInterval(() => {
+    const now = Date.now()
+    let changed = false
+    
+    // Clean up expired glitches gracefully restoring original text
+    const living = activeGlitches.value.filter(g => g.expiresAt > now)
+    if (living.length !== activeGlitches.value.length) {
+      activeGlitches.value = living
+      changed = true
+    }
+
+    // Tick active glitches based on their individual set speeds
+    activeGlitches.value.forEach(g => {
+      if (now - g.lastTick >= g.speed) {
+        g.lastTick = now
+        g.maskOffset = Math.floor(Math.random() * 1000)
+        changed = true
+      }
+    })
+
+    if (changed) {
+      glitchTick.value++
+    }
+
+    // Background ambient spawner
+    if (now >= nextSpawnTime && props.terminal.lines.length > 0 && !props.terminal.busy) {
+      const targetIdx = Math.floor(Math.random() * props.terminal.lines.length)
+      const line = props.terminal.lines[targetIdx]
+      
+      if (line && !line._typing && (line.text || line.segments)) {
+        const len = line.text ? line.text.length : line.segments.reduce((acc, s) => acc + s.text.length, 0)
+        
+        if (len > 0) {
+          const span = 1 + Math.floor(Math.random() * Math.min(len, 40)) // Ranges from isolated chars to huge line bursts
+          const startIndex = Math.floor(Math.random() * (len - span + 1))
+          
+          spawnGlitch({
+            lineIndex: targetIdx,
+            startIndex: startIndex,
+            span: span,
+            intensity: 0.15 + Math.random() * 0.7, // Some very solid, some ghostly
+            speed: 20 + Math.random() * 100,       // Fast jitter to slow crawling shift
+            duration: 150 + Math.random() * 1200   // Quick flashes or lingering damage
+          })
+        }
+      }
+      // Re-queue the next random glitch strike between 1.5s to 6s
+      nextSpawnTime = now + 1500 + Math.random() * 4500
+    }
+  }, 16)
 }
 
 const isBlocked = computed(() => {
@@ -398,8 +495,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   cleanupFns.forEach(fn => { if (typeof fn === 'function') fn() })
-  if (glitchIntervalId) clearTimeout(glitchIntervalId)
-  if (glitchTimeoutId) clearTimeout(glitchTimeoutId)
+  if (engineTimerId) clearInterval(engineTimerId)
 })
 </script>
 
