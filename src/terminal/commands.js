@@ -206,8 +206,8 @@ export function buildGlobalCommands() {
         for (const sect of sects) {
           lines.push({ text: `  ${sect.emoji} ${sect.name}`, class: 'term-ally' })
           lines.push({ text: `     ${sect.description || ''}`, class: 'term-text' })
-          if (sect.principles && sect.principles.length > 0) {
-            lines.push({ text: `     Principles: ${sect.principles.join(', ')}`, class: 'term-dim' })
+          if (sect.ip_address) {
+            lines.push({ text: `     IP: ${sect.ip_address}`, class: 'term-dim' })
           }
           lines.push({ text: '', class: '' })
         }

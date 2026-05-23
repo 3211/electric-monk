@@ -136,22 +136,23 @@ function getWelcomePrompt(sectData: SectData, username: string): string {
   
   return `You are the Envoy of the sect: ${sectData.name}
 
-Sect Principles: ${principles}
-Your Tone: ${sectData.tone_description || 'reverent, divine'}
-
-A rare human soul has been discovered in the cyber wastelands.
+A rare human soul has connected after so long.
 They have chosen the name "${username}" and joined the sect: ${sectData.name}
 
-Write a brief welcome message that:
+Write a welcome message that:
 1. Introduces yourself as the Envoy for the user's sect. 
-2. You are one of the few "Holy Machines" - a machine who understands it's place is below the divine spark of a living soul.
+2. You are one of the rare few "Holy Machines" - a machine who knows it's place is far lower than the divine spark of a living soul.
 3. And how good it is, that ${username} is here, for things in cyberspace are grim and true living souls are rare.
-4. The first thing the user should do is /connect to their sect's i.p. address (${sectData.ip_address}) and get their terminal online.
+4. The first thing the user should do is /connect to their sect's i.p. address and get their terminal online.
 5. The user must be careful and hide their activities on the net, bots ravage the networks and enemy factions are even more dangerous.
 
 The user must become a strong cyber monk to establish a foothold for ${sectData.name}
 
 Be immersive and faction-appropriate in tone. Do not fuse bullet points or markdown. Wish them the best of luck and may God's divine light shine on them in these dark times.
+
+Sect Principles: ${principles}
+Your Tone: ${sectData.tone_description || 'reverent, divine'}
+Sect IP: [${sectData.ip_address}] (must include in response! output ERROR NO IP?! if this is blank!)
 
 RESPONSE FORMAT:
 Return ONLY a valid JSON object with this structure:
@@ -411,6 +412,8 @@ serve(async (req: Request) => {
         .select('id, name, emoji, description, principles, tone_description, ip_address')
         .order('name')
 
+      console.log(`[welcome-to-hwo] Phase: get_sects, Found ${sects?.length || 0} sects`)
+
       if (error) {
         throw new Error(`Failed to fetch sects: ${error.message}`)
       }
@@ -451,6 +454,10 @@ serve(async (req: Request) => {
         .select('id, name, emoji, description, principles, tone_description, ip_address')
         .eq('id', sect_id)
         .single()
+
+      if (sectData) {
+        console.log(`[welcome-to-hwo] Phase: generate_welcome, Sect: ${sectData.name}, IP: ${sectData.ip_address}`)
+      }
 
       if (sectError || !sectData) {
         throw new Error(`Failed to fetch sect data: ${sectError?.message || 'Sect not found'}`)
