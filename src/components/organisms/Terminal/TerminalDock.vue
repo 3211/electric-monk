@@ -37,58 +37,47 @@ import { runOnboarding } from '@/terminal/onboarding'
 import TerminalWindow from './TerminalWindow.vue'
 import DockNode from './DockNode.vue'
 
-// ─── Mobile Detection ───
 const isMobile = ref(false)
 
 function checkMobile() {
   isMobile.value = window.innerWidth < 768
 }
 
-// ─── Auth State ───
 const auth = useAuth()
 let bootSequenceRun = false
-const onboardingComplete = ref(false) // hidden tab bar until onboarding done
+const onboardingComplete = ref(false)
 
 onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
   
-  // Watch for authentication state changes and trigger boot/onboarding
   watch(
     () => auth.isAuthenticated,
     async (isAuthenticated) => {
       if (isAuthenticated && !bootSequenceRun) {
         bootSequenceRun = true
 
-        // Flush any stale player state from a previous session
         const playerState = usePlayerState()
         playerState.flush()
         
-        // Small delay to ensure terminal is ready
         await new Promise(resolve => setTimeout(resolve, 500))
         
-        // Get the active terminal
         const terminal = getActiveTerminal()
         if (!terminal) return
         
-        // Run the boot sequence
         terminal.clear()
         await runBootSequence(terminal, 3500)
         
-        // Check onboarding status
         const { needsOnboarding, player, error } = await checkOnboardingStatus(supabase)
         
-        // Hydrate global player state from DB
         if (player) {
           playerState.hydrate(player)
         }
         
         if (needsOnboarding && player) {
-          // Run interactive onboarding flow
           await runOnboarding(terminal, player)
           onboardingComplete.value = true
         } else {
-          // Already onboarded — show standard greeting
           onboardingComplete.value = true
           terminal.writeAll([
             { text: '', class: '' },
@@ -106,7 +95,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', checkMobile)
 })
 
-// ─── Counters ───
 let terminalCounter = 0
 let paneCounter = 0
 let tabCounter = 0
@@ -115,7 +103,6 @@ function newPaneId() { return `pane-${++paneCounter}` }
 function newTabId() { return `tab-${++tabCounter}` }
 function newTermId() { return `term-${++terminalCounter}` }
 
-// ─── Terminal Instances ───
 const terminals = reactive(new Map())
 const activeTerminalId = ref('')
 
@@ -126,10 +113,6 @@ function createTerminal() {
   return { id, term }
 }
 
-/**
- * Wire a terminal instance into the docking layout so it can respond
- * to tab-management commands (/newtab, /closethis, /closeothers, /closeall).
- */
 function _injectTabContext(term, paneId, tabId) {
   term.buildRegistry({
     tab: {
@@ -146,7 +129,6 @@ function _injectTabContext(term, paneId, tabId) {
         }
       },
       closeAll: () => {
-        // Collect all panes and close every tab
         const allPanes = []
         ;(function collect(node) {
           if (node.type === 'pane') allPanes.push(node)
@@ -168,14 +150,12 @@ function getActiveTerminal() {
   return terminals.get(activeTerminalId.value) || terminals.values().next().value
 }
 
-// ─── Layout Tree ───
 const firstTerm = createTerminal()
 const firstTabId = newTabId()
 const firstPaneId = newPaneId()
 
 activeTerminalId.value = firstTerm.id
 
-// Wire the initial terminal so tab commands work
 _injectTabContext(firstTerm.term, firstPaneId, firstTabId)
 
 const layout = reactive({
@@ -189,11 +169,8 @@ const layout = reactive({
   size: 100,
 })
 
-// Track active tab per pane
 const activeIds = reactive(new Map())
 activeIds.set(firstPaneId, firstTabId)
-
-// ─── Handlers ───
 
 function handleActivateTab({ paneId, tabId }) {
   activeIds.set(paneId, tabId)
@@ -204,7 +181,7 @@ function handleActivateTab({ paneId, tabId }) {
   }
 }
 
-function handleNewTab({ paneId }) {
+function handleNewTab({ paneId, initialCommand }) {
   const pane = findPane(layout, paneId)
   if (!pane) return
 
@@ -215,8 +192,8 @@ function handleNewTab({ paneId }) {
   activeIds.set(paneId, tabId)
   activeTerminalId.value = termId
   _injectTabContext(term, paneId, tabId)
+
   if (initialCommand) {
-    // A tiny timeout ensures the DOM has rendered the new tab first
     setTimeout(() => {
       term.processCommand(initialCommand)
     }, 50)
@@ -271,13 +248,11 @@ function handleSplit({ paneId, direction }) {
   const parent = findParentOfPane(layout, paneId)
 
   if (parent && parent.type === 'split' && parent.direction === direction) {
-    // Same direction — add sibling
     const currentIdx = parent.children.findIndex(c => findPaneDeep(c, paneId))
     pane.size = 50
     newPane.size = 50
     parent.children.splice(currentIdx + 1, 0, newPane)
   } else {
-    // New split direction — wrap current pane
     const splitNode = {
       type: 'split',
       id: `split-${Date.now()}`,
@@ -294,13 +269,10 @@ function handleSplit({ paneId, direction }) {
         parent.children[idx] = splitNode
       }
     } else {
-      // Root-level replacement
       Object.assign(layout, splitNode)
     }
   }
 }
-
-// ─── Tree Traversal ───
 
 function findPane(node, paneId) {
   if (node.type === 'pane' && node.id === paneId) return node
@@ -339,7 +311,6 @@ function removeEmptyPane(node, paneId) {
       removeEmptyPane(child, paneId)
     }
 
-    // Flatten if only one child remains
     if (node.children.length === 1) {
       const remaining = node.children[0]
       Object.assign(node, remaining)
