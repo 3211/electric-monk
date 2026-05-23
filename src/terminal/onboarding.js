@@ -245,13 +245,16 @@ async function runSectFlow(terminal, username) {
     terminal.write({ text: '  Swearing your vow...', class: 'term-dim' })
 
     // Pull username from global player state (cached during username flow or DB hydration)
-    const currentUsername = usePlayerState().get('username', 'Warrior')
+    const playerState = usePlayerState()
+    const currentUsername = playerState.get('username', 'Warrior')
+    const currentIp = playerState.get('ip_address', '0.0.0.0')
 
     const { data, error } = await supabase.functions.invoke('welcome-to-hwo', {
       body: {
         phase: 'generate_welcome',
         sect_id: sect.id,
-        username: currentUsername
+        username: currentUsername,
+        user_ip: currentIp
       },
     })
 
@@ -277,7 +280,6 @@ async function runSectFlow(terminal, username) {
     }
 
     // Cache sect selection in global player state
-    const playerState = usePlayerState()
     playerState.set('sect_id', sect.id)
     playerState.set('sect_name', sect.name)
     playerState.set('sect_emoji', sect.emoji)

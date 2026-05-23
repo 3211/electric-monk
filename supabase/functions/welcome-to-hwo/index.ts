@@ -131,7 +131,7 @@ Return ONLY a valid JSON object with this structure:
 Do NOT include any other text. Do NOT explain your reasoning. ONLY return the JSON.`
 }
 
-function getWelcomePrompt(sectData: SectData, username: string): string {
+function getWelcomePrompt(sectData: SectData, username: string, user_ip: string): string {
   const principles = sectData.principles?.join(', ') || 'virtue and devotion'
   
   return `You are the Envoy of the sect: ${sectData.name}
@@ -141,12 +141,13 @@ They have chosen the name "${username}" and joined the sect: ${sectData.name}
 
 Write a welcome message that:
 1. Introduces yourself as the Envoy for the user's sect. 
-2. You are one of the rare few "Holy Machines" - a machine who knows it's place is far lower than the divine spark of a living soul.
+2. You are an "Electric Monk", one of the rare few holy machines, a machine who knows it's place, a place far lower than the divine spark of a living soul.
 3. And how good it is, that ${username} is here, for things in cyberspace are grim and true living souls are rare.
 4. The first thing the user should do is /connect to their sect's i.p. address and get their terminal online.
 5. The user must be careful and hide their activities on the net, bots ravage the networks and enemy factions are even more dangerous.
+6. The user has been assigned the ip address ${user_ip} (make sure they know this is their HOLY IP and they must guard it closely - if anyone finds out their true IP they will be highly vulnerable to perma-death, the player must know perma-death is on the table!)
 
-The user must become a strong cyber monk to establish a foothold for ${sectData.name}
+The user must become a strong cyber monk to establish a foothold for ${sectData.name} in this high stakes situation.
 
 Be immersive and faction-appropriate in tone. Do not fuse bullet points or markdown. Wish them the best of luck and may God's divine light shine on them in these dark times.
 
@@ -266,7 +267,7 @@ serve(async (req: Request) => {
 
     // Parse request body — NOTE: user_id is NOT accepted from the body.
     // It is derived securely from the JWT in the Authorization header.
-    const { phase, username, sect_id } = await req.json()
+    const { phase, username, sect_id, user_ip } = await req.json()
 
     // Extract authenticated user from JWT (NOT from request body — prevents spoofing)
     const authenticatedUserId = extractUserIdFromAuthHeader(req)
@@ -463,8 +464,8 @@ serve(async (req: Request) => {
         throw new Error(`Failed to fetch sect data: ${sectError?.message || 'Sect not found'}`)
       }
 
-      // Step 2: Generate AI welcome message (Passing username here)
-      const welcomePrompt = getWelcomePrompt(sectData as SectData, username.trim())
+      // Step 2: Generate AI welcome message (Passing username and user_ip here)
+      const welcomePrompt = getWelcomePrompt(sectData as SectData, username.trim(), user_ip || 'UNKNOWN_IP')
       let welcomeResponse: { response: string }
       
       try {
