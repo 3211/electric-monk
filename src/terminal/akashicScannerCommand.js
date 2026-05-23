@@ -64,8 +64,7 @@ async function runScanner(ctx, scannerState) {
   try {
     const res = await fetch(bibleUrl)
     const text = await res.text()
-    const cleaned = text.toLowerCase().replace(/[^\w\s]/g, '').trim()
-    bibleWords = cleaned.split(/\s+/)
+    bibleWords = text.toLowerCase().split(/\s+/).filter(w => w.length > 0)
     uniqueBibleWords = [...new Set(bibleWords)]
     stopLoad()
     terminal.write({ text: '  [OK]  Reference text loaded.', class: 'term-ally' })

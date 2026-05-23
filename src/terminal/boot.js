@@ -29,7 +29,7 @@ async function loadSacredTexts() {
       const bibleUrl = new URL('../assets/bible_stripped.txt', import.meta.url).href;
       const response = await fetch(bibleUrl);
       const text = await response.text();
-      cachedBibleWords = text.split(/\s+/).filter(w => w.length > 0);
+      cachedBibleWords = text.toLowerCase().split(/\s+/).filter(w => w.length > 0);
       return cachedBibleWords;
     } catch (err) {
       console.error('[boot] Failed to load sacred texts:', err);

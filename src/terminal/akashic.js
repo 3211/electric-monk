@@ -1,6 +1,6 @@
 export const BabelAPI = {
   ALPHABET: "abcdefghijklmnopqrstuvwxyz ',._-1234567890=+()!:;\"",
-  BASE: 29n,
+  BASE: 51n,
   PAGE_LENGTH: 3200, // 40 rows * 80 cols
   MODULUS: null,
   MULTIPLIER: null,
@@ -75,11 +75,13 @@ export async function scoreDecryptedText(fullText, uniqueWords, sourceWordsOrder
     
     let pos = fullText.indexOf(word);
     while (pos !== -1) {
-      const prevChar = pos > 0 ? fullText[pos - 1] : '_';
-      const nextChar = pos + word.length < fullText.length ? fullText[pos + word.length] : '_';
+      const prevChar = pos > 0 ? fullText[pos - 1] : ' ';
+      const nextChar = pos + word.length < fullText.length ? fullText[pos + word.length] : ' ';
       
-      const isSpaced = (prevChar === '_' || prevChar === '.' || prevChar === ',') && 
-                       (nextChar === '_' || nextChar === '.' || nextChar === ',');
+      // A character is a boundary if it is NOT a letter, hyphen, or apostrophe.
+      const isBoundary = (ch) => !/[a-z'-]/.test(ch);
+      const isSpaced = isBoundary(prevChar) && isBoundary(nextChar);
+      
       const isValid = isSpaced || (word.length >= 3);
 
       if (isValid) {
