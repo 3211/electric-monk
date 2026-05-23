@@ -1,34 +1,70 @@
 -- ======================================================================================
--- GENESIS 1.1: NETWORK ENCRYPTION LEVEL
+-- GENESIS 1: VIRTUAL COMPUTERS, HARDWARE LINKS, FILES, AND NETWORK ENCRYPTION
 -- ======================================================================================
--- Adds encryption_level to network_addresses with hard-locks for players (100) and sects (1000).
--- Includes RPC to calculate combined encryption between two IPs.
+-- SUPABASE AI / AGENT DIRECTIVE:
+-- This is GENESIS_1. It creates virtual machine infrastructure and encryption systems.
 -- Designed to be strictly idempotent (re-runnable).
 -- ======================================================================================
 
 BEGIN;
 
 -- ==========================================
--- 1. ADD ENCRYPTION LEVEL COLUMN
+-- 1. VIRTUAL MACHINES
 -- ==========================================
 
+CREATE TABLE IF NOT EXISTS public.virtual_machines (
+    machine_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_identity_id UUID REFERENCES public.players(id) ON DELETE SET NULL,
+    ip_address inet UNIQUE DEFAULT public.allocate_network_address('virtual_machines'),
+    machine_name VARCHAR NOT NULL,
+    case_id TEXT NOT NULL, 
+    power_supply_id TEXT NOT NULL, 
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ==========================================
+-- 2. VIRTUAL MACHINE HARDWARE LINKS
+-- ==========================================
+
+CREATE TABLE IF NOT EXISTS public.virtual_machine_hardware (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    machine_id UUID NOT NULL REFERENCES public.virtual_machines(machine_id) ON DELETE CASCADE,
+    hardware_type VARCHAR NOT NULL,
+    catalog_id TEXT NOT NULL, 
+    slot_index INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ==========================================
+-- 3. VIRTUAL FILES
+-- ==========================================
+
+CREATE TABLE IF NOT EXISTS public.virtual_files (
+    file_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    machine_id UUID NOT NULL REFERENCES public.virtual_machines(machine_id) ON DELETE CASCADE,
+    file_path VARCHAR NOT NULL,
+    file_name VARCHAR NOT NULL,
+    file_size_mb INT NOT NULL DEFAULT 0,
+    file_content TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ==========================================
+-- 4. NETWORK ENCRYPTION SYSTEM
+-- ==========================================
+
+-- Add encryption level column to network_addresses
 ALTER TABLE public.network_addresses
 ADD COLUMN IF NOT EXISTS encryption_level INT NOT NULL DEFAULT 3;
 
 COMMENT ON COLUMN public.network_addresses.encryption_level IS 'Encryption strength of the network endpoint. Hard-locked at 100 for players, 1000 for sects. Other entity types are freely updatable.';
 
--- ==========================================
--- 2. BACKFILL EXISTING SECT RECORDS
--- ==========================================
-
+-- Backfill existing sect records
 UPDATE public.network_addresses
 SET encryption_level = 1000
 WHERE entity_type = 'sects' AND encryption_level != 1000;
 
--- ==========================================
--- 3. TRIGGER: HARD-LOCK ENCRYPTION FOR PLAYERS & SECTS
--- ==========================================
-
+-- Trigger: Hard-lock encryption for players & sects
 CREATE OR REPLACE FUNCTION public.enforce_encryption_level()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -60,10 +96,7 @@ CREATE TRIGGER enforce_encryption_level_trigger
     FOR EACH ROW
     EXECUTE FUNCTION public.enforce_encryption_level();
 
--- ==========================================
--- 4. TRIGGER: UPDATE ENCRYPTION LEVEL ON VM HARDWARE CHANGE
--- ==========================================
-
+-- Trigger: Update encryption level on VM hardware change
 CREATE OR REPLACE FUNCTION public.update_vm_encryption_level()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -76,30 +109,24 @@ DECLARE
     v_encryption_bonus INT;
     v_new_encryption_level INT;
 BEGIN
-    -- Get the VM's IP address
     SELECT ip_address INTO v_vm_ip
     FROM public.virtual_machines
     WHERE machine_id = NEW.machine_id;
     
-    -- If VM has no IP, skip
     IF v_vm_ip IS NULL THEN
         RETURN NEW;
     END IF;
     
-    -- Only proceed if this is a security chip being inserted/updated
     IF NEW.hardware_type = 'security_chip' THEN
         v_chip_id := NEW.catalog_id;
         
-        -- Look up the encryption bonus from catalog
         SELECT encryption_bonus INTO v_encryption_bonus
         FROM public.catalog_security_chips
         WHERE id = v_chip_id;
         
-        -- If chip found in catalog, calculate new encryption level
         IF v_encryption_bonus IS NOT NULL THEN
             v_new_encryption_level := 100 + v_encryption_bonus;
             
-            -- Update the network_addresses encryption_level
             UPDATE public.network_addresses
             SET encryption_level = v_new_encryption_level
             WHERE ip_address = v_vm_ip;
@@ -116,10 +143,7 @@ CREATE TRIGGER update_vm_encryption_trigger
     FOR EACH ROW
     EXECUTE FUNCTION public.update_vm_encryption_level();
 
--- ==========================================
--- 5. TRIGGER: UPDATE ENCRYPTION LEVEL ON VM IP ASSIGNMENT
--- ==========================================
-
+-- Trigger: Update encryption level on VM IP assignment
 CREATE OR REPLACE FUNCTION public.update_vm_encryption_on_ip_change()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -131,29 +155,24 @@ DECLARE
     v_encryption_bonus INT;
     v_new_encryption_level INT;
 BEGIN
-    -- Only proceed if IP is being set/changed and is not null
     IF NEW.ip_address IS NULL OR (TG_OP = 'UPDATE' AND OLD.ip_address = NEW.ip_address) THEN
         RETURN NEW;
     END IF;
     
-    -- Look for equipped security chip
     SELECT catalog_id INTO v_chip_id
     FROM public.virtual_machine_hardware
     WHERE machine_id = NEW.machine_id
       AND hardware_type = 'security_chip'
     LIMIT 1;
     
-    -- If no security chip equipped, skip (leave default 100)
     IF v_chip_id IS NULL THEN
         RETURN NEW;
     END IF;
     
-    -- Look up the encryption bonus from catalog
     SELECT encryption_bonus INTO v_encryption_bonus
     FROM public.catalog_security_chips
     WHERE id = v_chip_id;
     
-    -- If chip found in catalog, calculate and update encryption level
     IF v_encryption_bonus IS NOT NULL THEN
         v_new_encryption_level := 100 + v_encryption_bonus;
         
@@ -173,7 +192,7 @@ CREATE TRIGGER update_vm_encryption_on_ip_trigger
     EXECUTE FUNCTION public.update_vm_encryption_on_ip_change();
 
 -- ==========================================
--- 6. RPC: CALCULATE VM ENCRYPTION
+-- 5. ENCRYPTION RPC FUNCTIONS
 -- ==========================================
 
 CREATE OR REPLACE FUNCTION public.calculate_vm_encryption(p_machine_id UUID)
@@ -189,7 +208,6 @@ DECLARE
     v_encryption_bonus INT;
     v_total_encryption INT;
 BEGIN
-    -- Get the VM's IP address
     SELECT ip_address INTO v_vm_ip
     FROM public.virtual_machines
     WHERE machine_id = p_machine_id;
@@ -198,7 +216,6 @@ BEGIN
         RAISE EXCEPTION 'Virtual machine % not found or has no IP address', p_machine_id;
     END IF;
     
-    -- Get base encryption level from network_addresses
     SELECT encryption_level INTO v_base_encryption
     FROM public.network_addresses
     WHERE ip_address = v_vm_ip;
@@ -207,14 +224,12 @@ BEGIN
         RAISE EXCEPTION 'Network address % not found in registry', v_vm_ip;
     END IF;
     
-    -- Look for equipped security chip
     SELECT catalog_id INTO v_chip_id
     FROM public.virtual_machine_hardware
     WHERE machine_id = p_machine_id
       AND hardware_type = 'security_chip'
     LIMIT 1;
     
-    -- If security chip equipped, get its bonus
     IF v_chip_id IS NOT NULL THEN
         SELECT encryption_bonus INTO v_encryption_bonus
         FROM public.catalog_security_chips
@@ -232,10 +247,6 @@ BEGIN
     RETURN v_total_encryption;
 END;
 $$;
-
--- ==========================================
--- 6. RPC: CALCULATE COMBINED ENCRYPTION
--- ==========================================
 
 CREATE OR REPLACE FUNCTION public.calculate_encryption(p_ip1 inet, p_ip2 inet)
 RETURNS INT
@@ -268,8 +279,30 @@ END;
 $$;
 
 -- ==========================================
--- 7. PERMISSIONS & GRANTS
+-- 6. INDEXES
 -- ==========================================
+
+CREATE INDEX IF NOT EXISTS idx_vmh_machine ON public.virtual_machine_hardware(machine_id, hardware_type);
+CREATE INDEX IF NOT EXISTS idx_vfiles_machine_path ON public.virtual_files(machine_id, file_path);
+
+-- ==========================================
+-- 7. RLS POLICIES
+-- ==========================================
+
+ALTER TABLE public.virtual_machines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.virtual_machine_hardware ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.virtual_files ENABLE ROW LEVEL SECURITY;
+
+-- ==========================================
+-- 8. PERMISSIONS & GRANTS
+-- ==========================================
+
+-- Table Access
+GRANT ALL ON TABLE public.virtual_machines TO service_role, postgres;
+GRANT ALL ON TABLE public.virtual_machine_hardware TO service_role, postgres;
+GRANT ALL ON TABLE public.virtual_files TO service_role, postgres;
+
+-- Function Execution
 GRANT EXECUTE ON FUNCTION public.calculate_vm_encryption(UUID) TO service_role, authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.calculate_encryption(inet, inet) TO service_role, authenticated, anon;
 

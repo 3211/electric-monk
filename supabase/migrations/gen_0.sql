@@ -34,8 +34,6 @@ BEGIN
             floor(random() * 254 + 1)::text
         )::inet;
 
-        -- Attempt to insert directly into the master registry.
-        -- If it collides, it triggers a unique_violation and loops safely.
         BEGIN
             INSERT INTO public.network_addresses (ip_address, entity_type)
             VALUES (candidate_ip, p_entity_type);
