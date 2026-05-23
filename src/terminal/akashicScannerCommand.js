@@ -161,30 +161,50 @@ export function buildAkashicCommands() {
              // Render new line at the bottom
              const currentLineId = lineIds[windowSize - 1];
              
-             // Horizontal scanner effect
-             for (let scanPos = 0; scanPos < chunkSize; scanPos += 8) {
-               let renderStr = "";
+             // Horizontal scanner effect with glitch trail and active bottom row glitching
+             for (let scanPos = 0; scanPos < chunkSize; scanPos += 4) {
                let segments = [];
                let lastIdx = 0;
+               
+               // The unscanned portion of the line constantly glitches
+               const unscannedGlitched = glitchString(targetStr.substring(scanPos + 4), 0.9);
 
                for (let c = 0; c < chunkSize; c++) {
                  const charIdx = startOffset + c;
                  const isHit = overlay[charIdx] === 1;
                  const actualChar = targetStr[c];
                  
-                 // If the scanner is passing over this block, render it as white/highlighted
-                 if (c >= scanPos && c < scanPos + 8) {
+                 if (c >= scanPos && c < scanPos + 4) {
+                    // The Scanner Head
                     if (c > lastIdx) {
                       segments.push({ text: targetStr.substring(lastIdx, c), class: 'term-dim' });
                     }
                     segments.push({ text: actualChar !== ' ' ? actualChar : '█', class: 'term-ally' });
                     lastIdx = c + 1;
-                 } else if (isHit) {
+                 } else if (c < scanPos && c >= scanPos - 12) {
+                    // Glitch Trail right behind the scanner
                     if (c > lastIdx) {
                       segments.push({ text: targetStr.substring(lastIdx, c), class: 'term-dim' });
                     }
-                    segments.push({ text: actualChar, class: 'term-success term-bold' });
+                    segments.push({ text: glitchString(actualChar, 0.6), class: 'term-enemy' });
                     lastIdx = c + 1;
+                 } else if (c < scanPos) {
+                    // Fully resolved trail
+                    if (isHit) {
+                       if (c > lastIdx) {
+                         segments.push({ text: targetStr.substring(lastIdx, c), class: 'term-steel' });
+                       }
+                       segments.push({ text: actualChar, class: 'term-success term-bold' });
+                       lastIdx = c + 1;
+                    }
+                 } else {
+                    // Unscanned Glitching Future
+                    if (c > lastIdx) {
+                       // We handle the whole unscanned block at once
+                       segments.push({ text: unscannedGlitched, class: 'term-enemy' });
+                       lastIdx = chunkSize;
+                       break;
+                    }
                  }
                }
                
@@ -192,8 +212,9 @@ export function buildAkashicCommands() {
                  segments.push({ text: targetStr.substring(lastIdx), class: 'term-dim' });
                }
 
-               terminal.updateLine(currentLineId, { text: targetStr, segments: segments });
-               await sleep(30); // Horizontal scan speed
+               // Create a dummy text string of correct length to satisfy updateLine's text requirement
+               terminal.updateLine(currentLineId, { text: " ".repeat(chunkSize), segments: segments });
+               await sleep(25); // Horizontal scan speed
              }
 
              // Final resolution for the line
@@ -238,6 +259,24 @@ export function buildAkashicCommands() {
 
           terminal.write({ text: `  [BLK-${blockId}] Unit Verified & Sealed.`, class: 'term-holy' })
           terminal.write({ text: `  [SCORE] Points: ${score} | Dictionary Hits: ${matches.length}`, class: 'term-success' })
+          
+          // Output Summary Details
+          terminal.write({ text: `  ${matches.length} of these words are in the Bible.`, class: 'term-brass' });
+          if (matches.length > 0) {
+             const uniqueFound = [...new Set(matches.map(m => m.word))];
+             
+             // Chunk words out so they don't force bad wraps if there's a lot
+             let wordChunks = [];
+             while (uniqueFound.length > 0) {
+                wordChunks.push(uniqueFound.splice(0, 8).join(', '));
+             }
+             wordChunks.forEach(chunk => {
+                terminal.write({ text: `    ${chunk}`, class: 'term-dim' });
+             });
+
+             terminal.write({ text: `  Longest sentence found:`, class: 'term-steel' });
+             terminal.write({ text: `    "${bestStreakStr.toUpperCase()}"`, class: 'term-ally' });
+          }
 
           terminal.write({ text: '  ' + '─'.repeat(50), class: 'term-dim' })
           
