@@ -1,5 +1,5 @@
 export const BabelAPI = {
-  ALPHABET: "abcdefghijklmnopqrstuvwxyz ',._-",
+  ALPHABET: "abcdefghijklmnopqrstuvwxyz ',._-1234567890=+()!:;\"",
   BASE: 29n,
   PAGE_LENGTH: 3200, // 40 rows * 80 cols
   MODULUS: null,
