@@ -24,12 +24,20 @@
             class="term-line-text"
             :class="segment.class || line.class || ''"
           >
-            <span class="char" v-for="(char, cIdx) in graphemeChars(segment.text)" :key="cIdx">{{ char === ' ' ? '\u00A0' : char }}</span>
+            <span
+              v-for="(char, cIdx) in graphemeChars(segment.text)"
+              :key="cIdx"
+              :class="char === ' ' ? 'term-space' : 'char'"
+            >{{ char }}</span>
           </span>
         </template>
         <template v-else-if="line.text">
           <span class="term-line-text">
-            <span class="char" v-for="(char, cIdx) in graphemeChars(line.text)" :key="cIdx">{{ char === ' ' ? '\u00A0' : char }}</span>
+            <span
+              v-for="(char, cIdx) in graphemeChars(line.text)"
+              :key="cIdx"
+              :class="char === ' ' ? 'term-space' : 'char'"
+            >{{ char }}</span>
           </span>
         </template>
         <span v-else class="term-line-spacer">&nbsp;</span>
@@ -67,7 +75,6 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, getCurrentInstance } from 'vue'
 
-// ── Emoji-safe grapheme splitting ──
 let _segmenter = null
 function getSegmenter() {
   if (!_segmenter) {
@@ -76,10 +83,6 @@ function getSegmenter() {
   return _segmenter
 }
 
-/**
- * Split text into grapheme clusters so emoji surrogate pairs stay intact.
- * Used by the char-level v-for in the template to prevent splitting emojis in half.
- */
 function graphemeChars(text) {
   if (typeof text !== 'string') return []
   return Array.from(getSegmenter().segment(text)).map(s => s.segment)
@@ -101,7 +104,6 @@ const instance = getCurrentInstance()
 const isBlocked = computed(() => {
   if (props.terminal.busy) return true
   if (props.terminal.isTyping) return true
-  // Note: We DO NOT block during 'readMenu' so the textarea can still capture Arrow/Enter keystrokes!
   if (props.terminal.processingCommand && !props.terminal.hasActiveSession()) return true
   return false
 })
@@ -134,17 +136,15 @@ function autoResize() {
 }
 
 function handleKeydown(e) {
-  // 1. Intercept keystrokes if an interactive block/menu is active
   if (props.terminal.activeSession?.type === 'readMenu') {
-    e.preventDefault() // Stop characters from typing invisibly into the textarea
+    e.preventDefault()
     const interactiveKeys = ['ArrowUp', 'ArrowDown', 'Enter', 'w', 'a', 's', 'd', 'i', 'j', 'k', 'l', '8', '2', '4', '6', ',', '.', '<', '>', '+', '-']
     if (interactiveKeys.includes(e.key)) {
       props.terminal.handleInteractiveKey(e.key)
     }
-    return // Skip normal command processing completely
+    return
   }
 
-  // 2. Normal text entry and history logic
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     if (isBlocked.value) return
@@ -347,8 +347,8 @@ onUnmounted(() => {
 /* ─── Line Styles ─── */
 .term-line {
   white-space: pre-wrap;
-  word-break: break-all;
-  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .term-line-text {
@@ -365,6 +365,12 @@ onUnmounted(() => {
   display: inline-block;
   width: 1ch;
   text-align: center;
+}
+
+/* Breakable standard space maintaining perfect terminal width */
+.term-line .term-space {
+  display: inline;
+  white-space: pre-wrap;
 }
 
 /* ─── Color Classes ─── */
@@ -412,7 +418,7 @@ onUnmounted(() => {
   white-space: pre-wrap;
   word-break: break-all;
   margin-top: 0.25rem;
-  transition: opacity 100ms ease; /* Smooth fade when entering menu mode */
+  transition: opacity 100ms ease;
 }
 
 .term-input-row .term-prompt {
