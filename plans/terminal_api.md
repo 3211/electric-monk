@@ -106,7 +106,10 @@ commandName: {
 
 ### Context (`ctx`)
 - `terminal`: The `useTerminal` instance.
-- `tab`: (Optional) Tab management callbacks (`newTab`, `closeThis`, etc.).
+- `tab`: (Optional) Tab management object. Contains:
+    - `setTitle(title)`: Update the current tab's display name.
+    - `newTab()`: Open a new terminal tab.
+    - `closeThis()`, `closeOthers()`, `closeAll()`: Tab lifecycle management.
 - `registry`: The full command registry (for recursive calls or help lookups).
 
 ---
@@ -129,7 +132,8 @@ The terminal instance emits events that can be listened to via `terminal.on(even
 ---
 
 ## Best Practices
-1. **Use IDs:** When creating lines that need to be updated (like progress bars or status updates), always provide a unique `id`.
-2. **Handle `busy`:** Set `terminal.busy = true` during long-running async operations to prevent users from spamming commands.
-3. **Clean Up Sessions:** Interactive sessions (`readLine`, `readMenu`) automatically clean up their state, but manual line updates should be removed if they are temporary.
-4. **Theming:** Use established CSS classes from `src/style.css` to maintain visual consistency.
+1. **Update Tab Titles:** Every command or major operation (like onboarding or boot sequences) should strictly set the tab title at the start of the operation using `ctx.tab.setTitle("Title")` or `terminal.tab.setTitle("Title")`. This ensures the UI reflects the current context.
+2. **Use IDs:** When creating lines that need to be updated (like progress bars or status updates), always provide a unique `id`.
+3. **Handle `busy`:** Set `terminal.busy = true` during long-running async operations to prevent users from spamming commands.
+4. **Clean Up Sessions:** Interactive sessions (`readLine`, `readMenu`) automatically clean up their state, but manual line updates should be removed if they are temporary.
+5. **Theming:** Use established CSS classes from `src/style.css` to maintain visual consistency.

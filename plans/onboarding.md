@@ -62,6 +62,7 @@ graph TD
 
 ### 4. Completion
 - Final greeting is displayed.
+- **Tab Title:** The tab title is updated to "Welcome" (or "Error registering" on failure) using `terminal.tab.setTitle()`.
 - `usePlayerState` is updated with the new `username`, `sect_id`, `sect_name`, and `sect_emoji`.
 - Terminal unblocks (`terminal.busy = false`) and user enters the main game loop.
 
