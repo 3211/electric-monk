@@ -7,10 +7,10 @@
   color-scheme: light;
 
   /* Typography — Hard-Square: mono-first */
-  --font-display: "Cormorant Garamond", "Iowan Old Style", "Baskerville Old Face", Georgia, serif;
-  --font-body: "JetBrains Mono", "Cascadia Code", monospace;
-  --font-mono: "JetBrains Mono", "Cascadia Code", monospace;
-  --font-ui: "JetBrains Mono", monospace;
+  --font-display: "JetBrains Mono", "Cascadia Code", monospace, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-body: "JetBrains Mono", "Cascadia Code", monospace, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: "JetBrains Mono", "Cascadia Code", monospace, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-ui: "JetBrains Mono", monospace, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 
   /* Backgrounds */
   --theme-bg: #f5efe0;

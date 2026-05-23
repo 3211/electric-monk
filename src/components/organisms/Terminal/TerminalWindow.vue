@@ -243,7 +243,7 @@ onUnmounted(() => {
   background:
     linear-gradient(180deg, rgba(9, 12, 16, 0.98), rgba(11, 15, 19, 0.99)),
     linear-gradient(145deg, rgba(14, 18, 23, 0.97), rgba(7, 9, 12, 0.99));
-  font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", monospace;
+  font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", monospace, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   font-size: 0.8125rem;
   line-height: 1.55;
   color: var(--war-text, #d7e0e8);
