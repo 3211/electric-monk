@@ -99,6 +99,16 @@ All buttons (`btn-primary`, `btn-secondary`, `btn-ghost`, `btn-danger`) enforce:
 - **Evil View:** Dark Purple & Neon (Sharp Magenta accents)
 - **War View:** Steel & Brass (Sharp Brass accents)
 
+### Terminal Faction Tuning (The "Liquid" CRT)
+The terminal supports various faction-based atmospheric tunings. The default (Standard/Neutral) tuning uses the **War View** base colors.
+
+- **Neutral/Standard Tuning:**
+  - Base Text: `--war-text` (Soft Blue-Grey)
+  - Secondary/Dim: `--war-steel`, `--war-dim`
+  - Highlights/Prompts: `--war-brass`, `--war-brass-light`
+  - Success/Ally: `--war-ally`
+  - Error/Enemy: `--war-enemy`
+
 All themes must adhere to the `2px` radius rule regardless of color scheme.
 
 ## Implementation Status

@@ -13,11 +13,25 @@
         :key="i"
         class="term-line"
         :class="[
-          line.class || '',
+          line.segments ? '' : (line.class || ''),
           { 'term-line--typing': line._typing }
         ]"
       >
-        <span v-if="line.text" class="term-line-text">{{ line.text }}</span>
+        <template v-if="line.segments">
+          <span
+            v-for="(segment, idx) in line.segments"
+            :key="idx"
+            class="term-line-text"
+            :class="segment.class || line.class || ''"
+          >
+            <span class="char" v-for="(char, cIdx) in segment.text" :key="cIdx">{{ char === ' ' ? '&nbsp;' : char }}</span>
+          </span>
+        </template>
+        <template v-else-if="line.text">
+          <span class="term-line-text">
+            <span class="char" v-for="(char, cIdx) in line.text" :key="cIdx">{{ char === ' ' ? '&nbsp;' : char }}</span>
+          </span>
+        </template>
         <span v-else class="term-line-spacer">&nbsp;</span>
       </div>
 
@@ -235,21 +249,21 @@ onUnmounted(() => {
   color: var(--war-text, #d7e0e8);
 }
 
+.term-window::selection,
+.term-window *::selection {
+  background: rgba(182, 144, 91, 0.3);
+  color: var(--war-brass-light, #d4ba8e);
+  text-shadow: 0 0 8px rgba(212, 163, 89, 0.6);
+}
+
 /* ─── Scanline Overlay ─── */
 .term-scanlines {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 50;
-  background:
-    repeating-linear-gradient(
-      0deg,
-      transparent 0px,
-      transparent 2px,
-      rgba(0, 0, 0, 0.06) 2px,
-      rgba(0, 0, 0, 0.06) 4px
-    );
-  opacity: 0.55;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  background-size: 100% 4px, 6px 100%;
 }
 
 /* ─── CRT Flicker ─── */
@@ -258,21 +272,14 @@ onUnmounted(() => {
   inset: 0;
   pointer-events: none;
   z-index: 49;
-  opacity: 0;
   background: rgba(185, 197, 207, 0.02);
-  animation: term-flicker-anim 8s ease-in-out infinite;
+  animation: term-flicker-anim 0.15s infinite;
 }
 
 @keyframes term-flicker-anim {
-  0%, 100% { opacity: 0; }
-  2% { opacity: 0.4; }
-  2.5% { opacity: 0; }
-  48% { opacity: 0; }
-  48.5% { opacity: 0.25; }
-  49% { opacity: 0; }
-  78% { opacity: 0; }
-  78.3% { opacity: 0.15; }
-  78.6% { opacity: 0; }
+  0% { opacity: 0.985; }
+  50% { opacity: 0.995; }
+  100% { opacity: 0.985; }
 }
 
 /* ─── Content Area (Scrollable) ─── */
@@ -320,8 +327,8 @@ onUnmounted(() => {
 /* ─── Line Styles ─── */
 .term-line {
   white-space: pre-wrap;
-  word-break: break-word;
-  overflow-wrap: break-word;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .term-line-text {
@@ -331,6 +338,13 @@ onUnmounted(() => {
 .term-line-spacer {
   display: inline;
   visibility: hidden;
+}
+
+/* Hard-Square Liquid Spacing */
+.term-line .char {
+  display: inline-block;
+  width: 1ch;
+  text-align: center;
 }
 
 /* ─── Color Classes ─── */

@@ -95,22 +95,50 @@ export function useTerminal(id = 'default') {
     if (existing >= 0) {
       if (typeof content === 'string') {
         lines[existing].text = content
+        lines[existing].segments = null
       } else {
         if (content.text !== undefined) lines[existing].text = content.text
         if (content.class !== undefined) lines[existing].class = content.class
+        if (content.segments !== undefined) lines[existing].segments = content.segments
       }
     } else {
       if (typeof content === 'string') {
-        lines.push({ text: content, class: '', id: lineId })
+        lines.push({ text: content, class: '', id: lineId, segments: null })
       } else {
         lines.push({
           text: content.text || '',
           class: content.class || '',
           id: lineId,
+          segments: content.segments || null
         })
       }
     }
     emit('lineUpdated', { id: lineId, line: lines[existing >= 0 ? existing : lines.length - 1] })
+  }
+
+  function highlightPattern(lineId, regex, className) {
+    const line = getLine(lineId)
+    if (!line || !line.text) return
+
+    const matches = [...line.text.matchAll(regex)]
+    if (matches.length === 0) return
+
+    let segments = []
+    let lastIndex = 0
+
+    for (const match of matches) {
+      if (match.index > lastIndex) {
+        segments.push({ text: line.text.substring(lastIndex, match.index), class: '' })
+      }
+      segments.push({ text: match[0], class: className })
+      lastIndex = match.index + match[0].length
+    }
+
+    if (lastIndex < line.text.length) {
+      segments.push({ text: line.text.substring(lastIndex), class: '' })
+    }
+
+    updateLine(lineId, { text: line.text, class: line.class, segments })
   }
 
   function removeLine(lineId) {
@@ -351,7 +379,7 @@ export function useTerminal(id = 'default') {
    * @returns {string} glitched text
    */
   function _glitchText(text, intensity = 0.2) {
-    const glitchChars = '!@#$%^&*░▒▓█▄▀╔╗╚╝║═╬┼┤├┴└┘┐┌─│'
+    const glitchChars = '!@#$%^&*()░▒▓█▄▀╔╗╚╝║═╬┼┤├┴└┘┐┌─│'
     return text.split('').map(char => {
       if (char === ' ') return ' '
       if (Math.random() < intensity) {
@@ -389,10 +417,12 @@ export function useTerminal(id = 'default') {
       glitchClass = 'term-enemy',
       pureClass = 'term-ally',
       intensity = 0.75,
-      steps = 6,
-      stepDelay = 150,
-      fixChance = 0.4,
+      steps = 12,
+      stepDelay = 60,
+      fixChance = 0.35,
       glitchFn = _glitchText,
+      highlightRegex = null,
+      highlightClass = 'term-brass'
     } = options
 
     // Start fully corrupted
@@ -406,6 +436,8 @@ export function useTerminal(id = 'default') {
       for (let c = 0; c < pureText.length; c++) {
         if (currentText[c] !== pureText[c] && (Math.random() < fixChance || step === steps - 1)) {
           nextText += pureText[c]
+        } else if (currentText[c] !== pureText[c] && Math.random() < 0.3) {
+          nextText += glitchFn(pureText[c], 1) // scramble glitch chars mid-flight
         } else {
           nextText += currentText[c]
         }
@@ -416,6 +448,10 @@ export function useTerminal(id = 'default') {
 
     // Final pure state
     updateLine(lineId, { text: `${purePrefix}${pureText}`, class: pureClass })
+    
+    if (highlightRegex) {
+      highlightPattern(lineId, highlightRegex, highlightClass)
+    }
   }
 
   // ── Interactive Input (readLine / readKey / readMenu) ──
@@ -699,6 +735,7 @@ export function useTerminal(id = 'default') {
     createProgressBar,
     startSpinner,
     purifyLine,
+    highlightPattern,
 
     // Interactive
     readLine,
