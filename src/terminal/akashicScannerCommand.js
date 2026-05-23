@@ -180,42 +180,11 @@ async function runScanner(ctx, scannerState) {
           const endOffset = Math.min(startOffset + chunkSize, BabelAPI.PAGE_LENGTH);
           const targetStr = textPos.substring(startOffset, endOffset).padEnd(chunkSize, ' ');
 
-          let layer1_base = [];
-          let layer2_artifacts = [];
-          let layer3_tracer = [];
-          let layer4_redGlitch = [];
-
           // Build compositing layers
-          for (let x = 0; x < chunkSize; x++) {
-             let char = targetStr[x] || ' ';
-             let absolutePos = startOffset + x;
-             let isHit = overlay[absolutePos] === 1;
-
-             // Layer 1: Base text being scanned
-             layer1_base[x] = { char, class: 'term-steel' };
-
-             // Layer 2: Glitch / defrag artifacts and highlight found words
-             if (isHit && absolutePos < tracerPos) {
-                layer2_artifacts[x] = { char, class: 'term-ally term-bold' };
-             } else if (Math.random() < 0.015) {
-                layer2_artifacts[x] = { char: GLITCH_GLYPHS[Math.floor(Math.random() * GLITCH_GLYPHS.length)], class: 'term-dim' };
-             }
-
-             // Layer 3: Colored tracing scan (yellow tracer highlighter)
-             if (absolutePos >= tracerPos && absolutePos < tracerPos + 12) {
-                layer3_tracer[x] = { char: char !== ' ' ? char : '█', class: 'term-brass' };
-             }
-
-             // Layer 4: Glitched line at the bottom, red, moving down from top rows
-             if (y === Math.floor(redGlitchY)) {
-                layer4_redGlitch[x] = { char: char !== ' ' ? char : GLITCH_GLYPHS[Math.floor(Math.random() * GLITCH_GLYPHS.length)], class: 'term-enemy' };
-             }
-          }
-
-          // Compile layers in render order
           let segments = [];
           let currentClass = null;
           let currentText = "";
+          
           const pushSegment = (char, cls) => {
              if (currentClass === cls) {
                 currentText += char;
@@ -227,14 +196,36 @@ async function runScanner(ctx, scannerState) {
           };
 
           for (let x = 0; x < chunkSize; x++) {
-             let finalChar = layer1_base[x].char;
-             let finalClass = layer1_base[x].class;
-             
-             // Overwrite based on layer priority
-             if (layer2_artifacts[x]) { finalChar = layer2_artifacts[x].char; finalClass = layer2_artifacts[x].class; }
-             if (layer3_tracer[x]) { finalChar = layer3_tracer[x].char; finalClass = layer3_tracer[x].class; }
-             if (layer4_redGlitch[x]) { finalChar = layer4_redGlitch[x].char; finalClass = layer4_redGlitch[x].class; }
-             
+             let char = targetStr[x] || ' ';
+             let absolutePos = startOffset + x;
+             let isHit = overlay[absolutePos] === 1;
+
+             let finalChar = char;
+             let finalClass = 'term-steel'; // Layer 1 (Base)
+
+             // Layer 4: Red glitch moving down
+             if (absolutePos >= tracerPos && absolutePos < tracerPos + 120) {
+                // The unscanned portion ahead of the tracer is red glitch
+                finalChar = GLITCH_GLYPHS[Math.floor(Math.random() * GLITCH_GLYPHS.length)];
+                finalClass = 'term-enemy';
+             } else if (absolutePos >= tracerPos + 120) {
+                // Far ahead is just dim glitch
+                finalChar = GLITCH_GLYPHS[Math.floor(Math.random() * GLITCH_GLYPHS.length)];
+                finalClass = 'term-dim term-bold text-slate-800/20'; // like reference/decryptor.html idle display
+             } else if (absolutePos >= tracerPos - 12 && absolutePos < tracerPos) {
+                 // Layer 3: Colored tracing scan right behind head
+                 finalChar = char !== ' ' ? char : '█';
+                 finalClass = 'term-brass';
+             } else {
+                 // Layer 2: Artifacts and highlight
+                 if (isHit) {
+                     finalClass = 'term-success term-bold';
+                 } else if (Math.random() < 0.02) {
+                     finalChar = GLITCH_GLYPHS[Math.floor(Math.random() * GLITCH_GLYPHS.length)];
+                     finalClass = 'term-dim';
+                 }
+             }
+
              pushSegment(finalChar, finalClass);
           }
           if (currentText.length > 0) segments.push({ text: currentText, class: currentClass });
