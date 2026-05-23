@@ -27,7 +27,7 @@ export function buildGlobalCommands() {
       handler(args, ctx) {
         const registry = ctx.registry
         const target = args[0]
-
+        ctx.tab.setTitle("help")
         if (target) {
           const cmd = registry[target]
           if (!cmd) {
