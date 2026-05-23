@@ -8,7 +8,7 @@
       <div class="term-flicker" aria-hidden="true"></div>
 
       <!-- Terminal content area (scrollable, includes input) -->
-      <div class="term-content" ref="contentRef">
+      <div class="term-content" ref="contentRef" @scroll="handleScroll">
         <!-- Output lines -->
         <div
           v-for="(line, i) in displayedLines"
@@ -86,7 +86,7 @@
     <!-- Invisible SVG filter definition for CRT diagonal wave ripple -->
     <svg class="term-ripple-svg" aria-hidden="true" width="0" height="0" style="position: absolute; pointer-events: none;">
       <defs>
-        <filter id="crt-ripple" x="0" y="0" width="100%" height="100%">
+        <filter id="crt-ripple" x="-10%" y="-10%" width="120%" height="120%">
           <!-- Generate a soft, organic wave noise layout -->
           <feTurbulence 
             type="turbulence" 
@@ -111,9 +111,15 @@
               repeatCount="indefinite" 
             />
           </feOffset>
+          <!-- Dynamic Scroll-Induced Motion Smear -->
+          <feGaussianBlur 
+            in="SourceGraphic" 
+            :stdDeviation="`${scrollBlur} 0`" 
+            result="blurred" 
+          />
           <!-- Apply soft, subtle deflection based on our animated diagonal coordinate shifts -->
           <feDisplacementMap 
-            in="SourceGraphic" 
+            in="blurred" 
             in2="diagonalWarp" 
             :scale="crtScale" 
             xChannelSelector="R" 
@@ -179,16 +185,18 @@ const GLITCH_CHARS = '!@#$%^&*()░▒▓█▄▀╔╗╚╝║═╬┼┤├
 const crtScale = ref(3)
 let crtDecayIntervalId = null
 
+// ── Motion Blur & Scroll Smear Tracking ──
+const scrollBlur = ref(0)
+let lastScrollTop = 0
+let scrollTimeoutId = null
+let scrollDecayIntervalId = null
+
 let resizeObserver = null
 let isInitialized = false
 let lastWidth = 0
 let lastHeight = 0
 let lastPixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio : 1
 
-/**
- * Spawns a localized interference pattern that acts as a pure render mask.
- * Gracefully reverts upon expiration without mutating underlying data.
- */
 function spawnGlitch(options = {}) {
   const now = Date.now()
   activeGlitches.value.push({
@@ -205,19 +213,14 @@ function spawnGlitch(options = {}) {
   glitchTick.value++
 }
 
-/**
- * Triggers a massive screen-wide physical layout distortion paired with intensive character scrambled masks.
- */
 function triggerHardcoreScreenGlitch() {
   if (crtDecayIntervalId) clearInterval(crtDecayIntervalId)
 
-  // Spike displacement value to aggressively warp display
   crtScale.value = 25 + Math.random() * 15
 
   const startTime = Date.now()
   const duration = 500
 
-  // Linearly decay screen warp scale over time
   crtDecayIntervalId = setInterval(() => {
     const elapsed = Date.now() - startTime
     if (elapsed >= duration) {
@@ -233,7 +236,6 @@ function triggerHardcoreScreenGlitch() {
   const linesCount = props.terminal.lines.length
   if (linesCount === 0) return
 
-  // Limit viewport processing loop to the most recent 40 active lines to maintain performance
   const startIdx = Math.max(0, linesCount - 40)
   for (let idx = startIdx; idx < linesCount; idx++) {
     const line = props.terminal.lines[idx]
@@ -259,9 +261,44 @@ function triggerHardcoreScreenGlitch() {
   }
 }
 
-/**
- * Evaluates active interference masks directly against the pristine source text.
- */
+function handleScroll() {
+  if (!contentRef.value) return
+  const currentScrollTop = contentRef.value.scrollTop
+  const delta = Math.abs(currentScrollTop - lastScrollTop)
+
+  if (scrollDecayIntervalId) {
+    clearInterval(scrollDecayIntervalId)
+    scrollDecayIntervalId = null
+  }
+
+  // Calculate motion deviation dynamically. Max bound of 8 avoids severe illegibility.
+  scrollBlur.value = Math.min(delta * 0.18, 8)
+  lastScrollTop = currentScrollTop
+
+  if (scrollTimeoutId) clearTimeout(scrollTimeoutId)
+  scrollTimeoutId = setTimeout(() => {
+    decayScrollBlur()
+  }, 30)
+}
+
+function decayScrollBlur() {
+  const start = Date.now()
+  const duration = 140
+  const initialBlur = scrollBlur.value
+
+  scrollDecayIntervalId = setInterval(() => {
+    const elapsed = Date.now() - start
+    if (elapsed >= duration) {
+      scrollBlur.value = 0
+      clearInterval(scrollDecayIntervalId)
+      scrollDecayIntervalId = null
+    } else {
+      const progress = elapsed / duration
+      scrollBlur.value = initialBlur * Math.pow(1 - progress, 2)
+    }
+  }, 16)
+}
+
 const displayedLines = computed(() => {
   const baseLines = props.terminal.lines
   const _tick = glitchTick.value
@@ -536,7 +573,6 @@ onMounted(() => {
     window.addEventListener('resize', checkDpiZoom)
   }
 
-  // Set up container tracking to catch splitted viewports and browser zooming
   resizeObserver = new ResizeObserver((entries) => {
     for (const entry of entries) {
       const { width, height } = entry.contentRect
@@ -578,6 +614,8 @@ onUnmounted(() => {
   cleanupFns.forEach(fn => { if (typeof fn === 'function') fn() })
   if (engineTimerId) clearInterval(engineTimerId)
   if (crtDecayIntervalId) clearInterval(crtDecayIntervalId)
+  if (scrollDecayIntervalId) clearInterval(scrollDecayIntervalId)
+  if (scrollTimeoutId) clearTimeout(scrollTimeoutId)
   if (resizeObserver) {
     resizeObserver.disconnect()
   }
