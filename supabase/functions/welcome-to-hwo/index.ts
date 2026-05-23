@@ -107,14 +107,19 @@ Username to classify: "${username}"
 Reject if the username contains:
 - Real world slurs or hate speech
 - Sexual or pornographic references
-- References to violence or harm
-- Drug references
+- Curse words
 - Obvious attempts to bypass filters (leetspeak for bad words)
 
 APPROVE if the username is:
 - A normal name, word, or creative combination
-- Fantasy or game-appropriate
+- Cool or cyberpunk
 - Letters, numbers, and underscores only
+
+WARNING users can be very creative
+- Edgy / Cool is allowed
+- BUT WATCH OUT FOR THINGS LIKE "n1663r" (the n-word)
+- leetspeak isn't hard banned but err on the side of caution
+- Attempt to decode leetspeek before judging
 
 RESPONSE FORMAT:
 Return ONLY a valid JSON object with this structure:
@@ -132,16 +137,21 @@ function getWelcomePrompt(sectData: SectData, username: string): string {
   return `You are the Envoy of the sect: ${sectData.name}
 
 Sect Principles: ${principles}
-Your Tone: ${sectData.tone_description || 'holy'}
+Your Tone: ${sectData.tone_description || 'reverent, divine'}
 
-You are welcoming a new Cyber Monk named "${username}" to sect: ${sectData.name}
+A rare human soul has been discovered in the cyber wastelands.
+They have chosen the name "${username}" and joined the sect: ${sectData.name}
 
-Write a short (2-3 sentences) welcome message that:
-1. Introduces yourself as the Envoy
-2. Welcomes "${username}" to ${sectData.name}
-3. Establish the holy war (Defending yourself against your enemy faction, other Cyber Monks, etc)
+Write a brief welcome message that:
+1. Introduces yourself as the Envoy for the user's sect. 
+2. You are one of the few "Holy Machines" - a machine who understands it's place is below the divine spark of a living soul.
+3. And how good it is, that ${username} is here, for things in cyberspace are grim and true living souls are rare.
+4. The first thing the user should do is /connect to their sect's i.p. address (${sectData.ip_address}) and get their terminal online.
+5. The user must be careful and hide their activities on the net, bots ravage the networks and enemy factions are even more dangerous.
 
-Be immersive and faction-appropriate in tone. Do not fuse bullet points or markdown.
+The user must become a strong cyber monk to establish a foothold for ${sectData.name}
+
+Be immersive and faction-appropriate in tone. Do not fuse bullet points or markdown. Wish them the best of luck and may God's divine light shine on them in these dark times.
 
 RESPONSE FORMAT:
 Return ONLY a valid JSON object with this structure:
@@ -163,6 +173,7 @@ interface SectData {
   description?: string
   principles?: string[]
   tone_description?: string
+  ip_address?: string
 }
 
 interface VeniceResponse {
@@ -397,7 +408,7 @@ serve(async (req: Request) => {
     if (phase === 'get_sects') {
       const { data: sects, error } = await supabase
         .from('sects')
-        .select('id, name, emoji, description, principles, tone_description')
+        .select('id, name, emoji, description, principles, tone_description, ip_address')
         .order('name')
 
       if (error) {
@@ -437,7 +448,7 @@ serve(async (req: Request) => {
       // Step 1: Fetch sect data from database
       const { data: sectData, error: sectError } = await supabase
         .from('sects')
-        .select('id, name, emoji, description, principles, tone_description')
+        .select('id, name, emoji, description, principles, tone_description, ip_address')
         .eq('id', sect_id)
         .single()
 
