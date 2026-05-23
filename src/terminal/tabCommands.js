@@ -21,6 +21,7 @@ export function buildTabCommands() {
           ]
         }
         ctx.tab.newTab()
+        ctx.tab.setTitle("Terminal");
         return null
       },
     },

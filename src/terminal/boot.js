@@ -173,7 +173,7 @@ export async function runBootSequence(terminal, duration = 3500) {
     minCycles = 8;
     maxCycles = 12;
   }
-
+  
   const targetCycles = randomInt(minCycles, maxCycles);
 
   // ── Procedural boot message loop ──
@@ -263,6 +263,9 @@ export async function runBootSequence(terminal, duration = 3500) {
   terminal.write({ text: '  ' + '─'.repeat(60), class: 'term-dim' });
   terminal.write({ text: '', class: '' });
 
+  if (terminal.tab?.setTitle) {
+    terminal.tab.setTitle("Terminal");
+  }
   // Unblock input
   terminal.busy = false;
   await sleep(300);
