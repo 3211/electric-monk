@@ -280,6 +280,25 @@ serve(async (req: Request) => {
         WHERE process_id = ${processId}
       `
       if (pendingRows.length === 0) {
+        // Check if already completed (e.g. by a cron job or prior pulse)
+        const completedRows = await sql`
+          SELECT * FROM public.akashic_scans_completed
+          WHERE process_id = ${processId}
+        `
+        if (completedRows.length > 0) {
+          const c = completedRows[0]
+          return new Response(JSON.stringify({
+            success: true,
+            action: "pulse",
+            process_id: processId,
+            blocks_processed: c.blocks_processed,
+            total_score_awarded: c.score_awarded,
+            initiator_ip: c.initiator_ip,
+            verification_results: [],
+            was_verification_batch: c.is_verification,
+            note: "Scan was already finalized.",
+          }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
+        }
         throw new Error(`Pending scan ${processId} not found. It may have already been processed or expired.`)
       }
 
@@ -547,6 +566,7 @@ serve(async (req: Request) => {
               progress,
               elapsed_ms: elapsedMs,
               remaining_ms: Math.max(0, totalDurationMs - elapsedMs),
+              blocks_completed: Math.floor(progress * scan.target_blocks),
             },
           }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
         }

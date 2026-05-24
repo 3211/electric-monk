@@ -224,7 +224,7 @@ export async function runScanner(ctx, scannerState) {
   const sleep = ms => new Promise(r => setTimeout(r, ms))
 
   const totalSegments = scannerState.totalSegments || 5
-  const scanMode = scannerState.scanMode || 'scan'
+  let scanMode = scannerState.scanMode || 'scan'
   const initiatorIp = scannerState.initiatorIp || null
 
   terminal.write({ text: '  [SYS] Initializing Akashic Record Scanner...', class: 'term-dim' })
@@ -269,13 +269,19 @@ export async function runScanner(ctx, scannerState) {
         // Use the akashic process_id (may differ from virtual_process_id used for lookup)
         scannerState.processId = scan.process_id
 
+        // ── Restore server-side timing data (prevents defaulting to 25ms speed) ──
+        scannerState.blockSpeedMs = scan.block_speed_ms || scannerState.blockSpeedMs
+        scannerState.expectedCompletion = scan.expected_completion_time || scannerState.expectedCompletion
+
         if (scan.scan_mode === 'verify' && scan.reserved_blocks?.length > 0) {
           seeds = scan.reserved_blocks
         } else {
           const startOffset = scannerState.startOffset || (Math.floor(Math.random() * 666999111) + 1)
           seeds = generateFibonacci(startOffset, totalSegments)
         }
-        scannerState.blocksCompleted = scan.blocks_completed || 0
+        // Calculate blocks_completed from progress ratio if not directly available
+        scannerState.blocksCompleted = scan.blocks_completed
+          || Math.floor((scan.progress || 0) * (scan.target_blocks || seeds.length || totalSegments))
         terminal.write({ text: `  [OK]  Found pending scan. Progress: ${scannerState.blocksCompleted}/${seeds.length || totalSegments}`, class: 'term-ally' })
       } else {
         // DB state not found — fall back to local state from process_metadata
@@ -369,6 +375,15 @@ export async function runScanner(ctx, scannerState) {
   // ── Seed index tracking ──
   let seedIndex = scannerState.blocksCompleted || 0
 
+  // ── Catch-up mode: when rehydrating, run remaining blocks faster to meet
+  //    the server's expected_completion_time. Once within ~1% of the target,
+  //    return to normal speed so the server has time to process the pulse.
+  let catchUpMode = false
+  if (isRehydrating && scannerState.expectedCompletion) {
+    catchUpMode = true
+    terminal.write({ text: `  [SYS] Catch-up mode active — pacing to meet server deadline.`, class: 'term-steel' })
+  }
+
   // ── Fast-forward: render completed blocks ──
   if (isRehydrating && seedIndex > 0) {
     terminal.write({ text: `  [SYS] ${seedIndex}/${activeSegments} blocks already complete.`, class: 'term-dim' })
@@ -424,6 +439,19 @@ export async function runScanner(ctx, scannerState) {
   // Main loop: process each segment sequentially
   // ═══════════════════════════════════════════
   for (; seedIndex < activeSegments && scannerState.running; seedIndex++) {
+    // ── Catch-up mode exit check: slow down when within 1% of server's expected deadline ──
+    if (catchUpMode && scannerState.expectedCompletion) {
+      const remainingBlocks = activeSegments - seedIndex
+      const msPerBlockNormal = blockSpeedMs
+      const estMsRemaining = remainingBlocks * msPerBlockNormal
+      const msUntilDeadline = new Date(scannerState.expectedCompletion).getTime() - Date.now()
+      // Exit catch-up when our projected finish is within 1% of the server's deadline
+      if (estMsRemaining <= msUntilDeadline * 1.01) {
+        catchUpMode = false
+        terminal.write({ text: `  [SYS] Catch-up complete. Resuming normal scan speed.`, class: 'term-ally' })
+      }
+    }
+
     const seed = seeds[seedIndex]
     const blockId = (seedIndex + 1).toString().padStart(2, '0')
     const address = seed.toString()
@@ -787,7 +815,7 @@ export async function runScanner(ctx, scannerState) {
          terminal.updateLine(segmentVizId, { text: vizUpdate.text, class: 'term-steel', segments: vizUpdate.segments });
        }
 
-       await sleep(Math.max(15, blockSpeedMs / 200));
+       await sleep(catchUpMode ? 15 : Math.max(15, blockSpeedMs / 200));
     }
 
     if (!scannerState.running) break;
