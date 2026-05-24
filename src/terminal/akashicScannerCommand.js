@@ -543,15 +543,23 @@ export async function runScanner(ctx, scannerState) {
 
     const evaGlitch = {
       active: false,
-      phase: 0,
+      phase: 0, // 0=opening, 1=contained, 2=sealing, 3=sealed/resuming
+      frame: 0,
+      bracketOpenness: 0, // 0-1, eased
       gapSize: 0,
       maxGap: 14,
-      frame: 0,
-      stallFrames: 0,
-      splitSpeed: 0.45,
-      repairSpeed: 0.7,
       nextGlitchAt: 55 + Math.floor(Math.random() * 90),
+      openFrames: 5,
+      containFrames: 10,
+      sealFrames: 25,
+      sealDelay: 0,
     };
+
+    // Ease-out function for snappy bracket snap
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
     const TRACER_STEP  = 16;
 
     // Best streak
@@ -575,24 +583,32 @@ export async function runScanner(ctx, scannerState) {
     function updateEvaBar(progress, fSeed, locked) {
       let filledCount = Math.floor(progress * EVA_BAR_WIDTH);
       let halfWidth = Math.floor(EVA_BAR_WIDTH / 2);
-      let gap;
-      let isGlitching;
-      if (locked) {
-        gap = 0;
-        isGlitching = false;
-      } else {
-        gap = Math.floor(evaGlitch.gapSize);
-        isGlitching = evaGlitch.active;
+      let isGlitching = !locked && evaGlitch.active;
+      
+      // Calculate inner bracket visual width (max 8 chars total for inner brackets)
+      const innerBracketMax = 6;
+      let innerOpenAmount = 0;
+      if (isGlitching) {
+        // Map bracketOpenness (0-1) to actual opening using ease-out
+        innerOpenAmount = Math.floor(evaGlitch.bracketOpenness * innerBracketMax);
       }
+      
+      // Gap in the middle where glitch appears
+      let gap = isGlitching ? Math.floor(evaGlitch.gapSize) : 0;
+      
       let segments = [];
       let curCls = null, curTxt = "";
       const pushSeg = (ch, cls) => {
         if (curCls === cls) { curTxt += ch; }
         else { if (curTxt.length) segments.push({ text: curTxt, class: curCls }); curCls = cls; curTxt = ch; }
       };
+
+      // Outer bracket
       pushSeg('[', 'term-dim');
-      let leftEnd = halfWidth - Math.floor(gap / 2);
-      for (let i = 0; i < leftEnd; i++) {
+      
+      // Left side of bar (before inner bracket)
+      let leftBarEnd = halfWidth - innerOpenAmount - Math.floor(gap / 2) - 1;
+      for (let i = 0; i < leftBarEnd; i++) {
         if (i < filledCount) {
           let bri = Math.floor(pseudoRand(fSeed + 8000, i) * EVA_BRAILLE.length);
           pushSeg(EVA_BRAILLE[bri], isGlitching ? 'term-enemy' : 'term-success');
@@ -600,12 +616,42 @@ export async function runScanner(ctx, scannerState) {
           pushSeg('░', 'term-dim');
         }
       }
+      
+      // Left inner bracket (opens outward)
+      if (isGlitching && innerOpenAmount > 0) {
+        pushSeg('[', 'term-enemy');
+        // Space inside left bracket
+        for (let i = 0; i < innerOpenAmount - 1; i++) {
+          pushSeg(' ', 'term-dim');
+        }
+      } else if (!isGlitching) {
+        pushSeg('[', 'term-dim');
+      }
+      
+      // The gap/glitch area (center)
       for (let i = 0; i < gap; i++) {
         let gl = GLITCH_GLYPHS[Math.floor(pseudoRand(fSeed + 9000, i) * GLITCH_GLYPHS.length)];
         pushSeg(gl, 'term-enemy');
       }
-      let rightStart = halfWidth + Math.ceil(gap / 2);
-      for (let i = rightStart; i < EVA_BAR_WIDTH; i++) {
+      
+      // Seal indicator when sealing (the "|" that closes the glitch)
+      if (isGlitching && evaGlitch.phase === 2 && gap > 0) {
+        pushSeg('|', 'term-holy term-bold');
+      }
+      
+      // Right inner bracket (opens outward)
+      if (isGlitching && innerOpenAmount > 0) {
+        for (let i = 0; i < innerOpenAmount - 1; i++) {
+          pushSeg(' ', 'term-dim');
+        }
+        pushSeg(']', 'term-enemy');
+      } else if (!isGlitching) {
+        pushSeg(']', 'term-dim');
+      }
+      
+      // Right side of bar (after inner bracket)
+      let rightBarStart = halfWidth + Math.ceil(gap / 2) + innerOpenAmount + 1;
+      for (let i = rightBarStart; i < EVA_BAR_WIDTH; i++) {
         if (i < filledCount) {
           let bri = Math.floor(pseudoRand(fSeed + 10000, i) * EVA_BRAILLE.length);
           pushSeg(EVA_BRAILLE[bri], isGlitching ? 'term-enemy' : 'term-success');
@@ -613,7 +659,10 @@ export async function runScanner(ctx, scannerState) {
           pushSeg('░', 'term-dim');
         }
       }
+      
+      // Outer bracket close
       pushSeg(']', 'term-dim');
+      
       if (curTxt.length) segments.push({ text: curTxt, class: curCls });
       terminal.updateLine(evaBarId, {
         text: `  [${'░'.repeat(EVA_BAR_WIDTH)}]`,
@@ -628,29 +677,59 @@ export async function runScanner(ctx, scannerState) {
        if (!barLocked) {
          if (evaGlitch.active) {
            evaGlitch.frame++;
+           
+           // Phase 0: Snap brackets open (5 frames, ease-out)
            if (evaGlitch.phase === 0) {
-             evaGlitch.gapSize = Math.min(evaGlitch.maxGap, evaGlitch.gapSize + evaGlitch.splitSpeed);
-             if (evaGlitch.gapSize >= evaGlitch.maxGap) {
+             let openProgress = evaGlitch.frame / evaGlitch.openFrames;
+             evaGlitch.bracketOpenness = easeOutCubic(Math.min(1, openProgress));
+             
+             // Gap opens with brackets
+             evaGlitch.gapSize = evaGlitch.bracketOpenness * evaGlitch.maxGap;
+             
+             if (evaGlitch.frame >= evaGlitch.openFrames) {
                evaGlitch.phase = 1;
-               evaGlitch.stallFrames = 8 + Math.floor(Math.random() * 16);
+               evaGlitch.frame = 0;
              }
-           } else if (evaGlitch.phase === 1) {
-             evaGlitch.stallFrames--;
-             if (evaGlitch.stallFrames <= 0) evaGlitch.phase = 2;
-           } else if (evaGlitch.phase === 2) {
-             evaGlitch.gapSize = Math.max(0, evaGlitch.gapSize - evaGlitch.repairSpeed);
-             if (evaGlitch.gapSize <= 0) {
-               evaGlitch.active = false;
+           } 
+           // Phase 1: Contained glitch (hold open)
+           else if (evaGlitch.phase === 1) {
+             evaGlitch.frame++;
+             if (evaGlitch.frame >= evaGlitch.containFrames) {
+               evaGlitch.phase = 2;
+               evaGlitch.frame = 0;
+             }
+           } 
+           // Phase 2: Sealing - brackets slowly close, pushing glitch
+           else if (evaGlitch.phase === 2) {
+             let sealProgress = evaGlitch.frame / evaGlitch.sealFrames;
+             // Ease-in for slow push closed
+             evaGlitch.bracketOpenness = 1 - (sealProgress * sealProgress);
+             evaGlitch.gapSize = evaGlitch.bracketOpenness * evaGlitch.maxGap;
+             
+             if (evaGlitch.frame >= evaGlitch.sealFrames) {
+               evaGlitch.phase = 3;
+               evaGlitch.frame = 0;
+               evaGlitch.bracketOpenness = 0;
                evaGlitch.gapSize = 0;
-               evaGlitch.phase = 0;
-               evaGlitch.nextGlitchAt = evaGlitch.frame + 45 + Math.floor(Math.random() * 70);
              }
+             evaGlitch.frame++;
+           }
+           // Phase 3: Sealed/resume
+           else if (evaGlitch.phase === 3) {
+             evaGlitch.active = false;
+             evaGlitch.phase = 0;
+             evaGlitch.frame = 0;
+             evaGlitch.bracketOpenness = 0;
+             evaGlitch.gapSize = 0;
+             evaGlitch.nextGlitchAt = evaGlitch.frame + 45 + Math.floor(Math.random() * 70);
            }
          } else {
            evaGlitch.frame++;
            if (evaGlitch.frame >= evaGlitch.nextGlitchAt) {
              evaGlitch.active = true;
              evaGlitch.phase = 0;
+             evaGlitch.frame = 0;
+             evaGlitch.bracketOpenness = 0;
              evaGlitch.gapSize = 0;
            }
          }
