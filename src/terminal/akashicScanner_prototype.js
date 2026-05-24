@@ -98,7 +98,7 @@ function findTargetPhraseOverlay(fullText, targetPhrase) {
   return overlay;
 }
 
-export function buildAkashicCommands() {
+export function buildScannerCommands() {
   const scannerState = { running: false };
 
   return {
