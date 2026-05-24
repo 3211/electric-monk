@@ -267,7 +267,7 @@ serve(async (req: Request) => {
 
     // Parse request body — NOTE: user_id is NOT accepted from the body.
     // It is derived securely from the JWT in the Authorization header.
-    const { phase, username, sect_id, user_ip } = await req.json()
+    const { phase, username, sect_id, user_ip, system_prompt } = await req.json()
 
     // Extract authenticated user from JWT (NOT from request body — prevents spoofing)
     const authenticatedUserId = extractUserIdFromAuthHeader(req)
@@ -559,8 +559,69 @@ serve(async (req: Request) => {
       )
     }
 
+    // ==========================================
+    // PHASE 5: ONBOARDING TWO — FACTION-THEMED VM WELCOME
+    // ==========================================
+    if (phase === 'onboarding_two_welcome') {
+      if (!sect_id) {
+        throw new Error('sect_id is required')
+      }
+      if (!username) {
+        throw new Error('username is required')
+      }
+      if (!system_prompt) {
+        throw new Error('system_prompt is required for onboarding_two_welcome phase')
+      }
+
+      const veniceApiKey = Deno.env.get('VENICE_API_KEY')
+      if (!veniceApiKey) {
+        throw new Error('VENICE_API_KEY not configured')
+      }
+
+      // Fetch sect data for logging
+      const { data: sectData } = await supabase
+        .from('sects')
+        .select('id, name, emoji')
+        .eq('id', sect_id)
+        .single()
+
+      console.log(`[welcome-to-hwo] Phase: onboarding_two_welcome, Sect: ${sectData?.name || sect_id}, User: ${username}`)
+
+      let welcomeResponse: { response: string }
+
+      try {
+        const rawResponse = await callVeniceAI(
+          veniceApiKey,
+          system_prompt,
+          `Generate the faction welcome message for user "${username.trim()}" now.`,
+          GENERATOR_MODEL,
+          0.8
+        )
+        welcomeResponse = JSON.parse(rawResponse)
+      } catch (aiError) {
+        console.error('[welcome-to-hwo] Onboarding two AI generation failed:', aiError)
+        welcomeResponse = {
+          response: `Welcome, ${username.trim()}. Your faction has granted you a starter terminal. Use /connect to link to it. Guard your holy IP with your life — the networks are unforgiving.`
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          phase: 'onboarding_two_welcome',
+          sect_id: sect_id,
+          welcome_message: welcomeResponse.response,
+          used_fallback: !welcomeResponse.response,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
     // Unknown phase
-    throw new Error(`Unknown phase: ${phase}. Must be 'validate_username', 'get_sects', 'generate_welcome', or 'complete_onboarding'`)
+    throw new Error(`Unknown phase: ${phase}. Must be 'validate_username', 'get_sects', 'generate_welcome', 'complete_onboarding', or 'onboarding_two_welcome'`)
 
   } catch (error) {
     console.error('[welcome-to-hwo] Error:', error)

@@ -10,6 +10,7 @@
 
 import { usePlayerState } from '@/composables/usePlayerState';
 import { supabase } from '@/lib/supabase';
+import { checkVirtualComputerStatus } from './onboarding_two';
 
 // ── Module-level cache for sacred texts ──
 let cachedBibleWords = null;
@@ -336,3 +337,6 @@ export async function getAvailableSects(supabase) {
     return [];
   }
 }
+
+// Re-export for TerminalDock.vue
+export { checkVirtualComputerStatus };

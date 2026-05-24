@@ -34,6 +34,7 @@ import { usePlayerState } from '@/composables/usePlayerState'
 import { supabase } from '@/lib/supabase'
 import { runBootSequence, checkOnboardingStatus } from '@/terminal/boot'
 import { runOnboarding } from '@/terminal/onboarding'
+import { runOnboardingTwo } from '@/terminal/onboarding_two'
 import TerminalWindow from './TerminalWindow.vue'
 import DockNode from './DockNode.vue'
 
@@ -74,12 +75,30 @@ onMounted(() => {
           playerState.hydrate(player)
         }
         
+        // ── Phase 1: Basic Onboarding (username + sect) ──
         if (needsOnboarding && player) {
           await runOnboarding(terminal, player)
-          onboardingComplete.value = true
-        } else {
-          onboardingComplete.value = true
-          if (playerState.ipAddress.value) {
+          // Re-hydrate after onboarding to get updated state
+          const { data: refreshed } = await supabase.rpc('get_player_status')
+          if (refreshed) playerState.hydrate(refreshed)
+        }
+        
+        // ── Phase 2: Virtual Computer Assignment ──
+        // Runs on the second boot (after basic onboarding) or anytime the
+        // player has username+sect but no virtual computer yet.
+        // runOnboardingTwo() handles both provisioning AND the AI welcome flow.
+        const hasBasicOnboarding = playerState.get('username') && playerState.get('sect_id')
+        const hasVM = playerState.get('has_virtual_computer')
+        
+        if (hasBasicOnboarding && !hasVM) {
+          await runOnboardingTwo(terminal, player)
+        }
+        
+        // ── Final: Normal terminal setup for fully-provisioned players ──
+        if (!needsOnboarding && (hasVM || playerState.get('has_virtual_computer'))) {
+          if (playerState.get('virtual_machine_ip')) {
+            terminal.setLocation(playerState.get('virtual_machine_ip'))
+          } else if (playerState.ipAddress.value) {
             terminal.setLocation(playerState.ipAddress.value)
           }
           terminal.writeAll([
@@ -88,6 +107,8 @@ onMounted(() => {
             { text: '', class: '' },
           ])
         }
+        
+        onboardingComplete.value = true
       }
     },
     { immediate: true }
