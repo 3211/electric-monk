@@ -108,7 +108,9 @@ function calculateComputeSpeed(hw: VmHardware): number {
 }
 
 function calculateBlockSpeedMs(computeSpeed: number): number {
-  return Math.max(500, Math.floor(12000000 / Math.max(computeSpeed, 1000)))
+  // Higher computeSpeed = faster blocks. Floor at 1s per block.
+  // Starter hardware (~1500-6000 compute) → 20-80s per block
+  return Math.max(1000, Math.floor(120000000 / Math.max(computeSpeed, 100)))
 }
 
 function calculateExpectedCompletion(blockSpeedMs: number, targetBlocks: number): Date {

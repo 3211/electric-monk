@@ -343,6 +343,34 @@ CREATE POLICY "players_view_own_processes"
         )
     );
 
+-- Players can insert processes on machines they own (needed for /run)
+DROP POLICY IF EXISTS "players_insert_own_processes" ON public.virtual_processes;
+CREATE POLICY "players_insert_own_processes"
+    ON public.virtual_processes FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        machine_id IN (
+            SELECT vm.machine_id FROM public.virtual_machines vm
+            WHERE vm.owner_identity = (
+                SELECT ip_address FROM public.players WHERE id = auth.uid()
+            )
+        )
+    );
+
+-- Players can update processes on machines they own (needed for heartbeat / complete)
+DROP POLICY IF EXISTS "players_update_own_processes" ON public.virtual_processes;
+CREATE POLICY "players_update_own_processes"
+    ON public.virtual_processes FOR UPDATE
+    TO authenticated
+    USING (
+        machine_id IN (
+            SELECT vm.machine_id FROM public.virtual_machines vm
+            WHERE vm.owner_identity = (
+                SELECT ip_address FROM public.players WHERE id = auth.uid()
+            )
+        )
+    );
+
 -- ==========================================
 -- 6. GRANTS
 -- ==========================================
@@ -351,7 +379,7 @@ GRANT ALL ON TABLE public.virtual_programs TO service_role, postgres;
 GRANT ALL ON TABLE public.virtual_processes TO service_role, postgres;
 
 GRANT SELECT ON TABLE public.virtual_programs TO authenticated;
-GRANT SELECT ON TABLE public.virtual_processes TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.virtual_processes TO authenticated;
 
 GRANT EXECUTE ON FUNCTION public.calculate_vm_resource_usage(UUID) TO service_role, authenticated;
 GRANT EXECUTE ON FUNCTION public.can_start_process(UUID, INT, INT, INT) TO service_role, authenticated;

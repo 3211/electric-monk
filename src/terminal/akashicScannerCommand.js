@@ -108,8 +108,12 @@ function findTargetPhraseOverlay(fullText, targetPhrase) {
   return overlay;
 }
 
+// ── Module-level scanner state shared between buildAkashicCommands (/stop, /end)
+//     and runAkashicScan in processManager.js (/run scan_records.exe) ──
+const activeScannerState = { running: false, processId: null, machineIp: null }
+export function getActiveScannerState() { return activeScannerState }
+
 export function buildAkashicCommands() {
-  const scannerState = { running: false, processId: null, machineIp: null };
 
   return {
     'decrypt-records': {
@@ -141,8 +145,8 @@ export function buildAkashicCommands() {
       help: 'Stop the Akashic scanner',
       usage: '/stop',
       handler(args, ctx) {
-        if (scannerState.running) {
-          scannerState.running = false;
+        if (activeScannerState.running) {
+          activeScannerState.running = false;
           ctx.terminal.write({ text: '  [SYS] Terminate signal received. Halting...', class: 'term-enemy' });
         } else {
           ctx.terminal.write({ text: '  [SYS] No scanner running.', class: 'term-dim' });
@@ -154,8 +158,8 @@ export function buildAkashicCommands() {
       help: 'Stop the Akashic scanner',
       usage: '/end',
       handler(args, ctx) {
-        if (scannerState.running) {
-          scannerState.running = false;
+        if (activeScannerState.running) {
+          activeScannerState.running = false;
           ctx.terminal.write({ text: '  [SYS] Terminate signal received. Halting...', class: 'term-enemy' });
         } else {
           ctx.terminal.write({ text: '  [SYS] No scanner running.', class: 'term-dim' });
@@ -896,4 +900,17 @@ export async function runScanner(ctx, scannerState) {
 
   terminal.write({ text: '  [SYS] Sequence Terminated.', class: 'term-brass' })
   scannerState.running = false;
+
+  // ── Cleanup: mark the virtual_processes row as completed ──
+  if (scannerState.processId) {
+    try {
+      await supabase.rpc('complete_process', {
+        p_process_id: scannerState.processId,
+        p_status: 'completed'
+      })
+      terminal.write({ text: '  [SYS] Process finalized in registry.', class: 'term-dim' })
+    } catch (_) {
+      // Cron job will handle it on expected_end_time
+    }
+  }
 }

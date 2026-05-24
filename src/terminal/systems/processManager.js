@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { getActiveScannerState } from '../akashicScannerCommand.js'
 import { usePlayerState } from '@/composables/usePlayerState'
 import { generateFibonacci } from '../fibonacci'
 
@@ -453,7 +454,11 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
   terminal.write({ text: `  [SYS] Use /stop to abort the scan prematurely.`, class: 'term-ally' })
   terminal.write({ text: '  ' + '─'.repeat(50), class: 'term-dim' })
 
-  const scannerState = { running: true, processId, machineIp }
+  // Use shared module-level scanner state so /stop and /end work
+  const scannerState = getActiveScannerState()
+  scannerState.running = true
+  scannerState.processId = processId
+  scannerState.machineIp = machineIp
 
   let blockIndex = 0
   const totalBlocks = 64
@@ -476,38 +481,25 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
 
   try {
     const { runScanner } = await import('../akashicScannerCommand.js')
-    await runScanner({ terminal, tab, registry: ctx.registry }, scannerState)
+    // Fire-and-forget: do NOT await the full scan — this unblocks terminal input
+    runScanner({ terminal, tab, registry: ctx.registry }, scannerState).catch(e => {
+      terminal.write({ text: `  [ERR] Scanner crashed: ${e.message}`, class: 'term-enemy' })
+    })
+    // Return immediately so the terminal stays responsive.
+    // The scanner loops check scannerState.running on every tick.
+    // Heartbeat and cleanup are handled by the scanner's finally block.
   } catch (e) {
-    terminal.write({ text: `  [ERR] Scanner crashed: ${e.message}`, class: 'term-enemy' })
-  } finally {
+    terminal.write({ text: `  [ERR] Scanner launch failed: ${e.message}`, class: 'term-enemy' })
     clearInterval(heartbeatInterval)
-
     if (processId) {
-      await heartbeatProgress(processId, {
-        type: 'akashic_scan',
-        start_offset: startOffset,
-        total_blocks: totalBlocks,
-        block_speed_ms: blockSpeedMs,
-        cpu_alloc_pct: cpuAllocPct,
-        machine_ip: machineIp,
-        api_key: apiKey,
-        blocks_completed: blockIndex,
-        start_time: new Date().toISOString(),
-        is_verification: false,
-        completed: true,
-        completed_at: new Date().toISOString()
-      })
-
       try {
-        await supabase.rpc('complete_process', {
-          p_process_id: processId,
-          p_status: scannerState.running ? 'terminated' : 'completed'
-        })
+        await supabase.rpc('complete_process', { p_process_id: processId, p_status: 'failed' })
       } catch (_) {}
     }
-
-    terminal.write({ text: '  [SYS] Scan process ended.', class: 'term-brass' })
   }
 
+  // Scanner is now running in background.
+  // heartbeatInterval stays alive; scannerState.running check gates heartbeats.
+  // runScanner handles its own cleanup of the virtual_processes row on completion/stop.
   return null
 }
