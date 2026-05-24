@@ -10,6 +10,9 @@
 //
 // SECURITY: User identity derived from JWT Authorization header.
 // All operations validated against VM ownership (player IP → owner_identity).
+//
+// INET SANITIZATION: All IPs returned from DB use host() to strip /32 CIDR suffixes.
+// All client-supplied IPs are stripped of any CIDR before ::inet casts.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import postgres from "https://deno.land/x/postgresjs@v3.3.4/mod.js"
@@ -49,9 +52,14 @@ function extractUserIdFromAuthHeader(req: Request): string {
   }
 }
 
+/** Strip CIDR suffix from IP strings (e.g. 192.168.1.5/32 → 192.168.1.5) */
+function cleanIp(ip: string): string {
+  return ip.replace(/\/\d+$/, '')
+}
+
 async function getPlayerIp(userId: string): Promise<string> {
   const rows = await sql`
-    SELECT ip_address::text as ip_address
+    SELECT host(ip_address) as ip_address
     FROM public.players
     WHERE id = ${userId}
   `
@@ -69,10 +77,13 @@ interface VmHardware {
 }
 
 async function getVmHardware(machineIp: string, ownerIp: string): Promise<VmHardware> {
+  // Strip any CIDR suffix from client-supplied IPs (e.g. 192.168.1.5/32 → 192.168.1.5)
+  const cmIp = cleanIp(machineIp)
+  const coIp = cleanIp(ownerIp)
   const rows = await sql`
     SELECT
-      vm.ip_address::text as machine_ip,
-      vm.owner_identity::text as owner_ip,
+      host(vm.ip_address) as machine_ip,
+      host(vm.owner_identity) as owner_ip,
       cpu.cores as cpu_cores,
       cpu.clock_speed_mhz as cpu_mhz,
       ram.speed_mhz as ram_mhz,
@@ -81,15 +92,14 @@ async function getVmHardware(machineIp: string, ownerIp: string): Promise<VmHard
     JOIN public.catalog_cpus cpu ON vm.cpu_id = cpu.id
     JOIN public.catalog_memory ram ON vm.memory_id = ram.id
     JOIN public.catalog_network_cards nic ON vm.network_card_id = nic.id
-    WHERE vm.ip_address = ${machineIp}::inet
-      AND vm.owner_identity = ${ownerIp}::inet
+    WHERE vm.ip_address = ${cmIp}::inet
+      AND vm.owner_identity = ${coIp}::inet
   `
   if (rows.length === 0) throw new Error(`Virtual machine ${machineIp} not found or not owned by you`)
   return rows[0]
 }
 
 function calculateComputeSpeed(hw: VmHardware): number {
-  // (CPU Cores × CPU MHz) + (RAM MHz × 0.5) + (Network Mbps × 10)
   return Math.floor(
     (hw.cpu_cores * hw.cpu_mhz)
     + (hw.ram_mhz * 0.5)
@@ -98,19 +108,17 @@ function calculateComputeSpeed(hw: VmHardware): number {
 }
 
 function calculateBlockSpeedMs(computeSpeed: number): number {
-  // Base block time = 12,000ms / (computeSpeed / 1000), minimum 500ms
   return Math.max(500, Math.floor(12000000 / Math.max(computeSpeed, 1000)))
 }
 
 function calculateExpectedCompletion(blockSpeedMs: number, targetBlocks: number): Date {
-  // Total ms × 1.10 (10% server breathing room)
   const totalMs = blockSpeedMs * targetBlocks * 1.10
   return new Date(Date.now() + totalMs)
 }
 
 async function getFactionIp(userId: string): Promise<string | null> {
   const rows = await sql`
-    SELECT s.ip_address::text as faction_ip
+    SELECT host(s.ip_address) as faction_ip
     FROM public.players p
     JOIN public.sects s ON p.sect_id = s.id
     WHERE p.id = ${userId}
@@ -146,16 +154,17 @@ serve(async (req: Request) => {
     // ACTION: start
     // ────────────────────────────────────────
     if (action === "start") {
-      const machineIp: string = body.machine_ip
+      const rawMachineIp: string = body.machine_ip
+      const machineIp = cleanIp(rawMachineIp) // strip /32 before ::inet cast
       const startBlockId: number = body.start_block_id
       const targetBlocks: number = body.target_blocks || 5
 
       if (!machineIp) throw new Error("Missing 'machine_ip'")
       if (startBlockId === undefined || startBlockId === null) throw new Error("Missing 'start_block_id'")
 
-      const playerIp = await getPlayerIp(userId)
+      const playerIp = await getPlayerIp(userId) // already clean via host()
       const hw = await getVmHardware(machineIp, playerIp)
-      const factionIp = await getFactionIp(userId)
+      const factionIp = await getFactionIp(userId) // already clean via host()
 
       const computeSpeed = calculateComputeSpeed(hw)
       const blockSpeedMs = calculateBlockSpeedMs(computeSpeed)
@@ -172,12 +181,11 @@ serve(async (req: Request) => {
         SELECT block_id FROM public.akashic_sectors
         WHERE block_id = ANY(${blockIds}::bigint[])
       `
-      // If ALL blocks already exist, it's a verification run
       if (existingSectors.length === targetBlocks) {
         isVerification = true
       }
 
-      // Create pending scan
+      // Create pending scan — ips are clean, ::inet casts will work
       const [pending] = await sql`
         INSERT INTO public.akashic_scans_pending (
           machine_ip,
@@ -229,7 +237,6 @@ serve(async (req: Request) => {
 
       if (!processId) throw new Error("Missing 'process_id'")
 
-      // Fetch pending scan
       const pendingRows = await sql`
         SELECT * FROM public.akashic_scans_pending
         WHERE process_id = ${processId}
@@ -239,10 +246,14 @@ serve(async (req: Request) => {
       }
 
       const pending = pendingRows[0]
+      // machine_ip and faction_ip from DB are inet type — use host() to get clean string for comparisons
+      const pendingMachineIp = cleanIp(String(pending.machine_ip))
+      const pendingFactionIp = pending.faction_ip ? cleanIp(String(pending.faction_ip)) : null
+
       const now = new Date()
       const expectedEnd = new Date(pending.expected_completion_time)
       const totalDurationMs = expectedEnd.getTime() - new Date(pending.start_time).getTime()
-      const bufferMs = totalDurationMs * 0.05 // 5% early buffer
+      const bufferMs = totalDurationMs * 0.05
       const earliestAcceptable = new Date(expectedEnd.getTime() - bufferMs)
 
       if (now < earliestAcceptable) {
@@ -255,7 +266,6 @@ serve(async (req: Request) => {
         }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } })
       }
 
-      // Process scores — credit IPs for each block
       let totalScoreAwarded = 0
       const processedBlockIds: number[] = []
       const verificationResults: Array<{ block_id: number; is_new: boolean; score: number }> = []
@@ -268,7 +278,6 @@ serve(async (req: Request) => {
         `
 
         if (existing.length === 0) {
-          // New discovery — full score + track it
           const score = block.score > 0 ? block.score : BASE_MINING_SCORE
 
           await sql`
@@ -281,27 +290,25 @@ serve(async (req: Request) => {
               pending_verifications
             ) VALUES (
               ${block.block_id},
-              ${pending.machine_ip}::inet,
-              ${pending.faction_ip ? sql`${pending.faction_ip}::inet` : null},
+              ${pendingMachineIp}::inet,
+              ${pendingFactionIp ? sql`${pendingFactionIp}::inet` : null},
               ${score},
               0,
               0
             )
           `
 
-          // Credit machine IP
           await sql`
             UPDATE public.network_addresses
             SET akashic_score = akashic_score + ${score}
-            WHERE ip_address = ${pending.machine_ip}::inet
+            WHERE ip_address = ${pendingMachineIp}::inet
           `
 
-          // Credit faction IP if applicable
-          if (pending.faction_ip) {
+          if (pendingFactionIp) {
             await sql`
               UPDATE public.network_addresses
               SET akashic_score = akashic_score + ${score}
-              WHERE ip_address = ${pending.faction_ip}::inet
+              WHERE ip_address = ${pendingFactionIp}::inet
             `
           }
 
@@ -311,15 +318,12 @@ serve(async (req: Request) => {
         } else {
           const sector = existing[0]
 
-          // Check verification slots (max 2 total: pending + verified)
           if ((sector.verified_count + sector.pending_verifications) >= 2) {
-            // Already fully verified — skip with minimal reward
-            const score = 0 // No reward for over-verification
+            const score = 0
             verificationResults.push({ block_id: block.block_id, is_new: false, score, note: 'fully verified' })
             continue
           }
 
-          // Verification — 25% score, increment verified_count, release pending slot
           const score = Math.floor((block.score > 0 ? block.score : BASE_MINING_SCORE) * VERIFICATION_SCORE_MULTIPLIER)
 
           await sql`
@@ -329,23 +333,21 @@ serve(async (req: Request) => {
               verified_count = verified_count + 1,
               pending_verifications = GREATEST(0, pending_verifications - 1),
               last_verified_at = now(),
-              last_verified_by_ip = ${pending.machine_ip}::inet
+              last_verified_by_ip = ${pendingMachineIp}::inet
             WHERE block_id = ${block.block_id}
           `
 
-          // Credit machine IP (verification score)
           await sql`
             UPDATE public.network_addresses
             SET akashic_score = akashic_score + ${score}
-            WHERE ip_address = ${pending.machine_ip}::inet
+            WHERE ip_address = ${pendingMachineIp}::inet
           `
 
-          // Credit faction IP if applicable
-          if (pending.faction_ip) {
+          if (pendingFactionIp) {
             await sql`
               UPDATE public.network_addresses
               SET akashic_score = akashic_score + ${score}
-              WHERE ip_address = ${pending.faction_ip}::inet
+              WHERE ip_address = ${pendingFactionIp}::inet
             `
           }
 
@@ -355,7 +357,6 @@ serve(async (req: Request) => {
         }
       }
 
-      // Move from pending to completed
       await sql`
         INSERT INTO public.akashic_scans_completed (
           process_id,
@@ -369,8 +370,8 @@ serve(async (req: Request) => {
           is_verification
         ) VALUES (
           ${pending.process_id},
-          ${pending.machine_ip}::inet,
-          ${pending.faction_ip ? sql`${pending.faction_ip}::inet` : null},
+          ${pendingMachineIp}::inet,
+          ${pendingFactionIp ? sql`${pendingFactionIp}::inet` : null},
           ${pending.start_time},
           now(),
           ${pending.start_block_id},
@@ -380,7 +381,6 @@ serve(async (req: Request) => {
         )
       `
 
-      // Remove from pending
       await sql`
         DELETE FROM public.akashic_scans_pending
         WHERE process_id = ${processId}
@@ -402,8 +402,9 @@ serve(async (req: Request) => {
     // ────────────────────────────────────────
     else if (action === "status") {
       const processId: string = body.process_id
-      const machineIp: string = body.machine_ip
-      const playerIp = await getPlayerIp(userId)
+      const rawMachineIp: string = body.machine_ip
+      const machineIp = rawMachineIp ? cleanIp(rawMachineIp) : null
+      const playerIp = await getPlayerIp(userId) // already clean via host()
 
       if (processId) {
         // Look up a specific process
@@ -449,16 +450,16 @@ serve(async (req: Request) => {
 
       // No process_id — return all active scans for player's machines
       if (machineIp) {
-        // Verify ownership
-        await getVmHardware(machineIp, playerIp)
+        await getVmHardware(machineIp, playerIp) // verify ownership
       }
 
+      // Get all VMs owned by this player — host() returns clean IPs
       const ownerRows = await sql`
-        SELECT vm.ip_address::text as machine_ip
+        SELECT host(vm.ip_address) as machine_ip
         FROM public.virtual_machines vm
         WHERE vm.owner_identity = ${playerIp}::inet
       `
-      const machineIps = ownerRows.map(r => r.machine_ip)
+      const machineIps: string[] = ownerRows.map(r => r.machine_ip)
 
       if (machineIps.length === 0) {
         return new Response(JSON.stringify({
@@ -468,9 +469,10 @@ serve(async (req: Request) => {
         }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
       }
 
+      // machineIps are clean plain strings — safe for ANY(::inet[])
       const pendingScans = await sql`
         SELECT * FROM public.akashic_scans_pending
-        WHERE machine_ip = ANY(${machineIps.map(ip => ip + "::inet")}::inet[])
+        WHERE machine_ip = ANY(${machineIps}::inet[])
         ORDER BY start_time DESC
       `
 

@@ -5,9 +5,9 @@ import { showFactionHomepage } from './faction'
 /**
  * Connection system — /connect, /disconnect, /home, /sethome
  * 
- * Tracks connected_ip per terminal context (ctx).
- * Logs all connections to connection_logs via the create_log RPC.
- * Supports shortcuts: /connect sect, /connect me
+ * Connection state is written to usePlayerState() singleton — the single source of truth.
+ * All other modules (processManager, faction, player) read from the same singleton,
+ * so there's no need to sync ctx properties across modules.
  */
 
 const HOME_STORAGE_KEY = 'hwo_home_ip'
@@ -32,7 +32,6 @@ async function resolveShortcut(keyword, ctx) {
 
   if (kw === 'sect' || kw === 'faction' || kw === 'guild') {
     if (!factionIp) {
-      // Try to fetch from DB
       try {
         const { data } = await supabase.rpc('get_player_status')
         if (data?.sect_ip) {
@@ -46,7 +45,6 @@ async function resolveShortcut(keyword, ctx) {
     return factionIp
   }
 
-  // If it's a VM name, try to resolve
   if (!kw.includes('.')) {
     try {
       const playerStatus = await supabase.rpc('get_player_status')
@@ -71,7 +69,6 @@ async function lookupIp(ip) {
   // Strip any CIDR suffix for lookup
   const cleanIp = typeof ip === 'string' ? ip.replace(/\/\d+$/, '') : ip
   try {
-    // Check if it's a faction IP
     const { data: sects } = await supabase
       .from('sects')
       .select('id, name, ip_address, emoji, description')
@@ -80,7 +77,6 @@ async function lookupIp(ip) {
       return { type: 'faction', data: sects[0] }
     }
 
-    // Check if it's a player IP
     const { data: players } = await supabase
       .from('players')
       .select('username, ip_address, sect_id')
@@ -89,7 +85,6 @@ async function lookupIp(ip) {
       return { type: 'player', data: players[0] }
     }
 
-    // Check if it's a VM IP
     const { data: vms } = await supabase
       .from('virtual_machines')
       .select('machine_id, machine_name, ip_address, owner_identity')
@@ -104,9 +99,6 @@ async function lookupIp(ip) {
   }
 }
 
-/**
- * Log a connection event to connection_logs.
- */
 async function logConnection(sourceIp, targetIp, details) {
   try {
     await supabase.rpc('create_log', {
@@ -116,9 +108,7 @@ async function logConnection(sourceIp, targetIp, details) {
       p_target_ip: targetIp,
       p_details: details || `Connected from ${sourceIp} to ${targetIp}`
     })
-  } catch (_) {
-    // Logging is non-fatal
-  }
+  } catch (_) {}
 }
 
 export function buildConnectionCommands() {
@@ -151,21 +141,19 @@ export function buildConnectionCommands() {
         const playerIp = playerState.get('ip_address', 'unknown')
 
         if (lookup.type === 'faction') {
-          ctx.connected_ip = resolvedIp
-          ctx.connection_type = 'faction'
+          // Write to singleton state — all modules now see this
+          playerState.setConnection({ ip: resolvedIp, type: 'faction', machineName: `Faction: ${lookup.data.name}` })
           ctx.tab.setTitle(`Faction: ${lookup.data.name}`)
 
           await logConnection(playerIp, resolvedIp, `Connected to faction: ${lookup.data.name}`)
 
-          // Render the faction ASCII homepage with navigation
           await showFactionHomepage(ctx, lookup.data)
           return null
         }
 
         if (lookup.type === 'player') {
-          ctx.connected_ip = resolvedIp
-          ctx.connection_type = 'player'
           const isSelf = resolvedIp === playerIp
+          playerState.setConnection({ ip: resolvedIp, type: 'player', machineName: isSelf ? 'My Terminal' : `Player: ${lookup.data.username}` })
           ctx.tab.setTitle(isSelf ? 'My Terminal' : `Player: ${lookup.data.username}`)
 
           await logConnection(playerIp, resolvedIp, `Connected to player: ${lookup.data.username}`)
@@ -182,20 +170,18 @@ export function buildConnectionCommands() {
         }
 
         if (lookup.type === 'machine') {
-          ctx.connected_ip = resolvedIp
-          ctx.connection_type = 'machine'
           const ownerIp = lookup.data.owner_identity
           const isOwner = ownerIp === playerIp
           ctx.tab.setTitle(`VM: ${lookup.data.machine_name}`)
 
-          // Check if owner — if so, autofill credentials
-          if (isOwner) {
-            ctx.machine_access = 'admin'
-            ctx.machine_id = lookup.data.machine_id
-          } else {
-            ctx.machine_access = 'pending'
-            ctx.machine_id = lookup.data.machine_id
-          }
+          // Write to singleton state
+          playerState.setConnection({
+            ip: resolvedIp,
+            type: 'machine',
+            machineId: lookup.data.machine_id,
+            access: isOwner ? 'admin' : 'pending',
+            machineName: lookup.data.machine_name
+          })
 
           await logConnection(playerIp, resolvedIp,
             `Connected to VM: ${lookup.data.machine_name} (access: ${isOwner ? 'admin' : 'pending'})`)
@@ -231,15 +217,14 @@ export function buildConnectionCommands() {
       help: 'Disconnect from the current remote session.',
       usage: '/disconnect',
       handler(args, ctx) {
-        if (!ctx.connected_ip) {
+        const playerState = usePlayerState()
+        const prevIp = playerState.connectedIp.value
+
+        if (!prevIp) {
           return [{ text: '  [SYS] Not connected to any remote host.', class: 'term-dim' }]
         }
 
-        const prevIp = ctx.connected_ip
-        ctx.connected_ip = null
-        ctx.connection_type = null
-        ctx.machine_access = null
-        ctx.machine_id = null
+        playerState.clearConnection()
         ctx.tab.setTitle('Terminal')
 
         return [
@@ -259,11 +244,9 @@ export function buildConnectionCommands() {
         const playerIp = playerState.get('ip_address', null)
 
         if (!storedHome) {
-          // Default to player's own IP
           if (!playerIp) {
             return [{ text: '  [ERR] No home terminal set and no player IP found.', class: 'term-enemy' }]
           }
-          // Navigate to self
           return ctx.registry['connect'].handler(['me'], ctx)
         }
 
@@ -276,24 +259,25 @@ export function buildConnectionCommands() {
       help: 'Set the currently connected terminal as your home. Only works on machines you own.',
       usage: '/sethome',
       handler(args, ctx) {
-        if (!ctx.connected_ip) {
+        const playerState = usePlayerState()
+        const connectedIp = playerState.connectedIp.value
+        const connectionType = playerState.connectionType.value
+        const machineAccess = playerState.machineAccess.value
+
+        if (!connectedIp) {
           return [{ text: '  [ERR] You must be connected to a terminal first.', class: 'term-enemy' }]
         }
 
-        const playerState = usePlayerState()
-        const playerIp = playerState.get('ip_address', null)
-
-        // Only allow setting home on machines you own or your own IP
-        if (ctx.connection_type === 'machine' && ctx.machine_access !== 'admin') {
+        if (connectionType === 'machine' && machineAccess !== 'admin') {
           return [{ text: '  [ERR] You can only set home on machines you own.', class: 'term-enemy' }]
         }
 
-        if (ctx.connection_type === 'faction') {
+        if (connectionType === 'faction') {
           return [{ text: '  [ERR] Cannot set a faction page as your home terminal.', class: 'term-enemy' }]
         }
 
-        localStorage.setItem(HOME_STORAGE_KEY, ctx.connected_ip)
-        return [{ text: `  [OK]  Home terminal set to ${ctx.connected_ip}.`, class: 'term-ally' }]
+        localStorage.setItem(HOME_STORAGE_KEY, connectedIp)
+        return [{ text: `  [OK]  Home terminal set to ${connectedIp}.`, class: 'term-ally' }]
       }
     },
 
@@ -302,10 +286,10 @@ export function buildConnectionCommands() {
       usage: '/faction-menu',
       hidden: true,
       handler(args, ctx) {
-        if (ctx.connection_type !== 'faction') {
+        const playerState = usePlayerState()
+        if (playerState.connectionType.value !== 'faction') {
           return [{ text: '  [ERR] Not connected to a faction. Use /connect <faction_ip> first.', class: 'term-enemy' }]
         }
-        // Delegates to faction homepage renderer
         return null // Handled by faction module
       }
     }

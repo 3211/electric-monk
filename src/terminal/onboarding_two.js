@@ -199,6 +199,13 @@ export async function runOnboardingTwo(terminal, player) {
       if (system.ip_address) {
         terminal.setLocation(system.ip_address)
       }
+      playerState.setConnection({
+        ip: system.ip_address,
+        type: 'machine',
+        machineId: system.machine_id,
+        access: 'admin',
+        machineName: system.machine_name || 'Novice Terminal'
+      })
       terminal.busy = false
       return 'exists'
     }
@@ -287,6 +294,15 @@ export async function runOnboardingTwo(terminal, player) {
     if (system.ip_address) {
       terminal.setLocation(system.ip_address)
     }
+
+    // Auto-connect to the newly provisioned VM so /programs, /run, etc work immediately
+    playerState.setConnection({
+      ip: system.ip_address,
+      type: 'machine',
+      machineId: system.machine_id,
+      access: 'admin',
+      machineName: system.machine_name || 'Novice Terminal'
+    })
 
     if (terminal.tab?.setTitle) {
       terminal.tab.setTitle(system.machine_name || 'Terminal')

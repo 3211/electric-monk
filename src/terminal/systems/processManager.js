@@ -3,10 +3,11 @@ import { usePlayerState } from '@/composables/usePlayerState'
 import { generateFibonacci } from '../fibonacci'
 
 /**
- * Process Manager — /processes, /run, /kill
+ * Process Manager — /processes, /run, /kill, /programs
  * 
- * Requires connection to a machine (/connect <vm_ip>).
- * Anyone with access can view/cancel processes, but rewards always flow to machine_ip.
+ * Connection state is read from usePlayerState() singleton — the single source of truth.
+ * Any module (connection.js, onboarding_two.js) can setConnection() and these
+ * commands will immediately see it.
  * 
  * /run scan_records.exe → prompts for CPU %, checks resources, starts Akashic scan
  */
@@ -17,10 +18,11 @@ import { generateFibonacci } from '../fibonacci'
  */
 function generateApiKeyFromIp(ip) {
   let hash = 0
-  for (let i = 0; i < ip.length; i++) {
-    const char = ip.charCodeAt(i)
+  const cleanIp = typeof ip === 'string' ? ip.replace(/\/\d+$/, '') : ip
+  for (let i = 0; i < cleanIp.length; i++) {
+    const char = cleanIp.charCodeAt(i)
     hash = ((hash << 5) - hash) + char
-    hash = hash & hash // Convert to 32bit integer
+    hash = hash & hash
   }
   return Math.abs(hash).toString(16).padStart(8, '0')
 }
@@ -62,8 +64,6 @@ async function machineHasProgram(machineId, programName) {
  */
 function calculateDuration(baseDurationSec, cpuAllocPct, computeSpeed) {
   if (cpuAllocPct <= 0) cpuAllocPct = 100
-  // Duration scales inversely with CPU%: 50% CPU = 2x duration
-  // Hardware compute speed provides a speedup factor
   const cpuFactor = 100 / Math.max(cpuAllocPct, 1)
   const hwFactor = Math.max(0.1, computeSpeed / 1000)
   return Math.ceil(baseDurationSec * cpuFactor / hwFactor)
@@ -71,7 +71,6 @@ function calculateDuration(baseDurationSec, cpuAllocPct, computeSpeed) {
 
 /**
  * Heartbeat: update process_metadata in the DB with scan progress.
- * Called periodically during the scan loop.
  */
 async function heartbeatProgress(processId, metadata) {
   try {
@@ -84,13 +83,24 @@ async function heartbeatProgress(processId, metadata) {
   }
 }
 
+/** Helper: get connection details from the singleton state */
+function getConnState() {
+  const ps = usePlayerState()
+  const connectedIp = ps.connectedIp.value
+  const machineId = ps.machineId.value
+  const machineAccess = ps.machineAccess.value
+  const isConnectedToVM = ps.isConnectedToVM.value
+  return { ps, connectedIp, machineId, machineAccess, isConnectedToVM }
+}
+
 export function buildProcessCommands() {
   return {
     processes: {
       help: 'List active processes on the currently connected machine.',
       usage: '/processes',
       async handler(args, ctx) {
-        if (!ctx.machine_id || ctx.machine_access !== 'admin') {
+        const { isConnectedToVM, machineId } = getConnState()
+        if (!isConnectedToVM) {
           return [{ text: '  [ERR] Not connected to a machine with access. Use /connect <vm_ip> first.', class: 'term-enemy' }]
         }
 
@@ -99,7 +109,7 @@ export function buildProcessCommands() {
 
         try {
           const { data: processes, error } = await supabase.rpc('get_machine_processes', {
-            p_machine_id: ctx.machine_id
+            p_machine_id: machineId
           })
 
           if (error) throw new Error(error.message)
@@ -167,8 +177,8 @@ export function buildProcessCommands() {
           return [{ text: '  [SYS] Usage: /run <program_name>', class: 'term-dim' }]
         }
 
-        // Must be connected to a machine with access
-        if (!ctx.machine_id || ctx.machine_access !== 'admin') {
+        const { isConnectedToVM, machineId } = getConnState()
+        if (!isConnectedToVM) {
           return [{ text: '  [ERR] Not connected to a machine with admin access. Use /connect <vm_ip> first.', class: 'term-enemy' }]
         }
 
@@ -179,7 +189,7 @@ export function buildProcessCommands() {
         }
 
         // Check machine has the program installed
-        const installed = await machineHasProgram(ctx.machine_id, programName)
+        const installed = await machineHasProgram(machineId, programName)
         if (!installed) {
           return [
             { text: `  [ERR] Program "${programName}" is not installed on this machine.`, class: 'term-enemy' },
@@ -208,7 +218,7 @@ export function buildProcessCommands() {
         terminal.write({ text: '  [SYS] Checking system resources...', class: 'term-dim' })
         try {
           const { data: resourceCheck } = await supabase.rpc('can_start_process', {
-            p_machine_id: ctx.machine_id,
+            p_machine_id: machineId,
             p_cpu_pct: cpuAllocPct,
             p_memory_mb: progDef.base_memory_mb,
             p_storage_mb: progDef.base_storage_mb
@@ -243,7 +253,8 @@ export function buildProcessCommands() {
       help: 'List installed programs on the currently connected machine.',
       usage: '/programs',
       async handler(args, ctx) {
-        if (!ctx.machine_id || ctx.machine_access !== 'admin') {
+        const { isConnectedToVM, machineId } = getConnState()
+        if (!isConnectedToVM) {
           return [{ text: '  [ERR] Not connected to a machine with access. Use /connect <vm_ip> first.', class: 'term-enemy' }]
         }
 
@@ -254,7 +265,7 @@ export function buildProcessCommands() {
           const { data: programs, error } = await supabase
             .from('virtual_programs')
             .select('program_id, program_name, version, installed_at')
-            .eq('machine_id', ctx.machine_id)
+            .eq('machine_id', machineId)
             .order('program_name', { ascending: true })
 
           if (error) throw new Error(error.message)
@@ -294,10 +305,6 @@ export function buildProcessCommands() {
           }
 
           lines.push({ text: `  ${bar}`, class: 'term-dim' })
-          lines.push({
-            text: `  To execute a program: /run <program_name>  (requires /connect <vm_ip> first)`,
-            class: 'term-muted'
-          })
           return lines
         } catch (e) {
           return [{ text: `  [ERR] ${e.message}`, class: 'term-enemy' }]
@@ -309,7 +316,8 @@ export function buildProcessCommands() {
       help: 'Terminate a running process by process ID. Use /processes to see PIDs.',
       usage: '/kill <pid_prefix>',
       async handler(args, ctx) {
-        if (!ctx.machine_id || ctx.machine_access !== 'admin') {
+        const { isConnectedToVM, machineId } = getConnState()
+        if (!isConnectedToVM) {
           return [{ text: '  [ERR] Not connected to a machine with access.', class: 'term-enemy' }]
         }
 
@@ -319,9 +327,8 @@ export function buildProcessCommands() {
         }
 
         try {
-          // Find the full process ID from prefix
           const { data: processes } = await supabase.rpc('get_machine_processes', {
-            p_machine_id: ctx.machine_id
+            p_machine_id: machineId
           })
 
           const match = processes?.find(p =>
@@ -360,13 +367,13 @@ export function buildProcessCommands() {
  */
 async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
   const { terminal, tab } = ctx
+  const { connectedIp, machineId } = getConnState()
   const playerState = usePlayerState()
-  const machineIp = ctx.connected_ip
+  const machineIp = connectedIp
   const playerIp = playerState.get('ip_address', 'unknown')
 
   tab.setTitle('Akashic Scanner')
 
-  // Generate deterministic API key from machine IP
   const apiKey = generateApiKeyFromIp(machineIp)
 
   terminal.write({ text: '  [SYS] Initializing Akashic Record Scanner...', class: 'term-dim' })
@@ -375,12 +382,9 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
   terminal.write({ text: `  [KEY] Deterministic API Key: ${apiKey}`, class: 'term-dim' })
   terminal.write({ text: `  [SYS] Rewards will be attributed to: ${machineIp}`, class: 'term-brass' })
 
-  // Generate Fibonacci seeds (64 blocks total)
   const startOffset = Math.floor(Math.random() * 666999111) + 1
   const seeds = generateFibonacci(startOffset, 64)
 
-  // Determine timing parameters
-  // Get compute speed from edge function
   let blockSpeedMs = 25
   let computeSpeed = 1000
   try {
@@ -400,18 +404,16 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
     // Fall back to defaults
   }
 
-  // Calculate expected duration
   const totalDurationSec = calculateDuration(progDef.base_duration_seconds * 64, cpuAllocPct, computeSpeed)
   const expectedEndTime = new Date(Date.now() + totalDurationSec * 1000)
 
-  // Create virtual_processes row
   terminal.write({ text: '  [SYS] Registering process...', class: 'term-dim' })
   let processId
   try {
     const { data: procData, error } = await supabase
       .from('virtual_processes')
       .insert({
-        machine_id: ctx.machine_id,
+        machine_id: machineId,
         program_id: installedProgram.program_id,
         cpu_alloc_pct: cpuAllocPct,
         memory_alloc_mb: progDef.base_memory_mb,
@@ -443,7 +445,6 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
     terminal.write({ text: `  [OK]  Process registered. PID: ${processId.substring(0, 8)}...`, class: 'term-ally' })
   } catch (e) {
     terminal.write({ text: `  [ERR] Failed to register process: ${e.message}`, class: 'term-enemy' })
-    // Continue in offline mode
     processId = null
   }
 
@@ -452,16 +453,11 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
   terminal.write({ text: `  [SYS] Use /stop to abort the scan prematurely.`, class: 'term-ally' })
   terminal.write({ text: '  ' + '─'.repeat(50), class: 'term-dim' })
 
-  // ── Run the scanner ──
-  // The scanner loop is the existing akashicScannerCommand.js logic
-  // but now with heartbeat updates to virtual_processes.process_metadata
   const scannerState = { running: true, processId, machineIp }
 
-  // Track progress for heartbeat
   let blockIndex = 0
   const totalBlocks = 64
 
-  // Heartbeat interval: update DB every 5 blocks
   const heartbeatInterval = setInterval(async () => {
     if (!processId || !scannerState.running) return
     await heartbeatProgress(processId, {
@@ -476,9 +472,8 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
       start_time: new Date().toISOString(),
       is_verification: false
     })
-  }, 10000) // Every 10 seconds
+  }, 10000)
 
-  // Import and run the actual scanner
   try {
     const { runScanner } = await import('../akashicScannerCommand.js')
     await runScanner({ terminal, tab, registry: ctx.registry }, scannerState)
@@ -487,7 +482,6 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
   } finally {
     clearInterval(heartbeatInterval)
 
-    // Final heartbeat: mark completed
     if (processId) {
       await heartbeatProgress(processId, {
         type: 'akashic_scan',
@@ -504,7 +498,6 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
         completed_at: new Date().toISOString()
       })
 
-      // Complete the process (triggers reward processing via cron)
       try {
         await supabase.rpc('complete_process', {
           p_process_id: processId,
