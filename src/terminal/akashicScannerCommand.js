@@ -278,39 +278,6 @@ export async function runScanner(ctx, scannerState) {
       terminal.write({ text: `  [SYS] View-only mode — rewards handled by the running process.`, class: 'term-dim' })
     }
 
-  while (scannerState.running && seedIndex < seeds.length) {
-    // ═══════════════════════════════════════════════════════
-    // PHASE 0: Register batch with server (start action)
-    // ═══════════════════════════════════════════════════════
-    const batchStartBlockId = seeds[seedIndex];
-    serverExpectedCompletion = null;
-    batchScores = [];
-
-    try {
-      const machineIp = scannerState.machineIp;
-      const { data: startData, error: startErr } = await supabase.functions.invoke('akashic-mining', {
-        body: {
-          action: 'start',
-          machine_ip: machineIp,
-          start_block_id: Number(BigInt(batchStartBlockId) % BigInt(Number.MAX_SAFE_INTEGER)),
-          target_blocks: BATCH_SIZE
-        }
-      });
-      if (startErr) throw new Error(startErr.message || 'Edge function error');
-      if (!startData.success) throw new Error(startData.error);
-
-      scannerState.processId = startData.process_id;
-      serverBlockSpeedMs = startData.block_speed_ms;
-      serverExpectedCompletion = new Date(startData.expected_completion_time);
-
-      terminal.write({ text: `  [NET] Batch registered. PID: ${startData.process_id.substring(0, 8)}... | ${startData.is_verification ? 'VERIFY mode (25% payout)' : 'MINING mode (100% payout)'}`, class: 'term-dim' });
-      terminal.write({ text: `  [NET] Compute: ${startData.compute_speed_score} | Block speed: ${serverBlockSpeedMs}ms | ETA: ${serverExpectedCompletion.toLocaleTimeString()}`, class: 'term-dim' });
-    } catch (e) {
-      terminal.write({ text: `  [ERR] Failed to register batch: ${e.message}`, class: 'term-enemy' });
-      // Fall back to offline mode with default timing
-      serverBlockSpeedMs = 25;
-      scannerState.processId = null;
-    }
 
     // ═══════════════════════════════════════════════════════
     // Clear console before each new batch of 5 blocks
