@@ -115,6 +115,7 @@ export function buildAkashicCommands() {
     'decrypt-records': {
       help: 'Akashic Record scanner — mine the Akashic blockchain for credits and faction standing.',
       usage: '/decrypt-records',
+      hidden: true,
       handler(args, ctx) {
         if (scannerState.running) {
           ctx.terminal.write({ text: '  [SYS] Scanner is already running. Type /stop to terminate.', class: 'term-enemy' });
@@ -201,7 +202,7 @@ export function buildAkashicCommands() {
   }
 }
 
-async function runScanner(ctx, scannerState) {
+export async function runScanner(ctx, scannerState) {
   const { terminal, tab } = ctx
   tab.setTitle("Akashic Scanner")
   const sleep = ms => new Promise(r => setTimeout(r, ms))

@@ -107,6 +107,50 @@ The `akashic_score` column was added to [`network_addresses`](1_core_tables.md#n
 
 ---
 
+## `program_definitions`
+
+Game-content definitions for programs. Defines resource requirements, execution parameters, and reward calculation formulas for programs like `scan_records.exe`.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `program_name` | VARCHAR(255) | PRIMARY KEY | Unique program identifier (e.g., `scan_records.exe`) |
+| `display_name` | VARCHAR(255) | NOT NULL | Human-readable program name |
+| `category` | VARCHAR(50) | NOT NULL DEFAULT 'utility' CHECK (mining, hacking, utility, defense, scanning) | Program category |
+| `description` | TEXT | DEFAULT '' | Description for UI |
+| `base_cpu_pct` | INT | NOT NULL DEFAULT 0 | Default CPU allocation (0 = player-variable) |
+| `base_memory_mb` | INT | NOT NULL DEFAULT 0 | Default memory allocation |
+| `base_storage_mb` | INT | NOT NULL DEFAULT 0 | Default storage allocation |
+| `base_duration_seconds` | INT | NOT NULL DEFAULT 60 | Base execution time at 100% CPU |
+| `duration_scales_with_cpu` | BOOLEAN | NOT NULL DEFAULT true | Lower CPU% = proportionally longer |
+| `reward_formula` | VARCHAR(50) | NOT NULL DEFAULT 'linear' CHECK (linear, exponential, discovery, verification) | How rewards scale |
+| `base_reward` | INT | NOT NULL DEFAULT 100 | Base reward amount before scaling |
+| `is_available_to_players` | BOOLEAN | NOT NULL DEFAULT true | Whether players can use this |
+| `min_cpu_required_pct` | INT | NOT NULL DEFAULT 0 | Minimum CPU required |
+
+**Indexes:**
+- `idx_program_defs_category` on `category`
+
+**RLS:** Public read, service role write.
+
+---
+
+## Verification Model (Two-Verification System)
+
+Each block in [`akashic_sectors`](#akashic_sectors) requires exactly **2 verifications** before it's considered fully verified:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `pending_verifications` | INT NOT NULL DEFAULT 0 | Active verification reservations (prevents race conditions) |
+| `verified_count` | INT NOT NULL DEFAULT 0 | Completed verifications (max 2) |
+
+### Verification Flow:
+1. Verifier calls [`reserve_akashic_verification(block_id)`](supabase/migrations/revelations_4.sql) → locks a slot (increments `pending_verifications`)
+2. Verifier runs the scan
+3. On completion, `process_akashic_rewards()` increments `verified_count` and decrements `pending_verifications`
+4. New verifications rejected when `pending_verifications + verified_count >= 2`
+
+---
+
 ## Edge Function: `akashic-mining`
 
 The [`akashic-mining`](supabase/functions/akashic-mining/index.ts) edge function handles the mining lifecycle with three actions:
@@ -128,7 +172,7 @@ The [`akashic-mining`](supabase/functions/akashic-mining/index.ts) edge function
 3. **Timing validation**: Rejects if `now < expected_completion_time - (total_duration × 0.05)`.
 4. For each block in `block_scores`:
    - If block not in [`akashic_sectors`](#akashic_sectors): **New discovery** — full score, insert sector, credit machine + faction IPs.
-   - If block already exists: **Verification** — 25% score, increment `verification_count`.
+   - If block already exists and `verified_count < 2`: **Verification** — 25% score, increment `verified_count`, decrement `pending_verifications`.
 5. Credits `akashic_score` on [`network_addresses`](1_core_tables.md#network_addresses) for machine IP and faction IP.
 6. Moves record from [`akashic_scans_pending`](#akashic_scans_pending) to [`akashic_scans_completed`](#akashic_scans_completed).
 
@@ -136,6 +180,16 @@ The [`akashic-mining`](supabase/functions/akashic-mining/index.ts) edge function
 
 1. If `process_id` provided: Returns progress info for that specific scan.
 2. Without `process_id`: Returns all active scans for player's machines (by ownership chain).
+
+## Cron: `process-completion-checker`
+
+Runs every 30 seconds via `pg_cron`. Handles automated reward processing:
+1. Finds `virtual_processes` where `status = 'running'` AND `expected_end_time <= now()`
+2. Calls `process_completed_jobs()` which dispatches to `process_akashic_rewards()` for mining
+3. Credits scores to IP addresses automatically
+4. Moves completed records to archives
+
+This decouples the client visualizer from reward delivery — if a player disconnects mid-scan, the DB cron ensures rewards still process correctly.
 
 ---
 

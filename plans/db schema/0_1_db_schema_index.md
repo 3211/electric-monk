@@ -13,7 +13,9 @@ This index provides a modular view of the Holy War Online database schema. For t
   - `virtual_machines`
   - `virtual_files`
   - `virtual_logs`
-  - *RPCs: Encryption Calculation*
+  - `virtual_programs`
+  - `virtual_processes`
+  - *RPCs: Encryption Calculation, Resource Usage, Process Management*
 - [**Network & Connection Tracking**](./3_network_connections.md)
   - `connection_logs`
   - *RPCs: Connection Analysis*
@@ -24,8 +26,10 @@ This index provides a modular view of the Holy War Online database schema. For t
   - `akashic_sectors`
   - `akashic_scans_pending`
   - `akashic_scans_completed`
-  - *RPCs: Compute Speed, Block Timing, Mining Operations*
+  - `program_definitions`
+  - *RPCs: Compute Speed, Block Timing, Mining Operations, Verification Reservations*
   - *Edge Function: `akashic-mining` (start, pulse, status)*
+  - *Cron: `process-completion-checker` (auto-completes expired processes)*
 
 ## Reference
 - [Authoritative Source (Full File)](./db_schema.md)

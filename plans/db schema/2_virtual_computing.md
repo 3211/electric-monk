@@ -1,6 +1,6 @@
 # Virtual Computing
 
-This module defines the virtual infrastructure, hardware configurations, and filesystems for in-game computing environments.
+This module defines the virtual infrastructure, hardware configurations, filesystems, installed programs, and process management for in-game computing environments.
 
 ## Related Helper Functions (RPCs)
 
@@ -8,6 +8,10 @@ This module defines the virtual infrastructure, hardware configurations, and fil
 |----------|------------|---------|-------------|
 | `calculate_vm_encryption(p_machine_id)` | `UUID` | INT | Calculates total encryption level for a VM (base 100 + security chip bonus). Reads `security_chip_id` directly from [`virtual_machines`](#virtual_machines). |
 | `generate_secure_password()` | — | TEXT | Generates a 16-character alphanumeric + special-character password. Used as DEFAULT for `admin_password` and `user_password`. |
+| `calculate_vm_resource_usage(p_machine_id)` | `UUID` | TABLE | Returns aggregate CPU%, memory MB, storage MB, and count of active processes for a given VM. |
+| `can_start_process(p_machine_id, p_cpu_pct, p_memory_mb, p_storage_mb)` | `UUID, INT, INT, INT` | JSON | Validates whether a VM has sufficient CPU, RAM, and storage to start a new process. Returns `{success, error?, available_*}` |
+| `complete_process(p_process_id, p_status)` | `UUID, VARCHAR` | JSON | Marks a running process as completed/terminated/failed and releases its resources. |
+| `get_machine_processes(p_machine_id)` | `UUID` | TABLE | Returns all processes (running and historical) for a given virtual machine. |
 
 ---
 
@@ -92,3 +96,67 @@ Audit trail for actions performed on or by virtual machines.
 - `idx_vlogs_machine_time` on `(machine_id, timestamp DESC)`
 
 **RLS Policy:** Service role only (managed via Edge Functions).
+
+---
+
+## `virtual_programs`
+
+Installed software on virtual machines. Ownership is scoped to the machine (via `machine_id`), not the player. Supports hard-coded system programs and future user-created programs via `config_data` JSONB.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `program_id` | UUID | PRIMARY KEY DEFAULT gen_random_uuid() | Unique installation instance |
+| `machine_id` | UUID | NOT NULL, FK → virtual_machines(machine_id) ON DELETE CASCADE | Parent machine |
+| `program_name` | VARCHAR(255) | NOT NULL, UNIQUE(machine_id, program_name) | Name of the program (references [`program_definitions`](5_akashic_mining.md#program_definitions)) |
+| `program_type` | VARCHAR(50) | NOT NULL DEFAULT 'system' CHECK (system, user, game) | System (hard-coded), user (player-created), or game |
+| `config_data` | JSONB | DEFAULT '{}' | User-defined program logic or configuration overrides |
+| `installed_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | When installed |
+| `updated_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | Last modified |
+
+**Indexes:**
+- `idx_vprograms_machine` on `machine_id`
+- `idx_vprograms_name` on `program_name`
+- `idx_vprograms_machine_name` on `(machine_id, program_name)`
+
+**RLS Policies:**
+- SELECT: Authenticated users can view programs on machines they own (via `owner_identity` chain)
+- ALL: Service role manages all rows
+
+---
+
+## `virtual_processes`
+
+Running instances of programs on virtual machines. Tracks resource allocation (CPU%, memory, storage) and lifecycle state. Rewards are pre-calculated at start time and applied by cron on completion.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `process_id` | UUID | PRIMARY KEY DEFAULT gen_random_uuid() | Unique process identifier |
+| `machine_id` | UUID | NOT NULL, FK → virtual_machines(machine_id) ON DELETE CASCADE | Executing machine |
+| `program_id` | UUID | NOT NULL, FK → virtual_programs(program_id) ON DELETE CASCADE | Installed program being run |
+| `cpu_alloc_pct` | INT | NOT NULL DEFAULT 100 CHECK (0–100) | CPU percentage allocated (0 = flex/variable) |
+| `memory_alloc_mb` | INT | NOT NULL DEFAULT 0 CHECK (>= 0) | Memory allocated in MB |
+| `storage_alloc_mb` | INT | NOT NULL DEFAULT 0 CHECK (>= 0) | Storage allocated in MB |
+| `status` | VARCHAR(50) | NOT NULL DEFAULT 'running' CHECK (running, completed, terminated, failed) | Lifecycle state |
+| `started_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | When the process started |
+| `expected_end_time` | TIMESTAMPTZ | | Server-calculated completion time (drives cron) |
+| `actual_end_time` | TIMESTAMPTZ | | Set when process ends |
+| `pre_calc_rewards` | JSONB | DEFAULT '{}' | Expected rewards computed at start, applied on completion |
+| `process_metadata` | JSONB | DEFAULT '{}' | Process-specific state (scan progress, block IDs, heartbeat data) |
+| `created_at` | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+**Indexes:**
+- `idx_vprocesses_machine` on `machine_id`
+- `idx_vprocesses_status` on `status`
+- `idx_vprocesses_expected_end` on `expected_end_time` WHERE status = 'running'
+- `idx_vprocesses_program` on `program_id`
+- `idx_vprocesses_machine_status` on `(machine_id, status)`
+
+**RLS Policies:**
+- SELECT: Players can view processes on machines they own
+- ALL: Service role manages all rows
+
+**Cron Integration:**
+- `pg_cron` job `process-completion-checker` runs every 30 seconds
+- Detects `status = 'running'` rows where `expected_end_time <= now()`
+- Calls `process_completed_jobs()` which dispatches to program-specific reward handlers (e.g., `process_akashic_rewards()` for mining)
+- Rewards flow to `machine_ip` regardless of who initiated the process

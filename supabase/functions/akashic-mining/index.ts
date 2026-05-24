@@ -262,7 +262,8 @@ serve(async (req: Request) => {
 
       for (const block of blockScores) {
         const existing = await sql`
-          SELECT block_id, discovered_by_ip FROM public.akashic_sectors
+          SELECT block_id, discovered_by_ip, verified_count, pending_verifications
+          FROM public.akashic_sectors
           WHERE block_id = ${block.block_id}
         `
 
@@ -275,12 +276,16 @@ serve(async (req: Request) => {
               block_id,
               discovered_by_ip,
               discovered_by_faction_ip,
-              score_value
+              score_value,
+              verified_count,
+              pending_verifications
             ) VALUES (
               ${block.block_id},
               ${pending.machine_ip}::inet,
               ${pending.faction_ip ? sql`${pending.faction_ip}::inet` : null},
-              ${score}
+              ${score},
+              0,
+              0
             )
           `
 
@@ -304,13 +309,25 @@ serve(async (req: Request) => {
           verificationResults.push({ block_id: block.block_id, is_new: true, score })
           processedBlockIds.push(block.block_id)
         } else {
-          // Verification — fractional score
+          const sector = existing[0]
+
+          // Check verification slots (max 2 total: pending + verified)
+          if ((sector.verified_count + sector.pending_verifications) >= 2) {
+            // Already fully verified — skip with minimal reward
+            const score = 0 // No reward for over-verification
+            verificationResults.push({ block_id: block.block_id, is_new: false, score, note: 'fully verified' })
+            continue
+          }
+
+          // Verification — 25% score, increment verified_count, release pending slot
           const score = Math.floor((block.score > 0 ? block.score : BASE_MINING_SCORE) * VERIFICATION_SCORE_MULTIPLIER)
 
           await sql`
             UPDATE public.akashic_sectors
             SET
               verification_count = verification_count + 1,
+              verified_count = verified_count + 1,
+              pending_verifications = GREATEST(0, pending_verifications - 1),
               last_verified_at = now(),
               last_verified_by_ip = ${pending.machine_ip}::inet
             WHERE block_id = ${block.block_id}
@@ -333,7 +350,7 @@ serve(async (req: Request) => {
           }
 
           totalScoreAwarded += score
-          verificationResults.push({ block_id: block.block_id, is_new: false, score })
+          verificationResults.push({ block_id: block.block_id, is_new: false, score, slots: `${sector.verified_count + 1}/2` })
           processedBlockIds.push(block.block_id)
         }
       }

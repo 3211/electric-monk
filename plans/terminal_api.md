@@ -154,9 +154,11 @@ Forcefully ends any active interactive session, emitting the `sessionEnd` event.
 
 ---
 
+---
+
 ## Command System
 
-Commands are registered in `src/terminal/commands.js` (Global), `src/terminal/tabCommands.js` (Tab-specific), or `src/terminal/testCommands.js` (Test/Demo).
+Commands are registered in `src/terminal/commands.js` (Global), `src/terminal/tabCommands.js` (Tab-specific), `src/terminal/systems/connection.js` (Connection), `src/terminal/systems/faction.js` (Faction UI), `src/terminal/systems/player.js` (Player Cards), `src/terminal/systems/processManager.js` (Process Management), or `src/terminal/akashicScannerCommand.js` (Akashic Mining).
 
 ### Command Definition
 ```javascript
@@ -166,7 +168,7 @@ commandName: {
   hidden: false,                       // If true, won't show in /help
   async handler(args, ctx) {
     // args: Array of string arguments
-    // ctx: { terminal, tab, registry }
+    // ctx: { terminal, tab, registry, connected_ip, connection_type, machine_id, machine_access }
     
     // Return an array of lines to be printed, or null.
     return [{ text: 'Command executed.', class: 'term-success' }];
@@ -185,6 +187,10 @@ commandName: {
     - `closeOthers()`: Close all other tabs in this pane.
     - `closeAll()`: Close every terminal tab across all panes.
 - `registry`: The full command registry (for recursive calls or help lookups).
+- `connected_ip`: (string|null) The IP the terminal is currently connected to via `/connect`.
+- `connection_type`: (string|null) One of `'faction'`, `'player'`, `'machine'`, or null.
+- `machine_id`: (UUID|null) The UUID of the connected virtual machine (if `connection_type === 'machine'`).
+- `machine_access`: (string|null) Access level on the connected machine: `'admin'` (auto-authenticated owner), `'pending'` (needs /auth).
 
 ### Command Processing
 

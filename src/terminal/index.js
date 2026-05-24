@@ -2,6 +2,10 @@ import { buildGlobalCommands } from './commands'
 import { buildTabCommands } from './tabCommands'
 import { testCommands } from './testCommands'
 import { buildAkashicCommands } from './akashicScannerCommand'
+import { buildConnectionCommands } from './systems/connection'
+import { buildFactionCommands } from './systems/faction'
+import { buildPlayerCommands } from './systems/player'
+import { buildProcessCommands } from './systems/processManager'
 
 /**
  * Build the full command registry for a single terminal instance.
@@ -21,6 +25,10 @@ export function buildCommandRegistry(context) {
     ...buildTabCommands(),
     ...testCommands(),
     ...buildAkashicCommands(),
+    ...buildConnectionCommands(),
+    ...buildFactionCommands(),
+    ...buildPlayerCommands(),
+    ...buildProcessCommands(),
   }
 
   // Inject registry into context so /help can enumerate all commands
