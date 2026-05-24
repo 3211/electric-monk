@@ -733,7 +733,7 @@ async function runScanner(ctx, scannerState) {
            terminal.updateLine(chunkVizId, { text: vizSpinner.text, class: 'term-steel', segments: vizSpinner.segments });
          }
 
-         await sleep(serverBlockSpeedMs);
+         await sleep(Math.max(15, serverBlockSpeedMs / 200));
       }
 
       if (!scannerState.running) break;
