@@ -238,8 +238,12 @@ export function buildProcessCommands() {
             scannerState.running = true
             scannerState.processId = selectedProc.process_id
             scannerState.machineIp = meta.machine_ip || connectedIp
-            scannerState.blocksCompleted = meta.blocks_completed || 0
+            scannerState.initiatorIp = meta.initiator_ip || null
+            scannerState.scanMode = meta.scan_mode || 'scan'
+            scannerState.totalSegments = meta.target_blocks || meta.total_blocks || 5
+            scannerState.rehydrateFrom = 'procmgr'
             scannerState.startOffset = meta.start_offset || null
+            scannerState.blocksCompleted = 0 // DB will tell us actual progress
 
             const { runScanner } = await import('../akashicScannerCommand.js')
             runScanner({ terminal, tab, registry: ctx.registry }, scannerState).catch(e => {
@@ -250,6 +254,12 @@ export function buildProcessCommands() {
 
           if (subSelection === '__kill__') {
             try {
+              // Cancel any akashic reservations before terminating
+              if (meta.type === 'akashic_scan' && meta.machine_ip) {
+                await supabase.functions.invoke('akashic-mining', {
+                  body: { action: 'cancel', process_id: selectedProc.process_id, machine_ip: meta.machine_ip }
+                }).catch(() => {})
+              }
               const { data: result } = await supabase.rpc('complete_process', {
                 p_process_id: selectedProc.process_id,
                 p_status: 'terminated'
@@ -311,6 +321,37 @@ export function buildProcessCommands() {
           ]
         }
 
+        // ── NEW: Ask scan_mode first (for akashic scan) ──
+        let scanMode = 'scan'
+        let totalSegments = 5
+        if (programName === 'scan_records.exe') {
+          // Check if there are unverified blocks available
+          let hasUnverified = false
+          try {
+            const { data: unverified } = await supabase.rpc('get_unverified_blocks', { p_limit: 1 })
+            hasUnverified = unverified && unverified.length > 0
+          } catch (_) { hasUnverified = false }
+
+          const modeOptions = [
+            { label: 'Scan (discover new blocks — full payout)', value: 'scan' }
+          ]
+          if (hasUnverified) {
+            modeOptions.push({ label: 'Verify (confirm existing blocks — 25% payout)', value: 'verify' })
+          }
+          terminal.write({ text: '  [SYS] Select scan mode:', class: 'term-steel' })
+          scanMode = await terminal.readMenu('  >', modeOptions)
+          if (!scanMode) return [{ text: '  [ERR] No mode selected.', class: 'term-enemy' }]
+
+          // Ask how many segments
+          terminal.write({ text: `  [SYS] How many segments to scan? (1-10)`, class: 'term-steel' })
+          const segInput = await terminal.readLine('  > ')
+          const segParsed = parseInt(segInput, 10)
+          if (isNaN(segParsed) || segParsed < 1 || segParsed > 10) {
+            return [{ text: '  [ERR] Must be 1-10 segments.', class: 'term-enemy' }]
+          }
+          totalSegments = segParsed
+        }
+
         // If CPU is variable (base_cpu_pct = 0), prompt the user
         let cpuAllocPct = progDef.base_cpu_pct
         if (cpuAllocPct === 0) {
@@ -352,7 +393,7 @@ export function buildProcessCommands() {
 
         // ── Dispatch to program-specific handler ──
         if (programName === 'scan_records.exe') {
-          return runAkashicScan(ctx, progDef, installed, cpuAllocPct)
+          return runAkashicScan(ctx, progDef, installed, cpuAllocPct, scanMode, totalSegments)
         }
 
         // Generic stub for unknown programs
@@ -517,6 +558,12 @@ export function buildProcessCommands() {
           scannerState.running = true
           scannerState.processId = match.process_id
           scannerState.machineIp = meta.machine_ip || connectedIp
+          scannerState.initiatorIp = meta.initiator_ip || null
+          scannerState.scanMode = meta.scan_mode || 'scan'
+          scannerState.totalSegments = meta.target_blocks || meta.total_blocks || 5
+          scannerState.rehydrateFrom = 'view'
+          scannerState.startOffset = meta.start_offset || null
+          scannerState.blocksCompleted = 0 // DB will tell us actual progress
 
           const { runScanner } = await import('../akashicScannerCommand.js')
           runScanner({ terminal, tab: ctx.tab, registry: ctx.registry }, scannerState).catch(e => {
@@ -536,7 +583,7 @@ export function buildProcessCommands() {
  * Launch an Akashic scan via /run scan_records.exe.
  * Creates a virtual_processes row, runs the visual scanner, heartbeats progress.
  */
-async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
+async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct, scanMode, totalSegments) {
   const { terminal, tab } = ctx
   const { connectedIp, machineId } = getConnState()
   const playerState = usePlayerState()
@@ -545,21 +592,16 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
 
   tab.setTitle('Akashic Scanner')
 
-  const apiKey = generateApiKeyFromIp(machineIp)
-
   terminal.write({ text: '  [SYS] Initializing Akashic Record Scanner...', class: 'term-dim' })
+  terminal.write({ text: `  [SYS] Mode: ${scanMode.toUpperCase()} | Segments: ${totalSegments}`, class: 'term-steel' })
   terminal.write({ text: `  [SYS] CPU Allocation: ${cpuAllocPct > 0 ? cpuAllocPct + '%' : 'Flex (auto)'}`, class: 'term-steel' })
   terminal.write({ text: `  [NET] Machine IP: ${machineIp}`, class: 'term-dim' })
-  terminal.write({ text: `  [KEY] Deterministic API Key: ${apiKey}`, class: 'term-dim' })
-  terminal.write({ text: `  [SYS] Rewards will be attributed to: ${machineIp}`, class: 'term-brass' })
+  terminal.write({ text: `  [SYS] Rewards attributed to your holy IP: ${playerIp}`, class: 'term-brass' })
 
   const startOffset = Math.floor(Math.random() * 666999111) + 1
-  const seeds = generateFibonacci(startOffset, 64)
 
-  // Hardware speed will be determined by runScanner's per-batch start calls.
-  // Estimate a rough completion time (each 5-block batch ~base_duration_seconds).
-  const batches = Math.ceil(64 / 5)  // 13 batches of 5
-  const estimatedDurationSec = calculateDuration(progDef.base_duration_seconds * batches, cpuAllocPct, 1000)
+  // Estimate completion: each segment roughly base_duration_seconds
+  const estimatedDurationSec = calculateDuration(progDef.base_duration_seconds * totalSegments, cpuAllocPct, 1000)
   const expectedEndTime = new Date(Date.now() + estimatedDurationSec * 1000)
 
   terminal.write({ text: '  [SYS] Registering process...', class: 'term-dim' })
@@ -577,15 +619,17 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
         expected_end_time: expectedEndTime.toISOString(),
         process_metadata: {
           type: 'akashic_scan',
+          scan_mode: scanMode,
+          target_blocks: totalSegments,
           start_offset: startOffset,
-          total_blocks: 64,
-          block_speed_ms: 0, // determined per-batch by akashic-mining start
+          total_blocks: totalSegments,
+          block_speed_ms: 0,
           cpu_alloc_pct: cpuAllocPct,
           machine_ip: machineIp,
-          api_key: apiKey,
+          initiator_ip: playerIp,
           blocks_completed: 0,
           start_time: new Date().toISOString(),
-          is_verification: false
+          is_verification: scanMode === 'verify'
         },
         pre_calc_rewards: {
           base_reward: progDef.base_reward,
@@ -613,25 +657,35 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
   scannerState.running = true
   scannerState.processId = processId
   scannerState.machineIp = machineIp
+  scannerState.initiatorIp = playerIp
+  scannerState.scanMode = scanMode
+  scannerState.totalSegments = totalSegments
+  scannerState.startOffset = startOffset
 
   let blockIndex = 0
-  const totalBlocks = 64
 
   const heartbeatInterval = setInterval(async () => {
     if (!processId || !scannerState.running) return
     await heartbeatProgress(processId, {
       type: 'akashic_scan',
+      scan_mode: scanMode,
+      target_blocks: totalSegments,
       start_offset: startOffset,
-      total_blocks: totalBlocks,
-      block_speed_ms: 0, // per-batch speed varies
+      total_blocks: totalSegments,
+      block_speed_ms: scannerState.blockSpeedMs || 0,
       cpu_alloc_pct: cpuAllocPct,
       machine_ip: machineIp,
-      api_key: apiKey,
+      initiator_ip: playerIp,
       blocks_completed: blockIndex,
       start_time: new Date().toISOString(),
-      is_verification: false
+      is_verification: scanMode === 'verify'
     })
   }, 10000)
+
+  // Set heartbeat callback on scanner so it can update blockIndex
+  scannerState.onHeartbeat = (completed, total) => {
+    blockIndex = completed
+  }
 
   try {
     const { runScanner } = await import('../akashicScannerCommand.js')

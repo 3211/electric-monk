@@ -2,17 +2,15 @@
 // Handles Akashic Record mining lifecycle: start scans, validate pulses, credit scores.
 //
 // ACTIONS:
-//   start  — Initializes a new mining batch. Calculates compute speed from VM hardware,
-//            checks if blocks are already discovered (verification mode), creates pending scan.
-//   pulse  — Validates completion timing (must not arrive before expected - 5% buffer),
-//            processes results, moves scan to completed, credits scores to IPs.
-//   status — Returns the status of an active pending scan (for recovery after refresh).
+//   start   — Initializes a mining batch with explicit scan_mode (scan|verify).
+//             For verify: reserves blocks upfront and stores reserved_blocks.
+//             Calculates compute speed from VM hardware.
+//   pulse   — Validates completion timing, processes results, credits initiator_ip (player).
+//             Clears reserved_by on verified blocks.
+//   cancel  — Cancels active scan: clears reservations, deletes pending record.
+//   status  — Returns scan progress (uses get_akashic_scan_progress for rehydration).
 //
-// SECURITY: User identity derived from JWT Authorization header.
-// All operations validated against VM ownership (player IP → owner_identity).
-//
-// INET SANITIZATION: All IPs returned from DB use host() to strip /32 CIDR suffixes.
-// All client-supplied IPs are stripped of any CIDR before ::inet casts.
+// SCORE ATTRIBUTION: initiator_ip (player's holy IP) gets credit, NOT machine_ip.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import postgres from "https://deno.land/x/postgresjs@v3.3.4/mod.js"
@@ -52,7 +50,6 @@ function extractUserIdFromAuthHeader(req: Request): string {
   }
 }
 
-/** Strip CIDR suffix from IP strings (e.g. 192.168.1.5/32 → 192.168.1.5) */
 function cleanIp(ip: string): string {
   return ip.replace(/\/\d+$/, '')
 }
@@ -77,7 +74,6 @@ interface VmHardware {
 }
 
 async function getVmHardware(machineIp: string, ownerIp: string): Promise<VmHardware> {
-  // Strip any CIDR suffix from client-supplied IPs (e.g. 192.168.1.5/32 → 192.168.1.5)
   const cmIp = cleanIp(machineIp)
   const coIp = cleanIp(ownerIp)
   const rows = await sql`
@@ -108,8 +104,6 @@ function calculateComputeSpeed(hw: VmHardware): number {
 }
 
 function calculateBlockSpeedMs(computeSpeed: number): number {
-  // Higher computeSpeed = faster blocks. Floor at 1s per block.
-  // Starter hardware (~1500-6000 compute) → 20-80s per block
   return Math.max(1000, Math.floor(120000000 / Math.max(computeSpeed, 100)))
 }
 
@@ -129,12 +123,8 @@ async function getFactionIp(userId: string): Promise<string | null> {
   return rows[0].faction_ip
 }
 
-// ── Mining logic ──
-
 const BASE_MINING_SCORE = 100
 const VERIFICATION_SCORE_MULTIPLIER = 0.25
-
-// ── Main Handler ──
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -157,55 +147,93 @@ serve(async (req: Request) => {
     // ────────────────────────────────────────
     if (action === "start") {
       const rawMachineIp: string = body.machine_ip
-      const machineIp = cleanIp(rawMachineIp) // strip /32 before ::inet cast
-      const startBlockId: number = body.start_block_id
-      const targetBlocks: number = body.target_blocks || 5
+      const machineIp = cleanIp(rawMachineIp)
+      const scanMode: string = body.scan_mode || 'scan'  // 'scan' | 'verify'
+      const targetBlocks: number = Math.min(10, Math.max(1, body.target_blocks || 5))
+      const startBlockId: number = body.start_block_id || 0
 
       if (!machineIp) throw new Error("Missing 'machine_ip'")
-      if (startBlockId === undefined || startBlockId === null) throw new Error("Missing 'start_block_id'")
+      if (!['scan', 'verify'].includes(scanMode)) {
+        throw new Error("scan_mode must be 'scan' or 'verify'")
+      }
 
-      const playerIp = await getPlayerIp(userId) // already clean via host()
+      const playerIp = await getPlayerIp(userId)       // player's holy IP (initiator)
       const hw = await getVmHardware(machineIp, playerIp)
-      const factionIp = await getFactionIp(userId) // already clean via host()
+      const factionIp = await getFactionIp(userId)
 
       const computeSpeed = calculateComputeSpeed(hw)
       const blockSpeedMs = calculateBlockSpeedMs(computeSpeed)
       const expectedCompletion = calculateExpectedCompletion(blockSpeedMs, targetBlocks)
 
-      // Check if any of the blocks in this batch are already discovered
       let isVerification = false
-      const blockIds: number[] = []
-      for (let i = 0; i < targetBlocks; i++) {
-        blockIds.push(startBlockId + i)
-      }
+      let reservedBlockIds: number[] = []
 
-      const existingSectors = await sql`
-        SELECT block_id FROM public.akashic_sectors
-        WHERE block_id = ANY(${blockIds}::bigint[])
-      `
-      if (existingSectors.length === targetBlocks) {
+      if (scanMode === 'verify') {
+        // Verify mode: reserve blocks upfront
         isVerification = true
+
+        // Get available unverified blocks
+        const unverified = await sql`
+          SELECT block_id FROM public.akashic_sectors
+          WHERE verified_count < 2
+            AND reserved_by IS NULL
+            AND (pending_verifications + verified_count) < 2
+          ORDER BY discovery_time ASC
+          LIMIT ${targetBlocks}
+        `
+
+        if (unverified.length === 0) {
+          throw new Error("No unverified blocks available. Try scanning instead.")
+        }
+
+        // Reserve each block
+        reservedBlockIds = []
+        for (const block of unverified) {
+          try {
+            await sql`
+              UPDATE public.akashic_sectors
+              SET pending_verifications = pending_verifications + 1,
+                  reserved_by = ${machineIp}::inet
+              WHERE block_id = ${block.block_id}
+                AND reserved_by IS NULL
+                AND (pending_verifications + verified_count) < 2
+            `
+            reservedBlockIds.push(block.block_id)
+          } catch (_) {
+            // Block may have been taken by concurrent request
+          }
+        }
+
+        if (reservedBlockIds.length === 0) {
+          throw new Error("Failed to reserve any blocks. They may have been taken.")
+        }
       }
 
-      // Create pending scan — ips are clean, ::inet casts will work
+      // Create pending scan
       const [pending] = await sql`
         INSERT INTO public.akashic_scans_pending (
           machine_ip,
+          initiator_ip,
           faction_ip,
           start_block_id,
           target_blocks,
           expected_completion_time,
           block_speed_ms,
           is_verification,
+          scan_mode,
+          reserved_blocks,
           compute_speed_score
         ) VALUES (
           ${machineIp}::inet,
+          ${playerIp}::inet,
           ${factionIp ? sql`${factionIp}::inet` : null},
           ${startBlockId},
-          ${targetBlocks},
+          ${reservedBlockIds.length > 0 ? reservedBlockIds.length : targetBlocks},
           ${expectedCompletion.toISOString()},
           ${blockSpeedMs},
           ${isVerification},
+          ${scanMode},
+          ${reservedBlockIds.length > 0 ? reservedBlockIds : null},
           ${computeSpeed}
         )
         RETURNING process_id, start_time
@@ -219,8 +247,13 @@ serve(async (req: Request) => {
         expected_completion_time: expectedCompletion.toISOString(),
         block_speed_ms: blockSpeedMs,
         compute_speed_score: computeSpeed,
+        scan_mode: scanMode,
         is_verification: isVerification,
+        target_blocks: reservedBlockIds.length > 0 ? reservedBlockIds.length : targetBlocks,
+        reserved_blocks: reservedBlockIds.length > 0 ? reservedBlockIds : undefined,
         faction_ip: factionIp,
+        initiator_ip: playerIp,
+        machine_ip: machineIp,
         hardware: {
           cpu_cores: hw.cpu_cores,
           cpu_mhz: hw.cpu_mhz,
@@ -248,8 +281,8 @@ serve(async (req: Request) => {
       }
 
       const pending = pendingRows[0]
-      // machine_ip and faction_ip from DB are inet type — use host() to get clean string for comparisons
       const pendingMachineIp = cleanIp(String(pending.machine_ip))
+      const pendingInitiatorIp = pending.initiator_ip ? cleanIp(String(pending.initiator_ip)) : null
       const pendingFactionIp = pending.faction_ip ? cleanIp(String(pending.faction_ip)) : null
 
       const now = new Date()
@@ -270,7 +303,7 @@ serve(async (req: Request) => {
 
       let totalScoreAwarded = 0
       const processedBlockIds: number[] = []
-      const verificationResults: Array<{ block_id: number; is_new: boolean; score: number }> = []
+      const verificationResults: Array<{ block_id: number; is_new: boolean; score: number; note?: string; slots?: string }> = []
 
       for (const block of blockScores) {
         const existing = await sql`
@@ -280,6 +313,7 @@ serve(async (req: Request) => {
         `
 
         if (existing.length === 0) {
+          // New discovery — credit to initiator_ip
           const score = block.score > 0 ? block.score : BASE_MINING_SCORE
 
           await sql`
@@ -292,7 +326,7 @@ serve(async (req: Request) => {
               pending_verifications
             ) VALUES (
               ${block.block_id},
-              ${pendingMachineIp}::inet,
+              ${pendingInitiatorIp ? sql`${pendingInitiatorIp}::inet` : sql`${pendingMachineIp}::inet`},
               ${pendingFactionIp ? sql`${pendingFactionIp}::inet` : null},
               ${score},
               0,
@@ -300,11 +334,14 @@ serve(async (req: Request) => {
             )
           `
 
-          await sql`
-            UPDATE public.network_addresses
-            SET akashic_score = akashic_score + ${score}
-            WHERE ip_address = ${pendingMachineIp}::inet
-          `
+          // Credit initiator_ip (player)
+          if (pendingInitiatorIp) {
+            await sql`
+              UPDATE public.network_addresses
+              SET akashic_score = akashic_score + ${score}
+              WHERE ip_address = ${pendingInitiatorIp}::inet
+            `
+          }
 
           if (pendingFactionIp) {
             await sql`
@@ -334,16 +371,20 @@ serve(async (req: Request) => {
               verification_count = verification_count + 1,
               verified_count = verified_count + 1,
               pending_verifications = GREATEST(0, pending_verifications - 1),
+              reserved_by = NULL,
               last_verified_at = now(),
-              last_verified_by_ip = ${pendingMachineIp}::inet
+              last_verified_by_ip = ${pendingInitiatorIp ? sql`${pendingInitiatorIp}::inet` : sql`${pendingMachineIp}::inet`}
             WHERE block_id = ${block.block_id}
           `
 
-          await sql`
-            UPDATE public.network_addresses
-            SET akashic_score = akashic_score + ${score}
-            WHERE ip_address = ${pendingMachineIp}::inet
-          `
+          // Credit initiator_ip (player)
+          if (pendingInitiatorIp) {
+            await sql`
+              UPDATE public.network_addresses
+              SET akashic_score = akashic_score + ${score}
+              WHERE ip_address = ${pendingInitiatorIp}::inet
+            `
+          }
 
           if (pendingFactionIp) {
             await sql`
@@ -363,6 +404,7 @@ serve(async (req: Request) => {
         INSERT INTO public.akashic_scans_completed (
           process_id,
           machine_ip,
+          initiator_ip,
           faction_ip,
           start_time,
           end_time,
@@ -373,6 +415,7 @@ serve(async (req: Request) => {
         ) VALUES (
           ${pending.process_id},
           ${pendingMachineIp}::inet,
+          ${pendingInitiatorIp ? sql`${pendingInitiatorIp}::inet` : null},
           ${pendingFactionIp ? sql`${pendingFactionIp}::inet` : null},
           ${pending.start_time},
           now(),
@@ -394,74 +437,122 @@ serve(async (req: Request) => {
         process_id: processId,
         blocks_processed: processedBlockIds.length,
         total_score_awarded: totalScoreAwarded,
+        initiator_ip: pendingInitiatorIp,
         verification_results: verificationResults,
         was_verification_batch: pending.is_verification,
       }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
     }
 
     // ────────────────────────────────────────
-    // ACTION: status (recovery)
+    // ACTION: cancel
+    // ────────────────────────────────────────
+    else if (action === "cancel") {
+      const processId: string = body.process_id
+      const rawMachineIp: string = body.machine_ip
+      const machineIp = cleanIp(rawMachineIp)
+
+      if (!processId) throw new Error("Missing 'process_id'")
+      if (!machineIp) throw new Error("Missing 'machine_ip'")
+
+      const playerIp = await getPlayerIp(userId)
+
+      // Verify VM ownership before allowing cancel
+      await getVmHardware(machineIp, playerIp)
+
+      // Use the cancel_akashic_scan function which clears reservations
+      const [result] = await sql`
+        SELECT public.cancel_akashic_scan(${processId}::UUID, ${machineIp}::inet) as result
+      `
+
+      if (result?.result?.success) {
+        return new Response(JSON.stringify({
+          success: true,
+          action: "cancel",
+          process_id: processId,
+          reservations_cleared: result.result.reservations_cleared,
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
+      } else {
+        throw new Error(result?.result?.error || "Cancel failed")
+      }
+    }
+
+    // ────────────────────────────────────────
+    // ACTION: status (recovery/rehydration)
     // ────────────────────────────────────────
     else if (action === "status") {
       const processId: string = body.process_id
       const rawMachineIp: string = body.machine_ip
       const machineIp = rawMachineIp ? cleanIp(rawMachineIp) : null
-      const playerIp = await getPlayerIp(userId) // already clean via host()
+      const playerIp = await getPlayerIp(userId)
 
       if (processId) {
-        // Look up a specific process
-        const rows = await sql`
-          SELECT * FROM public.akashic_scans_pending
-          WHERE process_id = ${processId}
-            AND machine_ip = ${machineIp}::inet
+        // Use get_akashic_scan_progress for DB-ground-truth progress
+        const [result] = await sql`
+          SELECT public.get_akashic_scan_progress(${processId}::UUID) as progress
         `
-        if (rows.length === 0) {
+        if (result?.progress?.success) {
           return new Response(JSON.stringify({
             success: true,
             action: "status",
-            found: false,
-            message: "No active scan found with that process_id.",
+            found: true,
+            scan: result.progress,
+          }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
+        } else {
+          // Fall back to direct query if function not available
+          const rows = await sql`
+            SELECT * FROM public.akashic_scans_pending
+            WHERE process_id = ${processId}
+          `
+          if (rows.length === 0) {
+            return new Response(JSON.stringify({
+              success: true,
+              action: "status",
+              found: false,
+              message: "No active scan found with that process_id.",
+            }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
+          }
+
+          const scan = rows[0]
+          const now = new Date()
+          const expectedEnd = new Date(scan.expected_completion_time)
+          const totalDurationMs = expectedEnd.getTime() - new Date(scan.start_time).getTime()
+          const elapsedMs = now.getTime() - new Date(scan.start_time).getTime()
+          const progress = Math.min(1, Math.max(0, elapsedMs / totalDurationMs))
+
+          return new Response(JSON.stringify({
+            success: true,
+            action: "status",
+            found: true,
+            scan: {
+              process_id: scan.process_id,
+              start_block_id: scan.start_block_id,
+              target_blocks: scan.target_blocks,
+              start_time: scan.start_time,
+              expected_completion_time: scan.expected_completion_time,
+              block_speed_ms: scan.block_speed_ms,
+              is_verification: scan.is_verification,
+              scan_mode: scan.scan_mode,
+              reserved_blocks: scan.reserved_blocks,
+              initiator_ip: scan.initiator_ip,
+              progress,
+              elapsed_ms: elapsedMs,
+              remaining_ms: Math.max(0, totalDurationMs - elapsedMs),
+            },
           }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
         }
-
-        const scan = rows[0]
-        const now = new Date()
-        const expectedEnd = new Date(scan.expected_completion_time)
-        const totalDurationMs = expectedEnd.getTime() - new Date(scan.start_time).getTime()
-        const elapsedMs = now.getTime() - new Date(scan.start_time).getTime()
-        const progress = Math.min(1, Math.max(0, elapsedMs / totalDurationMs))
-
-        return new Response(JSON.stringify({
-          success: true,
-          action: "status",
-          found: true,
-          scan: {
-            process_id: scan.process_id,
-            start_block_id: scan.start_block_id,
-            target_blocks: scan.target_blocks,
-            start_time: scan.start_time,
-            expected_completion_time: scan.expected_completion_time,
-            block_speed_ms: scan.block_speed_ms,
-            is_verification: scan.is_verification,
-            progress,
-            elapsed_ms: elapsedMs,
-            remaining_ms: Math.max(0, totalDurationMs - elapsedMs),
-          },
-        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
       }
 
       // No process_id — return all active scans for player's machines
       if (machineIp) {
-        await getVmHardware(machineIp, playerIp) // verify ownership
+        await getVmHardware(machineIp, playerIp)
       }
 
-      // Get all VMs owned by this player — host() returns clean IPs
       const ownerRows = await sql`
         SELECT host(vm.ip_address) as machine_ip
         FROM public.virtual_machines vm
         WHERE vm.owner_identity = ${playerIp}::inet
       `
-      const machineIps: string[] = ownerRows.map(r => r.machine_ip)
+      const machineIps: string[] = ownerRows.map((r: { machine_ip: string }) => r.machine_ip)
 
       if (machineIps.length === 0) {
         return new Response(JSON.stringify({
@@ -471,7 +562,6 @@ serve(async (req: Request) => {
         }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
       }
 
-      // machineIps are clean plain strings — safe for ANY(::inet[])
       const pendingScans = await sql`
         SELECT * FROM public.akashic_scans_pending
         WHERE machine_ip = ANY(${machineIps}::inet[])
@@ -481,7 +571,7 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({
         success: true,
         action: "status",
-        scans: pendingScans.map(scan => {
+        scans: pendingScans.map((scan: Record<string, unknown>) => {
           const now = new Date()
           const expectedEnd = new Date(scan.expected_completion_time)
           const totalDurationMs = expectedEnd.getTime() - new Date(scan.start_time).getTime()
@@ -491,12 +581,15 @@ serve(async (req: Request) => {
           return {
             process_id: scan.process_id,
             machine_ip: scan.machine_ip,
+            initiator_ip: scan.initiator_ip,
             start_block_id: scan.start_block_id,
             target_blocks: scan.target_blocks,
             start_time: scan.start_time,
             expected_completion_time: scan.expected_completion_time,
             block_speed_ms: scan.block_speed_ms,
             is_verification: scan.is_verification,
+            scan_mode: scan.scan_mode,
+            reserved_blocks: scan.reserved_blocks,
             progress,
             elapsed_ms: elapsedMs,
             remaining_ms: Math.max(0, totalDurationMs - elapsedMs),
@@ -506,7 +599,7 @@ serve(async (req: Request) => {
     }
 
     else {
-      throw new Error(`Unknown action: '${action}'. Valid actions: start, pulse, status`)
+      throw new Error(`Unknown action: '${action}'. Valid actions: start, pulse, cancel, status`)
     }
 
   } catch (error) {
