@@ -45,17 +45,51 @@ async function resolveShortcut(keyword, ctx) {
     return factionIp
   }
 
-  if (!kw.includes('.')) {
-    try {
-      const playerStatus = await supabase.rpc('get_player_status')
-      const vms = playerStatus?.virtual_machines || []
-      const match = vms.find(vm =>
-        vm.machine_name.toLowerCase() === kw ||
-        vm.ip_address === kw
-      )
-      if (match) return match.ip_address
-    } catch (_) {}
+  // If it looks like an IP (contains dots), skip name lookups
+  if (kw.includes('.')) {
+    return kw // Assume it's a raw IP
   }
+
+  // Try sect name lookup (case insensitive)
+  try {
+    const { data: sects } = await supabase
+      .from('sects')
+      .select('id, name, ip_address')
+      .ilike('name', kw)
+    if (sects && sects.length > 0 && sects[0].ip_address) {
+      return sects[0].ip_address
+    }
+    // Also try matching by sect ID (exact)
+    const { data: sectsById } = await supabase
+      .from('sects')
+      .select('id, name, ip_address')
+      .eq('id', kw)
+    if (sectsById && sectsById.length > 0 && sectsById[0].ip_address) {
+      return sectsById[0].ip_address
+    }
+  } catch (_) {}
+
+  // Try player username lookup (case insensitive)
+  try {
+    const { data: players } = await supabase
+      .from('players')
+      .select('username, ip_address')
+      .ilike('username', kw)
+    if (players && players.length > 0 && players[0].ip_address) {
+      return players[0].ip_address
+    }
+  } catch (_) {}
+
+  // Try VM name lookup
+  try {
+    const playerStatus = await supabase.rpc('get_player_status')
+    const vms = playerStatus?.virtual_machines || []
+    const match = vms.find(vm =>
+      vm.machine_name.toLowerCase() === kw ||
+      vm.ip_address === kw
+    )
+    if (match) return match.ip_address
+  } catch (_) {}
 
   return kw // Assume it's a raw IP
 }
@@ -114,8 +148,8 @@ async function logConnection(sourceIp, targetIp, details) {
 export function buildConnectionCommands() {
   return {
     connect: {
-      help: 'Connect to a remote terminal. Use /connect <ip>, /connect sect, or /connect me.',
-      usage: '/connect <ip|sect|me|machine_name>',
+      help: 'Connect to a remote terminal. Use /connect sect for your sect, /connect me for your own IP, /connect <username> for a player, or /connect <sect-name> for a specific sect.',
+      usage: '/connect <ip|sect|me|username|sect-name|machine_name>',
       async handler(args, ctx) {
         const { terminal } = ctx
         const playerState = usePlayerState()
@@ -123,8 +157,8 @@ export function buildConnectionCommands() {
 
         if (!target) {
           return [
-            { text: '  [SYS] Usage: /connect <ip|sect|me|machine_name>', class: 'term-dim' },
-            { text: '  [SYS] Examples: /connect 127.0.0.1 | /connect sect | /connect me', class: 'term-dim' }
+            { text: '  [SYS] Usage: /connect <ip|sect|me|username|sect-name|machine_name>', class: 'term-dim' },
+            { text: '  [SYS] Examples: /connect 127.0.0.1 | /connect sect | /connect me | /connect playername', class: 'term-dim' }
           ]
         }
 

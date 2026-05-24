@@ -59,9 +59,9 @@ VALUES (
     'mining',
     'Scan the Akashic blockchain for divine text fragments. Discovers new blocks or verifies existing records. Higher CPU allocation increases scan speed proportionally.',
     0,       -- base_cpu_pct: 0 = player-variable
-    256,     -- base_memory_mb
-    512,     -- base_storage_mb
-    45,      -- base_duration_seconds at 100% CPU (scales with hardware)
+    16,     -- base_memory_mb
+    16,     -- base_storage_mb
+    64,      -- base_duration_seconds at 100% CPU (scales with hardware)
     true,    -- duration_scales_with_cpu
     'discovery',
     100,
