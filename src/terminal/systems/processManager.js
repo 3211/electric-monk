@@ -95,6 +95,21 @@ function getConnState() {
 }
 
 const PAGE_SIZE = 10
+const SPINNER_CHARS = ['|', '/', '-', '\\']
+
+/** Lazy heartbeat: auto-complete overdue processes for this machine. */
+async function lazyHeartbeat(machineId) {
+  try {
+    const { data } = await supabase.rpc('get_machine_processes', { p_machine_id: machineId })
+    if (!data) return
+    const overdue = data.filter(p =>
+      p.status === 'running' && p.expected_end_time && new Date(p.expected_end_time) <= new Date()
+    )
+    for (const p of overdue) {
+      await supabase.rpc('complete_process', { p_process_id: p.process_id, p_status: 'completed' })
+    }
+  } catch (_) {}
+}
 
 export function buildProcessCommands() {
   return {
@@ -111,6 +126,7 @@ export function buildProcessCommands() {
         let page = 0
 
         while (true) {
+          await lazyHeartbeat(machineId)
           terminal.clear()
           terminal.write({ text: '  [SYS] Querying process list...', class: 'term-dim' })
 
@@ -133,7 +149,6 @@ export function buildProcessCommands() {
             return null
           }
 
-          // Build menu options with deterministic indexes
           const totalPages = Math.ceil(running.length / PAGE_SIZE)
           if (page >= totalPages) page = totalPages - 1
           if (page < 0) page = 0
@@ -148,27 +163,37 @@ export function buildProcessCommands() {
           terminal.write({ text: '', class: '' })
 
           const options = [{ label: 'Back (exit)', value: '__back__' }]
+          const now = Date.now()
+          const spinChar = SPINNER_CHARS[Math.floor(now / 300) % 4]
 
           for (let i = 0; i < pageProcesses.length; i++) {
             const proc = pageProcesses[i]
-            const idx = startIdx + i + 1 // 1-based
+            const idx = startIdx + i + 1
             const cpuStr = proc.cpu_alloc_pct > 0 ? `${proc.cpu_alloc_pct}%` : 'flex'
             const meta = proc.process_metadata || {}
             const progType = meta.type ? ` [${meta.type}]` : ''
-
-            terminal.write({
-              text: `  ${idx}. ${proc.program_name}${progType}  (CPU: ${cpuStr} | Mem: ${proc.memory_alloc_mb}MB)`,
-              class: 'term-brass'
-            })
             const pidShort = proc.process_id.substring(0, 8)
+
             if (proc.expected_end_time) {
               const remaining = Math.max(0, Math.round((new Date(proc.expected_end_time) - new Date()) / 1000))
-              if (remaining > 0) {
-                terminal.write({ text: `     PID: ${pidShort}... | ETA: ${remaining}s`, class: 'term-dim' })
+              if (remaining <= 0) {
+                terminal.write({
+                  text: `  ${idx}. ${proc.program_name}${progType}  (CPU: ${cpuStr} | Mem: ${proc.memory_alloc_mb}MB) | ${spinChar} [COMPLETE]`,
+                  class: 'term-success term-bold'
+                })
+                terminal.write({ text: `     PID: ${pidShort}... | Awaiting finalization...`, class: 'term-dim' })
               } else {
-                terminal.write({ text: `     PID: ${pidShort}...`, class: 'term-dim' })
+                terminal.write({
+                  text: `  ${idx}. ${proc.program_name}${progType}  (CPU: ${cpuStr} | Mem: ${proc.memory_alloc_mb}MB) | ${spinChar}`,
+                  class: 'term-brass'
+                })
+                terminal.write({ text: `     PID: ${pidShort}... | ETA: ${remaining}s`, class: 'term-dim' })
               }
             } else {
+              terminal.write({
+                text: `  ${idx}. ${proc.program_name}${progType}  (CPU: ${cpuStr} | Mem: ${proc.memory_alloc_mb}MB)`,
+                class: 'term-brass'
+              })
               terminal.write({ text: `     PID: ${pidShort}...`, class: 'term-dim' })
             }
 
@@ -176,44 +201,26 @@ export function buildProcessCommands() {
           }
 
           if (totalPages > 1) {
-            if (page > 0) {
-              options.push({ label: '← Previous Page', value: '__prev__' })
-            }
-            if (page < totalPages - 1) {
-              options.push({ label: 'Next Page →', value: '__next__' })
-            }
+            if (page > 0) options.push({ label: '← Previous Page', value: '__prev__' })
+            if (page < totalPages - 1) options.push({ label: 'Next Page →', value: '__next__' })
           }
 
           const selection = await terminal.readMenu('  Select a process:', options)
 
           if (!selection) continue
+          if (selection === '__back__') return null
+          if (selection === '__next__') { page++; continue }
+          if (selection === '__prev__') { page--; continue }
 
-          // Page navigation
-          if (selection === '__back__') {
-            return null
-          }
-          if (selection === '__next__') {
-            page++
-            continue
-          }
-          if (selection === '__prev__') {
-            page--
-            continue
-          }
-
-          // Process selected — show sub-menu
           const selectedProc = running.find(p => p.process_id === selection)
           if (!selectedProc) continue
 
           const meta = selectedProc.process_metadata || {}
-          const subOptions = [
-            { label: 'Back', value: '__back__' },
-          ]
+          const subOptions = [{ label: 'Back', value: '__back__' }]
 
           if (meta.type === 'akashic_scan') {
             subOptions.push({ label: 'View (re-hydrate scanner UI)', value: '__view__' })
           }
-
           subOptions.push({ label: 'Kill (terminate process)', value: '__kill__' })
 
           const subSelection = await terminal.readMenu(
@@ -231,6 +238,8 @@ export function buildProcessCommands() {
             scannerState.running = true
             scannerState.processId = selectedProc.process_id
             scannerState.machineIp = meta.machine_ip || connectedIp
+            scannerState.blocksCompleted = meta.blocks_completed || 0
+            scannerState.startOffset = meta.start_offset || null
 
             const { runScanner } = await import('../akashicScannerCommand.js')
             runScanner({ terminal, tab, registry: ctx.registry }, scannerState).catch(e => {
