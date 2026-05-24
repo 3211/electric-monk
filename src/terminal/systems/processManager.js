@@ -94,78 +94,182 @@ function getConnState() {
   return { ps, connectedIp, machineId, machineAccess, isConnectedToVM }
 }
 
+const PAGE_SIZE = 10
+
 export function buildProcessCommands() {
   return {
-    processes: {
-      help: 'List active processes on the currently connected machine.',
-      usage: '/processes',
+    procmgr: {
+      help: 'Active process manager — view, kill, or re-hydrate running processes.',
+      usage: '/procmgr',
       async handler(args, ctx) {
-        const { isConnectedToVM, machineId } = getConnState()
+        const { isConnectedToVM, machineId, connectedIp } = getConnState()
         if (!isConnectedToVM) {
           return [{ text: '  [ERR] Not connected to a machine with access. Use /connect <vm_ip> first.', class: 'term-enemy' }]
         }
 
-        const { terminal } = ctx
-        terminal.write({ text: '  [SYS] Querying process list...', class: 'term-dim' })
+        const { terminal, tab } = ctx
+        let page = 0
 
-        try {
-          const { data: processes, error } = await supabase.rpc('get_machine_processes', {
-            p_machine_id: machineId
-          })
+        while (true) {
+          terminal.clear()
+          terminal.write({ text: '  [SYS] Querying process list...', class: 'term-dim' })
 
-          if (error) throw new Error(error.message)
-
-          if (!processes || processes.length === 0) {
-            return [{ text: '  [OK]  No active processes on this machine.', class: 'term-ally' }]
+          let allProcesses = []
+          try {
+            const { data, error } = await supabase.rpc('get_machine_processes', { p_machine_id: machineId })
+            if (error) throw new Error(error.message)
+            allProcesses = data || []
+          } catch (e) {
+            terminal.write({ text: `  [ERR] ${e.message}`, class: 'term-enemy' })
+            return null
           }
+
+          const running = allProcesses.filter(p => p.status === 'running')
+
+          if (running.length === 0) {
+            terminal.write({ text: '  [OK]  No active processes on this machine.', class: 'term-ally' })
+            terminal.write({ text: '', class: '' })
+            await terminal.readLine('  Press ENTER to return...')
+            return null
+          }
+
+          // Build menu options with deterministic indexes
+          const totalPages = Math.ceil(running.length / PAGE_SIZE)
+          if (page >= totalPages) page = totalPages - 1
+          if (page < 0) page = 0
+
+          const startIdx = page * PAGE_SIZE
+          const pageProcesses = running.slice(startIdx, startIdx + PAGE_SIZE)
 
           const bar = '─'.repeat(70)
-          const lines = [
-            { text: `  ${bar}`, class: 'term-dim' },
-            { text: `  PROCESS LIST`, class: 'term-brass term-bold' },
-            { text: `  ${bar}`, class: 'term-dim' },
-            { text: '', class: '' }
-          ]
+          terminal.write({ text: `  ${bar}`, class: 'term-dim' })
+          terminal.write({ text: `  ACTIVE PROCESS MANAGER  (Page ${page + 1}/${totalPages})`, class: 'term-brass term-bold' })
+          terminal.write({ text: `  ${bar}`, class: 'term-dim' })
+          terminal.write({ text: '', class: '' })
 
-          for (const proc of processes) {
-            const pidShort = proc.process_id.substring(0, 8)
-            const statusCls = proc.status === 'running' ? 'term-success' :
-                              proc.status === 'completed' ? 'term-ally' :
-                              proc.status === 'terminated' ? 'term-enemy' : 'term-dim'
+          const options = [{ label: 'Back (exit)', value: '__back__' }]
+
+          for (let i = 0; i < pageProcesses.length; i++) {
+            const proc = pageProcesses[i]
+            const idx = startIdx + i + 1 // 1-based
             const cpuStr = proc.cpu_alloc_pct > 0 ? `${proc.cpu_alloc_pct}%` : 'flex'
+            const meta = proc.process_metadata || {}
+            const progType = meta.type ? ` [${meta.type}]` : ''
 
-            lines.push({
-              text: `  PID: ${pidShort}... | ${proc.program_name}`,
+            terminal.write({
+              text: `  ${idx}. ${proc.program_name}${progType}  (CPU: ${cpuStr} | Mem: ${proc.memory_alloc_mb}MB)`,
               class: 'term-brass'
             })
-            lines.push({
-              text: `    Status: ${proc.status.toUpperCase()} | CPU: ${cpuStr} | Mem: ${proc.memory_alloc_mb}MB | Storage: ${proc.storage_alloc_mb}MB`,
-              class: statusCls
-            })
-
+            const pidShort = proc.process_id.substring(0, 8)
             if (proc.expected_end_time) {
-              const eta = new Date(proc.expected_end_time)
-              const now = new Date()
-              const remaining = Math.max(0, Math.round((eta - now) / 1000))
-              if (remaining > 0 && proc.status === 'running') {
-                lines.push({ text: `    ETA: ${remaining}s remaining`, class: 'term-dim' })
+              const remaining = Math.max(0, Math.round((new Date(proc.expected_end_time) - new Date()) / 1000))
+              if (remaining > 0) {
+                terminal.write({ text: `     PID: ${pidShort}... | ETA: ${remaining}s`, class: 'term-dim' })
+              } else {
+                terminal.write({ text: `     PID: ${pidShort}...`, class: 'term-dim' })
               }
+            } else {
+              terminal.write({ text: `     PID: ${pidShort}...`, class: 'term-dim' })
             }
 
-            if (proc.status === 'running') {
-              lines.push({ text: `    [/kill ${pidShort} to terminate]`, class: 'term-enemy' })
-            }
-
-            lines.push({ text: '', class: '' })
+            options.push({ label: `Process ${idx}: ${proc.program_name}`, value: proc.process_id })
           }
 
-          lines.push({ text: `  ${bar}`, class: 'term-dim' })
-          return lines
-        } catch (e) {
-          return [{ text: `  [ERR] ${e.message}`, class: 'term-enemy' }]
+          if (totalPages > 1) {
+            if (page > 0) {
+              options.push({ label: '← Previous Page', value: '__prev__' })
+            }
+            if (page < totalPages - 1) {
+              options.push({ label: 'Next Page →', value: '__next__' })
+            }
+          }
+
+          const selection = await terminal.readMenu('  Select a process:', options)
+
+          if (!selection) continue
+
+          // Page navigation
+          if (selection === '__back__') {
+            return null
+          }
+          if (selection === '__next__') {
+            page++
+            continue
+          }
+          if (selection === '__prev__') {
+            page--
+            continue
+          }
+
+          // Process selected — show sub-menu
+          const selectedProc = running.find(p => p.process_id === selection)
+          if (!selectedProc) continue
+
+          const meta = selectedProc.process_metadata || {}
+          const subOptions = [
+            { label: 'Back', value: '__back__' },
+          ]
+
+          if (meta.type === 'akashic_scan') {
+            subOptions.push({ label: 'View (re-hydrate scanner UI)', value: '__view__' })
+          }
+
+          subOptions.push({ label: 'Kill (terminate process)', value: '__kill__' })
+
+          const subSelection = await terminal.readMenu(
+            `  Action for ${selectedProc.program_name} (PID: ${selectedProc.process_id.substring(0, 8)}...):`,
+            subOptions
+          )
+
+          if (!subSelection || subSelection === '__back__') continue
+
+          if (subSelection === '__view__') {
+            terminal.clear()
+            terminal.write({ text: `  [SYS] Re-hydrating Akashic scanner...`, class: 'term-dim' })
+
+            const scannerState = getActiveScannerState()
+            scannerState.running = true
+            scannerState.processId = selectedProc.process_id
+            scannerState.machineIp = meta.machine_ip || connectedIp
+
+            const { runScanner } = await import('../akashicScannerCommand.js')
+            runScanner({ terminal, tab, registry: ctx.registry }, scannerState).catch(e => {
+              terminal.write({ text: `  [ERR] Scanner crashed: ${e.message}`, class: 'term-enemy' })
+            })
+            return null
+          }
+
+          if (subSelection === '__kill__') {
+            try {
+              const { data: result } = await supabase.rpc('complete_process', {
+                p_process_id: selectedProc.process_id,
+                p_status: 'terminated'
+              })
+              if (result?.success) {
+                terminal.write({ text: `  [OK]  Process terminated. CPU ${result.resources_freed?.cpu_pct || 0}%, ${result.resources_freed?.memory_mb || 0}MB RAM freed.`, class: 'term-ally' })
+                await new Promise(r => setTimeout(r, 1200))
+              } else {
+                terminal.write({ text: `  [ERR] ${result?.error || 'Unknown error'}`, class: 'term-enemy' })
+                await terminal.readLine('  Press ENTER to continue...')
+              }
+            } catch (e) {
+              terminal.write({ text: `  [ERR] ${e.message}`, class: 'term-enemy' })
+              await terminal.readLine('  Press ENTER to continue...')
+            }
+            continue
+          }
         }
       }
     },
+
+    // ── Hidden legacy commands (kept for scriptability, not shown in /help) ──
+    processes: {
+      help: 'List active processes (legacy). Use /procmgr for the interactive manager.',
+      usage: '/processes',
+      hidden: true,
+      async handler(args, ctx) { return ctx.registry.procmgr.handler(args, ctx) }
+    },
+
 
     run: {
       help: 'Execute a program on the connected machine. Usage: /run <program_name>',
@@ -314,8 +418,9 @@ export function buildProcessCommands() {
     },
 
     kill: {
-      help: 'Terminate a running process by process ID. Use /processes to see PIDs.',
+      help: 'Terminate a running process by process ID. Use /procmgr instead.',
       usage: '/kill <pid_prefix>',
+      hidden: true,
       async handler(args, ctx) {
         const { isConnectedToVM, machineId } = getConnState()
         if (!isConnectedToVM) {
@@ -361,8 +466,9 @@ export function buildProcessCommands() {
     },
 
     view: {
-      help: 'Re-hydrate a running process UI by process ID prefix. Use /processes to see PIDs.',
+      help: 'Re-hydrate a running process UI. Use /procmgr instead.',
       usage: '/view <pid_prefix>',
+      hidden: true,
       async handler(args, ctx) {
         const { isConnectedToVM, machineId } = getConnState()
         if (!isConnectedToVM) {

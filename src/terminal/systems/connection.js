@@ -147,7 +147,12 @@ export function buildConnectionCommands() {
 
           await logConnection(playerIp, resolvedIp, `Connected to faction: ${lookup.data.name}`)
 
-          await showFactionHomepage(ctx, lookup.data)
+          const result = await showFactionHomepage(ctx, lookup.data)
+          if (result === '__disconnect__') {
+            playerState.clearConnection()
+            ctx.tab.setTitle('Terminal')
+            ctx.terminal.write({ text: '  [SYS] Disconnected. Returned to home terminal.', class: 'term-steel' })
+          }
           return null
         }
 

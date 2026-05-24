@@ -253,60 +253,55 @@ async function renderPage(faction, page) {
 }
 
 /**
- * Command that renders the faction interactive homepage.
+ * Renders the faction interactive homepage using readMenu for navigation.
  * Call this after /connect <faction_ip> succeeds.
+ * Selecting "Back (disconnect)" returns the player to their home terminal.
  */
 export async function showFactionHomepage(ctx, faction) {
   const { terminal } = ctx
-  terminal.clear()
-
   let currentPage = 'welcome'
 
-  const render = async () => {
+  const menuOptions = [
+    { label: 'Welcome', value: 'welcome' },
+    { label: 'About', value: 'about' },
+    { label: 'Members', value: 'members' },
+    { label: 'Shop', value: 'shop' },
+    { label: 'Forums', value: 'forums' },
+    { label: 'Back (disconnect)', value: '__back__' },
+  ]
+
+  while (true) {
     terminal.clear()
     const lines = await renderPage(faction, currentPage)
     for (const line of lines) {
       terminal.write(line)
     }
+
+    const selection = await terminal.readMenu('  Select a page:', menuOptions)
+
+    if (!selection || selection === '__back__') {
+      // Disconnect and return to home terminal
+      return '__disconnect__'
+    }
+
+    currentPage = selection
   }
-
-  await render()
-
-  // Arrow key navigation via readLine (intercepts arrow key codes in the terminal)
-  // The terminal API will need to support this; for now we output instructions.
-  terminal.write({ text: '  [NAV] Use /faction-nav <page> to switch pages.', class: 'term-dim' })
-  terminal.write({ text: `  Pages: ${FACTION_PAGES.join(', ')}`, class: 'term-steel' })
-
-  // Return the render function so commands can re-render
-  ctx._factionRenderer = { render, currentPage, faction }
 }
 
 /**
- * Command to navigate faction pages.
+ * Command to navigate faction pages (hidden — readMenu handles navigation now).
  */
 export function buildFactionCommands() {
   return {
     'faction-nav': {
-      help: 'Navigate faction pages. Use /faction-nav <page> when connected to a faction.',
+      help: 'Navigate faction pages (legacy).',
       usage: '/faction-nav <welcome|about|members|shop|forums>',
       hidden: true,
       async handler(args, ctx) {
         if (ctx.connection_type !== 'faction') {
           return [{ text: '  [ERR] Not connected to a faction.', class: 'term-enemy' }]
         }
-
-        const page = (args[0] || 'welcome').toLowerCase()
-        if (!FACTION_PAGES.includes(page)) {
-          return [{ text: `  [ERR] Unknown page: ${page}. Valid: ${FACTION_PAGES.join(', ')}`, class: 'term-enemy' }]
-        }
-
-        if (!ctx._factionRenderer) {
-          return [{ text: '  [ERR] Faction renderer not initialized. Reconnect.', class: 'term-enemy' }]
-        }
-
-        ctx._factionRenderer.currentPage = page
-        await ctx._factionRenderer.render()
-        return null
+        return [{ text: '  [SYS] Use the interactive menu (arrow keys + ENTER) to navigate.', class: 'term-dim' }]
       }
     }
   }
