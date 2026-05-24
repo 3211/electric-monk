@@ -231,10 +231,18 @@ export function buildProcessCommands() {
           if (!subSelection || subSelection === '__back__') continue
 
           if (subSelection === '__view__') {
+            const scannerState = getActiveScannerState()
+            if (scannerState.running) {
+              terminal.write({ text: `  [ERR] Scanner is already active from another tab. Use /stop first or close the scanner tab.`, class: 'term-enemy' })
+              await terminal.readLine('  Press ENTER to continue...')
+              continue
+            }
+
             terminal.clear()
             terminal.write({ text: `  [SYS] Re-hydrating Akashic scanner...`, class: 'term-dim' })
 
-            const scannerState = getActiveScannerState()
+            // Reset the shared state for this rehydration
+            Object.keys(scannerState).forEach(k => delete scannerState[k])
             scannerState.running = true
             scannerState.processId = selectedProc.process_id
             scannerState.machineIp = meta.machine_ip || connectedIp
@@ -266,6 +274,12 @@ export function buildProcessCommands() {
                 p_status: 'terminated'
               })
               if (result?.success) {
+                // Reset the shared scanner state so a new scan can start
+                const scannerState = getActiveScannerState()
+                if (scannerState.processId === selectedProc.process_id) {
+                  scannerState.running = false
+                  scannerState.processId = null
+                }
                 terminal.write({ text: `  [OK]  Process terminated. CPU ${result.resources_freed?.cpu_pct || 0}%, ${result.resources_freed?.memory_mb || 0}MB RAM freed.`, class: 'term-ally' })
                 await new Promise(r => setTimeout(r, 1200))
               } else {
@@ -552,10 +566,17 @@ export function buildProcessCommands() {
             return [{ text: `  [ERR] Process ${pidPrefix} is not an Akashic scan (type: ${meta.type || 'unknown'}). Only akashic_scan processes support /view.`, class: 'term-enemy' }]
           }
 
+          // Check if scanner is already running in another tab
+          const scannerState = getActiveScannerState()
+          if (scannerState.running) {
+            return [{ text: `  [ERR] Scanner is already active from another tab. Use /stop first or close the scanner tab.`, class: 'term-enemy' }]
+          }
+
           // Re-hydrate the scanner UI
           terminal.write({ text: `  [SYS] Re-hydrating Akashic scanner for PID ${pidPrefix}...`, class: 'term-dim' })
 
-          const scannerState = getActiveScannerState()
+          // Reset the shared state for this rehydration
+          Object.keys(scannerState).forEach(k => delete scannerState[k])
           scannerState.running = true
           scannerState.processId = match.process_id
           scannerState.machineIp = meta.machine_ip || connectedIp

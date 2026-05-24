@@ -112,7 +112,7 @@ COMMENT ON FUNCTION public.calculate_total_storage_used(UUID) IS 'Returns total 
 -- 4. HELPER: get_machine_storage_capacity
 -- ==========================================
 -- Returns the total storage capacity in bytes for a machine.
--- Uses catalog_storage joined through virtual_machine_hardware.
+-- Virtual machines store hardware as flat catalog IDs (storage_id on virtual_machines).
 
 CREATE OR REPLACE FUNCTION public.get_machine_storage_capacity(
     p_machine_id UUID
@@ -125,18 +125,17 @@ AS $$
 DECLARE
     v_capacity_mb INT;
 BEGIN
-    SELECT COALESCE(SUM(cs.capacity_mb), 0) INTO v_capacity_mb
-    FROM public.virtual_machine_hardware vmh
-    JOIN public.catalog_storage cs ON vmh.catalog_id = cs.id
-    WHERE vmh.machine_id = p_machine_id
-      AND vmh.hardware_type = 'storage';
+    SELECT COALESCE(cs.capacity_mb, 500) INTO v_capacity_mb
+    FROM public.virtual_machines vm
+    LEFT JOIN public.catalog_storage cs ON vm.storage_id = cs.id
+    WHERE vm.machine_id = p_machine_id;
 
     -- Convert MB to bytes
     RETURN v_capacity_mb::BIGINT * 1024 * 1024;
 END;
 $$;
 
-COMMENT ON FUNCTION public.get_machine_storage_capacity(UUID) IS 'Returns total storage capacity in bytes for a virtual machine.';
+COMMENT ON FUNCTION public.get_machine_storage_capacity(UUID) IS 'Returns total storage capacity in bytes for a virtual machine. Reads storage_id directly from virtual_machines.';
 
 -- ==========================================
 -- 5. HELPER: calculate_blocks_that_fit

@@ -133,6 +133,34 @@ const activeScannerState = { running: false, processId: null, machineIp: null }
 export function getActiveScannerState() { return activeScannerState }
 
 export function buildAkashicCommands() {
+  /** Clean up scanner state: cancel reservations + kill process, then reset */
+  async function cleanStop(ctx, reason) {
+    const pid = activeScannerState.processId
+    const mip = activeScannerState.machineIp
+    activeScannerState.running = false
+    activeScannerState.processId = null
+
+    if (pid && mip) {
+      try {
+        await supabase.functions.invoke('akashic-mining', {
+          body: { action: 'cancel', process_id: pid, machine_ip: mip }
+        }).catch(() => {})
+      } catch (_) {}
+    }
+
+    // Also kill the virtual_process row if one exists
+    if (pid) {
+      try {
+        await supabase.rpc('complete_process', {
+          p_process_id: pid,
+          p_status: 'terminated'
+        }).catch(() => {})
+      } catch (_) {}
+    }
+
+    ctx.terminal.write({ text: `  [SYS] Terminate signal received. Halting...${reason ? ` (${reason})` : ''}`, class: 'term-enemy' });
+  }
+
   return {
     'decrypt-records': {
       help: 'Akashic Record scanner — mine the Akashic blockchain for credits and faction standing.',
@@ -150,6 +178,9 @@ export function buildAkashicCommands() {
           ctx.terminal.write({ text: '  [ERR] No virtual machine found. Complete onboarding first.', class: 'term-enemy' });
           return null;
         }
+
+        // Clear any stale state before starting fresh
+        Object.keys(activeScannerState).forEach(k => delete activeScannerState[k])
         activeScannerState.machineIp = vmIp;
         activeScannerState.machineId = playerState.machineId.value || null;
         activeScannerState.running = true;
@@ -159,13 +190,12 @@ export function buildAkashicCommands() {
       }
     },
     'stop': {
-      help: 'Stop the Akashic scanner (only available during active scan)',
+      help: 'Stop the Akashic scanner and clean up any orphaned reservations.',
       usage: '/stop',
       hidden: true,
       handler(args, ctx) {
         if (activeScannerState.running) {
-          activeScannerState.running = false;
-          ctx.terminal.write({ text: '  [SYS] Terminate signal received. Halting...', class: 'term-enemy' });
+          cleanStop(ctx, 'user requested');
         } else {
           ctx.terminal.write({ text: '  [SYS] No scanner running.', class: 'term-dim' });
         }
@@ -173,13 +203,12 @@ export function buildAkashicCommands() {
       }
     },
     'end': {
-      help: 'Stop the Akashic scanner (only available during active scan)',
+      help: 'Stop the Akashic scanner and clean up any orphaned reservations.',
       usage: '/end',
       hidden: true,
       handler(args, ctx) {
         if (activeScannerState.running) {
-          activeScannerState.running = false;
-          ctx.terminal.write({ text: '  [SYS] Terminate signal received. Halting...', class: 'term-enemy' });
+          cleanStop(ctx, 'user requested');
         } else {
           ctx.terminal.write({ text: '  [SYS] No scanner running.', class: 'term-dim' });
         }
