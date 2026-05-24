@@ -21,7 +21,6 @@ export function buildCommandRegistry(context) {
     ...buildTabCommands(),
     ...testCommands(),
     ...buildAkashicCommands(),
-    ...buildScannerCommands(),
   }
 
   // Inject registry into context so /help can enumerate all commands
