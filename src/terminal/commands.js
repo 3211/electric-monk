@@ -156,15 +156,28 @@ export function buildGlobalCommands() {
     },
 
     status: {
-      help: 'Check your player status and onboarding state.',
+      help: 'Display your identity, faction, and home system status.',
       usage: '/status',
       async handler(args, ctx) {
         const { terminal } = ctx
         ctx.tab.setTitle("Status")
-        const { data, error } = await supabase.rpc('get_player_status')
+        const { data: playerData, error: playerError } = await supabase.rpc('get_player_status')
         
-        if (error || !data) {
-          return [{ text: `  Error fetching status: ${error?.message || 'Unknown error'}`, class: 'term-enemy' }]
+        if (playerError || !playerData) {
+          return [{ text: `  Error fetching status: ${playerError?.message || 'Unknown error'}`, class: 'term-enemy' }]
+        }
+        
+        // Fetch virtual machine status via edge function (query-only, won't create)
+        let vmData = null
+        try {
+          const { data: vmResult } = await supabase.functions.invoke('assign-starter-system', {
+            body: {},
+          })
+          if (vmResult?.success && vmResult.system) {
+            vmData = vmResult.system
+          }
+        } catch (_) {
+          // VM lookup is non-fatal
         }
         
         const lines = [
@@ -172,12 +185,36 @@ export function buildGlobalCommands() {
           { text: '  ════════════════════════════════════════', class: 'term-dim' },
           { text: '  PLAYER STATUS', class: 'term-brass' },
           { text: '  ════════════════════════════════════════', class: 'term-dim' },
-          { text: `  Username: ${data.username || '(not set)'}`, class: data.username ? 'term-ally' : 'term-dim' },
-          { text: `  Sect: ${data.sect_name || '(not chosen)'}`, class: data.sect_name ? 'term-ally' : 'term-dim' },
-          { text: `  Onboarding: ${data.onboarding_complete ? 'Complete' : 'Incomplete'}`, class: data.onboarding_complete ? 'term-success' : 'term-dim' },
+          { text: `  Username : ${playerData.username || '(not set)'}`, class: playerData.username ? 'term-ally' : 'term-dim' },
+          { text: `  Faction  : ${playerData.sect_name ? `${playerData.sect_emoji || ''} ${playerData.sect_name}` : '(no faction)'}`, class: playerData.sect_name ? 'term-ally' : 'term-dim' },
+          { text: `  Holy IP  : ${playerData.ip_address || '(unassigned)'}`, class: playerData.ip_address ? 'term-holy' : 'term-dim' },
+        ]
+        
+        if (vmData) {
+          lines.push(
+            { text: '', class: '' },
+            { text: '  ── Home System ──', class: 'term-steel' },
+            { text: `  Name     : ${vmData.machine_name || 'Unknown'}`, class: 'term-brass' },
+            { text: `  IP       : ${vmData.ip_address || 'PENDING'}`, class: 'term-holy' },
+            { text: `  CPU      : ${vmData.cpu?.name || 'Unknown'} (${vmData.cpu?.cores || '?'}c @ ${vmData.cpu?.clock_speed_mhz || '?'} MHz)`, class: 'term-text' },
+            { text: `  RAM      : ${vmData.memory?.name || 'Unknown'} (${vmData.memory?.capacity_gb || '?'} GB)`, class: 'term-text' },
+            { text: `  Storage  : ${vmData.storage?.name || 'Unknown'} (${vmData.storage?.capacity_mb || '?'} MB)`, class: 'term-text' },
+            { text: `  Network  : ${vmData.nic?.name || 'Unknown'} (${vmData.nic?.bandwidth_mbps || '?'} Mbps)`, class: 'term-text' },
+            { text: `  Security : ${vmData.security_chip?.name || 'NONE'}`, class: vmData.security_chip ? 'term-ally' : 'term-enemy' },
+            { text: `  Power    : ${vmData.psu?.name || 'Unknown'} (${vmData.total_power_draw || '?'}W used)`, class: vmData.total_power_draw ? 'term-text' : 'term-dim' },
+          )
+        } else {
+          lines.push(
+            { text: '', class: '' },
+            { text: '  ── Home System ──', class: 'term-steel' },
+            { text: '  No virtual computer assigned.', class: 'term-enemy' },
+          )
+        }
+        
+        lines.push(
           { text: '  ════════════════════════════════════════', class: 'term-dim' },
           { text: '', class: '' },
-        ]
+        )
         
         return lines
       },

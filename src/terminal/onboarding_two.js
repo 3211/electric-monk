@@ -90,11 +90,10 @@ The machine's name is: ${system.machine_name || 'Novice Terminal'}
 Write a message to ${username} that:
 1. Welcomes them personally as a newly sworn member of ${sectData.name}
 2. Introduces yourself as their faction's Envoy — an Electric Monk, a holy machine who knows its place far below the divine spark of a living soul
-3. Explains that ${sectData.name} has granted them this starter terminal as a gift, provisioned from what little resources remain in these dark times
-4. Tells them to use **/connect ${system.ip_address || 'MACHINE_IP'}** to link their terminal to this new machine — this is their first foothold in cyberspace
-5. Warns them that this machine is WEAK and they must upgrade it. The networks are hostile, bots swarm unprotected nodes, and enemy factions will destroy them without mercy
-6. Reminds them their HOLY IP (${userIp}) must be guarded at all costs — perma-death is real
-7. Makes it clear they must grow strong to establish a foothold for ${sectData.name}
+3. Explains that ${sectData.name} has granted them this starter terminal as a gift, provisioned from what little resources remain in these dark times. Their terminal is already linked and online — this machine IS their foothold in cyberspace.
+4. Warns them that this machine is WEAK and they must upgrade it. The networks are hostile, bots swarm unprotected nodes, and enemy factions will destroy them without mercy
+5. Reminds them their HOLY IP (${userIp}) must be guarded at all costs — perma-death is real
+6. Makes it clear they must grow strong to establish a foothold for ${sectData.name}
 
 Be immersive and faction-appropriate in tone. Do not use bullet points, markdown, or formatting. Address ${username} directly. Wish them luck — they will need it.
 
@@ -131,12 +130,12 @@ async function callVeniceForOnboardingTwo(sectData, username, system) {
     console.error('[onboarding_two] AI welcome failed:', error || data?.error)
     // Fallback message
     const fallbacks = {
-      gilded_path: `Welcome, ${username}. The Gilded Path has granted you a starter terminal — a humble beginning, but gold is forged from ore. Connect to your machine at ${system.ip_address} and begin your ascent to divine prosperity. Guard your holy IP with your life.`,
-      holy_way: `Welcome, child ${username}. The Holy Way provides this terminal as a shepherd provides a staff. Connect to ${system.ip_address} and walk the path of light. Protect your holy IP — darkness seeks to extinguish every flame.`,
-      final_watch: `Recruit ${username}, you stand at your post. The Final Watch has issued you this terminal. Connect to ${system.ip_address} and begin your vigil. Your holy IP is your shield — lose it, and you lose everything.`,
-      black_tribunal: `${username}. The Black Tribunal does not coddle. This terminal is your proving ground. Connect to ${system.ip_address}. Your holy IP is your only true possession — let no one take it from you. Conquer or be conquered.`,
+      gilded_path: `Welcome, ${username}. The Gilded Path has granted you a starter terminal — a humble beginning, but gold is forged from ore. Your system is online. Begin your ascent to divine prosperity. Guard your holy IP with your life.`,
+      holy_way: `Welcome, child ${username}. The Holy Way provides this terminal as a shepherd provides a staff. Your system is online. Walk the path of light. Protect your holy IP — darkness seeks to extinguish every flame.`,
+      final_watch: `Recruit ${username}, you stand at your post. The Final Watch has issued you this terminal. Your system is online. Begin your vigil. Your holy IP is your shield — lose it, and you lose everything.`,
+      black_tribunal: `${username}. The Black Tribunal does not coddle. This terminal is your proving ground. Your system is online. Your holy IP is your only true possession — let no one take it from you. Conquer or be conquered.`,
     }
-    return fallbacks[sectData.id] || `Welcome, ${username}. Your starter terminal is ready at ${system.ip_address}. Connect to it and begin. Guard your holy IP.`
+    return fallbacks[sectData.id] || `Welcome, ${username}. Your starter terminal is online. Guard your holy IP.`
   }
 
   return data.welcome_message
@@ -169,28 +168,7 @@ export async function runOnboardingTwo(terminal, player) {
       return false
     }
 
-    const sectData = await getSectData(sectId)
-    if (!sectData) {
-      terminal.write({ text: '  Error: Sect data not found.', class: 'term-enemy' })
-      terminal.busy = false
-      return false
-    }
-
-    // ── Phase 2 Header ──
-    terminal.clear()
-    await sleep(200)
-
-    await writeLines(terminal, [
-      { text: '', class: '' },
-      { text: '  ════════════════════════════════════════', class: 'term-dim' },
-      { text: `  ${sectData.emoji} ${sectData.name} — System Assignment`, class: 'term-gilded' },
-      { text: '  ════════════════════════════════════════', class: 'term-dim' },
-      { text: '', class: '' },
-    ])
-
     // ── Step 1: Check / Provision Virtual Computer ──
-    terminal.write({ text: '  Contacting faction logistics...', class: 'term-dim' })
-
     const { data: assignData, error: assignError } = await supabase.functions.invoke('assign-starter-system', {
       body: {},
     })
@@ -209,18 +187,44 @@ export async function runOnboardingTwo(terminal, player) {
       return false
     }
 
-    // Cache VM info in player state
+    // Cache VM info in player state (always)
     playerState.set('virtual_machine_id', system.machine_id)
     playerState.set('virtual_machine_ip', system.ip_address)
     playerState.set('virtual_machine_name', system.machine_name)
     playerState.set('has_virtual_computer', true)
 
-    if (assignData.was_newly_created) {
-      terminal.write({ text: '  New terminal provisioned from public hardware reserves.', class: 'term-ally' })
-    } else {
-      terminal.write({ text: '  Existing terminal found in faction registry.', class: 'term-ally' })
+    // If VM already existed from a prior session, hydrate and return 'exists'.
+    // The caller will show the standard welcome.
+    if (!assignData.was_newly_created) {
+      if (system.ip_address) {
+        terminal.setLocation(system.ip_address)
+      }
+      terminal.busy = false
+      return 'exists'
     }
 
+    // ── VM was newly created — show the full faction welcome ──
+
+    const sectData = await getSectData(sectId)
+    if (!sectData) {
+      terminal.write({ text: '  Error: Sect data not found.', class: 'term-enemy' })
+      terminal.busy = false
+      return false
+    }
+
+    // Phase 2 Header
+    terminal.clear()
+    await sleep(200)
+
+    await writeLines(terminal, [
+      { text: '', class: '' },
+      { text: '  ════════════════════════════════════════', class: 'term-dim' },
+      { text: `  ${sectData.emoji} ${sectData.name} — System Assignment`, class: 'term-gilded' },
+      { text: '  ════════════════════════════════════════', class: 'term-dim' },
+      { text: '', class: '' },
+    ])
+
+    terminal.write({ text: '  New terminal provisioned from public hardware reserves.', class: 'term-ally' })
     terminal.write({ text: '', class: '' })
 
     // ── Step 2: Display System Specs ──
@@ -257,8 +261,8 @@ export async function runOnboardingTwo(terminal, player) {
 
     // ── Step 4: Final Instructions ──
     await writeLines(terminal, [
-      { text: `  Type /connect ${system.ip_address} to link your terminal.`, class: 'term-success' },
-      { text: '  Then /help to see available commands.', class: 'term-dim' },
+      { text: '  Your system is online and ready.', class: 'term-success' },
+      { text: '  Type /help to see available commands.', class: 'term-dim' },
       { text: '', class: '' },
     ])
 
@@ -272,7 +276,7 @@ export async function runOnboardingTwo(terminal, player) {
     }
 
     terminal.busy = false
-    return true
+    return 'created'
 
   } catch (err) {
     console.error('[onboarding_two] Error:', err)

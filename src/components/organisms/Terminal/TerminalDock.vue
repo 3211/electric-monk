@@ -84,18 +84,23 @@ onMounted(() => {
         }
         
         // ── Phase 2: Virtual Computer Assignment ──
-        // Runs on the second boot (after basic onboarding) or anytime the
-        // player has username+sect but no virtual computer yet.
-        // runOnboardingTwo() handles both provisioning AND the AI welcome flow.
+        // runOnboardingTwo returns:
+        //   'created' — newly provisioned, faction welcome already shown
+        //   'exists'  — VM already existed, need standard final welcome
+        //   false     — error
         const hasBasicOnboarding = playerState.get('username') && playerState.get('sect_id')
-        const hasVM = playerState.get('has_virtual_computer')
+        let phase2Result = 'exists'
         
-        if (hasBasicOnboarding && !hasVM) {
-          await runOnboardingTwo(terminal, player)
+        if (hasBasicOnboarding) {
+          phase2Result = await runOnboardingTwo(terminal, player)
+          if (phase2Result === false) {
+            terminal.busy = false
+            return
+          }
         }
         
-        // ── Final: Normal terminal setup for fully-provisioned players ──
-        if (!needsOnboarding && (hasVM || playerState.get('has_virtual_computer'))) {
+        // ── Final: Normal terminal setup (only if no full welcome was shown) ──
+        if (hasBasicOnboarding && playerState.get('has_virtual_computer') && phase2Result === 'exists') {
           if (playerState.get('virtual_machine_ip')) {
             terminal.setLocation(playerState.get('virtual_machine_ip'))
           } else if (playerState.ipAddress.value) {
