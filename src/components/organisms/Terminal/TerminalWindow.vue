@@ -804,6 +804,44 @@ onUnmounted(() => {
   color: var(--war-text, #d7e0e8);
 }
 
+.term-line.term-success {
+  color: var(--war-ally, #6c8c83);
+  text-shadow: 0 0 8px rgba(108, 140, 131, 0.3);
+}
+
+.term-line.term-holy {
+  color: var(--theme-accent-light, #ffd76e);
+  text-shadow: 0 0 12px rgba(255, 215, 110, 0.6), 0 0 24px rgba(240, 182, 59, 0.3);
+}
+
+.term-line.term-amber {
+  color: var(--war-brass, #b6905b);
+  text-shadow: 0 0 6px rgba(182, 144, 91, 0.3);
+}
+
+.term-line.term-gilded {
+  color: var(--theme-accent, #d59a17);
+  text-shadow: 0 0 8px rgba(213, 154, 23, 0.4);
+}
+
+.term-line.term-bold {
+  font-weight: 700;
+}
+
+/* ─── Segment-Level Color Classes (for updateLine with segments) ─── */
+.term-line-text.term-steel { color: var(--war-steel, #b9c5cf); }
+.term-line-text.term-brass { color: var(--war-brass-light, #d4ba8e); text-shadow: 0 0 8px rgba(182, 144, 91, 0.25); }
+.term-line-text.term-muted { color: var(--war-muted, #8291a0); }
+.term-line-text.term-dim { color: var(--war-dim, #677482); }
+.term-line-text.term-ally { color: var(--war-ally, #6c8c83); text-shadow: 0 0 6px rgba(108, 140, 131, 0.2); }
+.term-line-text.term-enemy { color: var(--war-enemy, #9b6b66); text-shadow: 0 0 6px rgba(155, 107, 102, 0.2); }
+.term-line-text.term-text { color: var(--war-text, #d7e0e8); }
+.term-line-text.term-success { color: var(--war-ally, #6c8c83); text-shadow: 0 0 8px rgba(108, 140, 131, 0.3); background: rgba(108, 140, 131, 0.12); }
+.term-line-text.term-holy { color: var(--theme-accent-light, #ffd76e); text-shadow: 0 0 12px rgba(255, 215, 110, 0.6), 0 0 24px rgba(240, 182, 59, 0.3); background: rgba(255, 215, 110, 0.08); }
+.term-line-text.term-amber { color: var(--war-brass, #b6905b); text-shadow: 0 0 6px rgba(182, 144, 91, 0.3); background: rgba(182, 144, 91, 0.08); }
+.term-line-text.term-gilded { color: var(--theme-accent, #d59a17); text-shadow: 0 0 8px rgba(213, 154, 23, 0.4); }
+.term-line-text.term-bold { font-weight: 700; }
+
 /* ─── Input Row (Inline) ─── */
 .term-input-row {
   display: flex;

@@ -4,6 +4,14 @@ import bibleUrl from '@/assets/bible_stripped.txt?url'
 
 const GLITCH_GLYPHS = "!@#$%^&*([|/\\:;_-.,])░▒▓█▄▀╔╗╚╝║═╬┼";
 
+// ── Deterministic pseudo-random (0–1) per frame+position ──
+function pseudoRand(seed, pos) {
+  let h = (seed * 0x9E3779B9 + pos * 0x517CC1B7) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x85EBCA6B);
+  h = Math.imul(h ^ (h >>> 13), 0xC2B2AE35);
+  return ((h ^ (h >>> 16)) & 0x7FFFFFFF) / 0x7FFFFFFF;
+}
+
 export function buildAkashicCommands() {
   const scannerState = { running: false };
 
@@ -17,9 +25,8 @@ export function buildAkashicCommands() {
           return null;
         }
         scannerState.running = true;
-        // Start background execution and return immediately to unblock input
         runScanner(ctx, scannerState).catch(console.error);
-        return null; // Unblock terminal input
+        return null;
       }
     },
     'stop': {
@@ -114,134 +121,236 @@ async function runScanner(ctx, scannerState) {
     const textPos = BabelAPI.addressToText(address)
     const { score, matches, overlay } = await scoreDecryptedText(textPos, uniqueBibleWords, bibleWords, 0)
 
-    const bestHitId = `best-hit-${blockId}`;
-    const allHitsId = `all-hits-${blockId}`;
+    const bestHitId   = `best-hit-${blockId}`;
+    const allHitsId   = `all-hits-${blockId}`;
     const liveScoreId = `live-score-${blockId}`;
 
-    terminal.write({ id: bestHitId, text: `  [BEST] --`, class: 'term-brass' });
-    terminal.write({ id: allHitsId, text: `  [WORDS] --`, class: 'term-dim' });
-    terminal.write({ id: liveScoreId, text: `  [SCORE] 0`, class: 'term-steel' });
+    terminal.write({ id: bestHitId,   text: `  [BEST]  --`,      class: 'term-brass' });
+    terminal.write({ id: allHitsId,   text: `  [WORDS] --`,      class: 'term-dim' });
+    terminal.write({ id: liveScoreId, text: `  [SCORE] 0`,       class: 'term-steel' });
     terminal.write({ text: `  [BLK-${blockId}+] Decrypting payload...`, class: 'term-steel' })
     
-    const chunkSize = 64; 
+    // ═══════════════════════════════════════════════════════
+    // Grid setup — 10 visible lines + 1 raw-decoder bar
+    // ═══════════════════════════════════════════════════════
+    const chunkSize   = 80;                               // full terminal width
     const totalChunks = Math.ceil(BabelAPI.PAGE_LENGTH / chunkSize);
-    
-    const windowSize = 6;
-    const lineIds = [];
+    const windowSize  = 10;
+    const lineIds     = [];
+
     for (let i = 0; i < windowSize; i++) {
        const id = `defrag-${blockId}-${i}`;
        lineIds.push(id);
-       terminal.write({ id, text: `    ...`, class: 'term-dim' });
+       // Pre-fill each line with pure red glitch
+       terminal.write({ id, text: GLITCH_GLYPHS.repeat(5).substring(0, chunkSize), class: 'term-enemy' });
     }
 
-    let currentScore = 0;
-    let tracerPos = 0;
-    let redGlitchY = 0;
+    // Raw Decoder Bar
+    const rawDecoderId = `raw-decoder-${blockId}`;
+    terminal.write({ id: rawDecoderId, text: `  ═══ RAW DECODER ═══`, class: 'term-dim' });
 
-    let bestStreakStr = "";
-    let bestStreakScore = 0;
+    // ── Scanning zone constants ──
+    const HEAD_WIDTH   = 18;
+    const JITTER_BAND  = 140;
+    const RED_BAND     = 200;
+    const FAR_DIM      = 300;
+    const TRACER_STEP  = 16;
 
-    // Pre-calculate best streak for the marquee
+    // Pre-calculate best streak
+    let bestStreakStr = "", bestStreakScore = 0;
     matches.forEach(m => {
       if (m.word.length > bestStreakScore) {
         bestStreakScore = m.word.length;
-        bestStreakStr = m.word;
+        bestStreakStr   = m.word;
       }
     });
 
-    while (tracerPos < BabelAPI.PAGE_LENGTH && scannerState.running) {
-       tracerPos += 12;
-       redGlitchY += 0.3;
-       if (redGlitchY >= windowSize) redGlitchY = 0;
+    let currentScore       = 0;
+    let tracerPos          = 0;
+    let lastRevealedCount  = 0;
+    let frameSeed          = 0;
 
+    let currentScrollLine  = 0;
+
+    while (tracerPos < BabelAPI.PAGE_LENGTH && scannerState.running) {
+       frameSeed++;
+       tracerPos += TRACER_STEP;
+
+       // ── Scroll window (tracer at row 5) ──
        let tracerLine = Math.floor(tracerPos / chunkSize);
-       let currentScrollLine = Math.max(0, tracerLine - 4);
+       currentScrollLine = Math.max(0, tracerLine - 5);
        if (currentScrollLine > totalChunks - windowSize) {
-           currentScrollLine = totalChunks - windowSize;
+           currentScrollLine = Math.max(0, totalChunks - windowSize);
        }
 
-       // Update live words marquee
+       // ── Marquee sync ──
        const revealedMatches = matches.filter(m => m.start < tracerPos);
-       if (revealedMatches.length > 0) {
+       if (revealedMatches.length > lastRevealedCount) {
+         lastRevealedCount = revealedMatches.length;
          const displayWords = revealedMatches.slice(-8).map(m => m.word).join(', ');
          terminal.updateLine(allHitsId, { text: `  [WORDS] ${displayWords}`, class: 'term-success' });
-         terminal.updateLine(bestHitId, { text: `  [BEST] ${bestStreakStr.toUpperCase()}`, class: 'term-brass' });
+
+         if (revealedMatches.some(m => m.word === bestStreakStr)) {
+           terminal.updateLine(bestHitId, { text: `  [BEST] ${bestStreakStr.toUpperCase()}`, class: 'term-brass' });
+         }
        }
 
+       // ── Render 10-line grid ──
        for (let y = 0; y < windowSize; y++) {
           let lineIdx = currentScrollLine + y;
           if (lineIdx >= totalChunks) {
-            terminal.updateLine(lineIds[y], { text: ' ', class: 'term-dim' });
+            terminal.updateLine(lineIds[y], { text: ' ', segments: [], class: 'term-dim' });
             continue;
           }
 
           const startOffset = lineIdx * chunkSize;
-          const endOffset = Math.min(startOffset + chunkSize, BabelAPI.PAGE_LENGTH);
-          const targetStr = textPos.substring(startOffset, endOffset).padEnd(chunkSize, ' ');
+          const targetStr = textPos.substring(startOffset, Math.min(startOffset + chunkSize, BabelAPI.PAGE_LENGTH)).padEnd(chunkSize, ' ');
 
-          // Build compositing layers
-          let segments = [];
-          let currentClass = null;
-          let currentText = "";
-          
-          const pushSegment = (char, cls) => {
-             if (currentClass === cls) {
-                currentText += char;
-             } else {
-                if (currentText.length > 0) segments.push({ text: currentText, class: currentClass });
-                currentClass = cls;
-                currentText = char;
+          let segments    = [];
+          let curCls      = null;
+          let curTxt      = "";
+
+          const pushSeg = (ch, cls) => {
+             if (curCls === cls) { curTxt += ch; }
+             else {
+                if (curTxt.length) segments.push({ text: curTxt, class: curCls });
+                curCls = cls;
+                curTxt = ch;
              }
           };
 
           for (let x = 0; x < chunkSize; x++) {
-             let char = targetStr[x] || ' ';
              let absolutePos = startOffset + x;
+             let sourceChar  = targetStr[x] || ' ';
              let isHit = overlay[absolutePos] === 1;
 
-             let finalChar = char;
-             let finalClass = 'term-steel'; // Layer 1 (Base)
+             let finalChar, finalClass;
 
-             // Layer 4: Red glitch moving down
-             if (absolutePos >= tracerPos && absolutePos < tracerPos + 120) {
-                // The unscanned portion ahead of the tracer is red glitch
-                finalChar = GLITCH_GLYPHS[Math.floor(Math.random() * GLITCH_GLYPHS.length)];
+             const zoneTransition = tracerPos - JITTER_BAND;
+             const headStart      = tracerPos;
+             const headEnd        = tracerPos + HEAD_WIDTH;
+             const redEnd         = headEnd + RED_BAND;
+             const farEnd         = headEnd + FAR_DIM;
+
+             if (absolutePos >= farEnd) {
+                // ▓▓▓ Far ahead — dim entropy ▓▓▓
+                finalChar  = GLITCH_GLYPHS[Math.floor(pseudoRand(frameSeed, absolutePos) * GLITCH_GLYPHS.length)];
+                finalClass = 'term-dim';
+
+             } else if (absolutePos >= redEnd) {
+                // ▓▓▓ Mid-ahead — faint red ▓▓▓
+                finalChar  = GLITCH_GLYPHS[Math.floor(pseudoRand(frameSeed, absolutePos) * GLITCH_GLYPHS.length)];
                 finalClass = 'term-enemy';
-             } else if (absolutePos >= tracerPos + 120) {
-                // Far ahead is just dim glitch
-                finalChar = GLITCH_GLYPHS[Math.floor(Math.random() * GLITCH_GLYPHS.length)];
-                finalClass = 'term-dim term-bold text-slate-800/20'; // like reference/decryptor.html idle display
-             } else if (absolutePos >= tracerPos - 12 && absolutePos < tracerPos) {
-                 // Layer 3: Colored tracing scan right behind head
-                 finalChar = char !== ' ' ? char : '█';
-                 finalClass = 'term-brass';
+
+             } else if (absolutePos >= headEnd) {
+                // ▓▓▓ Red glitch — intense entropy ▓▓▓
+                finalChar  = GLITCH_GLYPHS[Math.floor(pseudoRand(frameSeed, absolutePos) * GLITCH_GLYPHS.length)];
+                finalClass = 'term-enemy';
+
+             } else if (absolutePos >= headStart) {
+                // ▓▓▓ Scanner Head — holy beam ▓▓▓
+                let depthInHead = absolutePos - headStart;
+                let headBright  = 1 - (depthInHead / HEAD_WIDTH);
+                finalChar  = sourceChar !== ' ' ? sourceChar : (pseudoRand(frameSeed + 7000, absolutePos) > 0.6 ? '▌' : '█');
+                finalClass = headBright > 0.5 ? 'term-holy term-bold' : 'term-holy';
+
+             } else if (absolutePos >= zoneTransition) {
+                // ▓▓▓ Jitter — chaotic stabilization ▓▓▓
+                let distBehind     = tracerPos - absolutePos;
+                let stabilizeRatio = distBehind / JITTER_BAND;
+
+                // Sigmoid reveal curve: slow→fast→slow
+                let revealChance = 1 / (1 + Math.exp(-10 * (stabilizeRatio - 0.5)));
+                revealChance = revealChance * 0.7 + 0.08;
+
+                if (pseudoRand(frameSeed + 1000, absolutePos) < revealChance) {
+                   finalChar  = sourceChar;
+                   finalClass = isHit ? 'term-amber term-bold' : 'term-brass';
+                } else {
+                   // Partial glitch — sometimes shows real char in enemy color
+                   if (pseudoRand(frameSeed + 2000, absolutePos) < 0.22) {
+                      finalChar  = sourceChar;
+                      finalClass = 'term-enemy';
+                   } else {
+                      finalChar  = GLITCH_GLYPHS[Math.floor(pseudoRand(frameSeed + 3000, absolutePos) * GLITCH_GLYPHS.length)];
+                      finalClass = 'term-enemy';
+                   }
+                }
+
              } else {
-                 // Layer 2: Artifacts and highlight
-                 if (isHit) {
-                     finalClass = 'term-success term-bold';
-                 } else if (Math.random() < 0.02) {
-                     finalChar = GLITCH_GLYPHS[Math.floor(Math.random() * GLITCH_GLYPHS.length)];
-                     finalClass = 'term-dim';
-                 }
+                // ▓▓▓ Deciphered — purified text ▓▓▓
+                finalChar  = sourceChar;
+                finalClass = isHit ? 'term-success term-bold' : 'term-steel';
              }
 
-             pushSegment(finalChar, finalClass);
+             pushSeg(finalChar, finalClass);
           }
-          if (currentText.length > 0) segments.push({ text: currentText, class: currentClass });
+          if (curTxt.length) segments.push({ text: curTxt, class: curCls });
 
           terminal.updateLine(lineIds[y], { text: targetStr, segments });
        }
 
+       // ── Raw Decoder Bar — scrolling hex + braille ──
+       {
+          const hexChars   = "0123456789ABCDEF";
+          const brailChars = "⣿⣾⣽⣻⢿⡿⣟⣯⣷";
+          let rawSegs = [];
+          let rCls = null, rTxt = "";
+          const pushR = (ch, cl) => {
+             if (rCls === cl) { rTxt += ch; }
+             else { if (rTxt.length) rawSegs.push({ text: rTxt, class: rCls }); rCls = cl; rTxt = ch; }
+          };
+
+          for (let x = 0; x < chunkSize; x++) {
+             let absP = (tracerPos + x) % BabelAPI.PAGE_LENGTH;
+             if (absP < tracerPos) {
+                let c = textPos[Math.min(absP, BabelAPI.PAGE_LENGTH - 1)] || '_';
+                pushR(hexChars[c.charCodeAt(0) % 16], 'term-steel');
+             } else if (absP < tracerPos + HEAD_WIDTH) {
+                pushR(brailChars[Math.floor(pseudoRand(frameSeed + 5000, absP) * brailChars.length)], 'term-holy');
+             } else {
+                pushR(hexChars[Math.floor(pseudoRand(frameSeed + 6000, absP) * hexChars.length)], 'term-enemy');
+             }
+          }
+          if (rTxt.length) rawSegs.push({ text: rTxt, class: rCls });
+          terminal.updateLine(rawDecoderId, { text: '─'.repeat(chunkSize), segments: rawSegs });
+       }
+
+       // ── Score tick ──
        let progressRatio = Math.min(1, tracerPos / BabelAPI.PAGE_LENGTH);
        currentScore = Math.floor(progressRatio * score);
        terminal.updateLine(liveScoreId, { text: `  [SCORE] ${currentScore}`, class: 'term-steel' });
 
-       await sleep(30);
+       await sleep(25);
     }
 
     if (!scannerState.running) break;
 
-    terminal.updateLine(liveScoreId, { text: `  [SCORE] ${score}`, class: 'term-success term-bold' });
+    // ── Seal Flash — rapid purify all grid lines ──
+    for (let flash = 0; flash < 3; flash++) {
+       for (let y = 0; y < windowSize; y++) {
+          let lineIdx = currentScrollLine + y;
+          if (lineIdx >= totalChunks) continue;
+          const startOffset = lineIdx * chunkSize;
+          const targetStr = textPos.substring(startOffset, Math.min(startOffset + chunkSize, BabelAPI.PAGE_LENGTH)).padEnd(chunkSize, ' ');
+          let segs = [];
+          let sCls = null, sTxt = "";
+          for (let x = 0; x < chunkSize; x++) {
+             let absP = startOffset + x;
+             let ch = targetStr[x] || ' ';
+             let cls = overlay[absP] === 1 ? 'term-success term-bold' : 'term-steel';
+             if (flash % 2 === 0) cls += ' term-holy';
+             if (sCls === cls) { sTxt += ch; }
+             else { if (sTxt.length) segs.push({ text: sTxt, class: sCls }); sCls = cls; sTxt = ch; }
+          }
+          if (sTxt.length) segs.push({ text: sTxt, class: sCls });
+          terminal.updateLine(lineIds[y], { text: targetStr, segments: segs });
+       }
+       await sleep(80);
+    }
+
+    terminal.updateLine(liveScoreId,  { text: `  [SCORE] ${score}`, class: 'term-success term-bold' });
+    terminal.updateLine(rawDecoderId, { text: `  ═══ BLOCK ${blockId} SEALED ═══`, class: 'term-holy', segments: [] });
 
     const stopReg = terminal.startSpinner(`reg-${blockId}`, '  Registering positive matrix...', { speed: 80, class: 'term-steel' });
     await sleep(600);
