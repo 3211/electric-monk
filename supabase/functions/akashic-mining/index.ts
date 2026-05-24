@@ -151,6 +151,7 @@ serve(async (req: Request) => {
       const scanMode: string = body.scan_mode || 'scan'  // 'scan' | 'verify'
       const targetBlocks: number = Math.min(10, Math.max(1, body.target_blocks || 5))
       const startBlockId: number = body.start_block_id || 0
+      const virtualProcessId: string | null = body.virtual_process_id || null  // Links to virtual_processes for re-hydration
 
       if (!machineIp) throw new Error("Missing 'machine_ip'")
       if (!['scan', 'verify'].includes(scanMode)) {
@@ -222,7 +223,8 @@ serve(async (req: Request) => {
           is_verification,
           scan_mode,
           reserved_blocks,
-          compute_speed_score
+          compute_speed_score,
+          virtual_process_id
         ) VALUES (
           ${machineIp}::inet,
           ${playerIp}::inet,
@@ -234,7 +236,8 @@ serve(async (req: Request) => {
           ${isVerification},
           ${scanMode},
           ${reservedBlockIds.length > 0 ? reservedBlockIds : null},
-          ${computeSpeed}
+          ${computeSpeed},
+          ${virtualProcessId ? sql`${virtualProcessId}::uuid` : null}
         )
         RETURNING process_id, start_time
       `
@@ -499,10 +502,17 @@ serve(async (req: Request) => {
           }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } })
         } else {
           // Fall back to direct query if function not available
-          const rows = await sql`
+          let rows = await sql`
             SELECT * FROM public.akashic_scans_pending
             WHERE process_id = ${processId}
           `
+          // Second-chance lookup via virtual_process_id
+          if (rows.length === 0) {
+            rows = await sql`
+              SELECT * FROM public.akashic_scans_pending
+              WHERE virtual_process_id = ${processId}::uuid
+            `
+          }
           if (rows.length === 0) {
             return new Response(JSON.stringify({
               success: true,

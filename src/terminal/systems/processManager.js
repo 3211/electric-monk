@@ -679,6 +679,7 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct, scanM
   const scannerState = getActiveScannerState()
   scannerState.running = true
   scannerState.processId = processId
+  scannerState.virtualProcessId = processId  // Links to virtual_processes row for re-hydration
   scannerState.machineIp = machineIp
   scannerState.machineId = machineId
   scannerState.initiatorIp = playerIp

@@ -266,6 +266,9 @@ export async function runScanner(ctx, scannerState) {
         scanMode = scan.scan_mode || 'scan'
         isVerification = scan.is_verification
 
+        // Use the akashic process_id (may differ from virtual_process_id used for lookup)
+        scannerState.processId = scan.process_id
+
         if (scan.scan_mode === 'verify' && scan.reserved_blocks?.length > 0) {
           seeds = scan.reserved_blocks
         } else {
@@ -274,6 +277,11 @@ export async function runScanner(ctx, scannerState) {
         }
         scannerState.blocksCompleted = scan.blocks_completed || 0
         terminal.write({ text: `  [OK]  Found pending scan. Progress: ${scannerState.blocksCompleted}/${seeds.length || totalSegments}`, class: 'term-ally' })
+      } else {
+        // DB state not found — fall back to local state from process_metadata
+        terminal.write({ text: '  [WARN] DB scan state not found. Using local metadata.', class: 'term-amber' })
+        const startOffset = scannerState.startOffset || (Math.floor(Math.random() * 666999111) + 1)
+        seeds = generateFibonacci(startOffset, totalSegments)
       }
     } catch (_) {
       terminal.write({ text: '  [WARN] Could not reach server. Using local state.', class: 'term-amber' })
@@ -290,7 +298,8 @@ export async function runScanner(ctx, scannerState) {
           machine_ip: scannerState.machineIp,
           scan_mode: 'verify',
           target_blocks: totalSegments,
-          start_block_id: 0
+          start_block_id: 0,
+          virtual_process_id: scannerState.virtualProcessId || null
         }
       })
       if (startErr) throw new Error(startErr.message || 'Edge function error')
@@ -328,7 +337,8 @@ export async function runScanner(ctx, scannerState) {
           machine_ip: scannerState.machineIp,
           scan_mode: 'scan',
           target_blocks: totalSegments,
-          start_block_id: Number(BigInt(seeds[0]) % BigInt(Number.MAX_SAFE_INTEGER))
+          start_block_id: Number(BigInt(seeds[0]) % BigInt(Number.MAX_SAFE_INTEGER)),
+          virtual_process_id: scannerState.virtualProcessId || null
         }
       })
       if (startErr) throw new Error(startErr.message || 'Edge function error')
