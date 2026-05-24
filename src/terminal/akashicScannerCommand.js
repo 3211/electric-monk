@@ -1,12 +1,15 @@
 import { generateFibonacci } from './fibonacci'
 import { BabelAPI, scoreDecryptedText } from './akashic'
 import bibleUrl from '@/assets/bible_stripped.txt?url'
+import { supabase } from '@/lib/supabase'
+import { usePlayerState } from '@/composables/usePlayerState'
 
 const GLITCH_GLYPHS = "!@#$%^&*([|/\\:;_-.,])░▒▓█▄▀╔╗╚╝║═╬┼";
 const EVA_BRAILLE = "⣿⣾⣽⣻⢿⡿⣟⣯⣷";
 const EVA_BAR_WIDTH = 76;
 const SPINNER_CHARS = ['|', '/', '-', '\\'];
 const BATCH_SIZE = 5;
+const PULSE_BUFFER_RATIO = 0.05; // 5% early buffer for client pulse
 
 // ── Deterministic pseudo-random (0–1) per frame+position ──
 function pseudoRand(seed, pos) {
@@ -106,18 +109,29 @@ function findTargetPhraseOverlay(fullText, targetPhrase) {
 }
 
 export function buildAkashicCommands() {
-  const scannerState = { running: false };
+  const scannerState = { running: false, processId: null, machineIp: null };
 
   return {
     'decrypt-records': {
-      help: 'Demo: Akashic Record scanner using Fibonacci seeds and Bible proximity scoring.',
+      help: 'Akashic Record scanner — mine the Akashic blockchain for credits and faction standing.',
       usage: '/decrypt-records',
       handler(args, ctx) {
         if (scannerState.running) {
           ctx.terminal.write({ text: '  [SYS] Scanner is already running. Type /stop to terminate.', class: 'term-enemy' });
           return null;
         }
+
+        // Resolve machine IP from player state
+        const playerState = usePlayerState();
+        const vmIp = playerState.get('virtual_machine_ip', null);
+        if (!vmIp) {
+          ctx.terminal.write({ text: '  [ERR] No virtual machine found. Complete onboarding first.', class: 'term-enemy' });
+          return null;
+        }
+        scannerState.machineIp = vmIp;
+
         scannerState.running = true;
+        scannerState.processId = null;
         runScanner(ctx, scannerState).catch(console.error);
         return null;
       }
@@ -146,6 +160,42 @@ export function buildAkashicCommands() {
           ctx.terminal.write({ text: '  [SYS] No scanner running.', class: 'term-dim' });
         }
         return null;
+      }
+    },
+    'akashic-status': {
+      help: 'Check status of active Akashic mining operations.',
+      usage: '/akashic-status',
+      async handler(args, ctx) {
+        const playerState = usePlayerState();
+        const vmIp = playerState.get('virtual_machine_ip', null);
+        if (!vmIp) {
+          ctx.terminal.write({ text: '  [ERR] No virtual machine found.', class: 'term-enemy' });
+          return;
+        }
+
+        ctx.terminal.write({ text: '  [SYS] Querying Akashic registry...', class: 'term-dim' });
+        try {
+          const { data, error } = await supabase.functions.invoke('akashic-mining', {
+            body: { action: 'status', machine_ip: vmIp }
+          });
+          if (error) throw new Error(error.message || 'Edge function error');
+          if (!data.success) throw new Error(data.error);
+
+          if (data.scans.length === 0) {
+            ctx.terminal.write({ text: '  [OK]  No active mining operations.', class: 'term-ally' });
+          } else {
+            ctx.terminal.write({ text: `  [OK]  ${data.scans.length} active scan(s) found:`, class: 'term-ally' });
+            data.scans.forEach(scan => {
+              const progressPct = Math.round(scan.progress * 100);
+              ctx.terminal.write({
+                text: `    PID: ${scan.process_id.substring(0, 8)}... | Blocks: ${scan.target_blocks} | Progress: ${progressPct}% | ${scan.is_verification ? 'VERIFY' : 'MINING'}`,
+                class: 'term-brass'
+              });
+            });
+          }
+        } catch (e) {
+          ctx.terminal.write({ text: `  [ERR] ${e.message}`, class: 'term-enemy' });
+        }
       }
     }
   }
@@ -191,7 +241,45 @@ async function runScanner(ctx, scannerState) {
   // ── Eva bar lock state (shared across blocks in a batch) ──
   let barLocked = false;
 
+  // ── Server-driven timing (populated per batch by /start) ──
+  let serverBlockSpeedMs = 25; // fallback default
+  let serverExpectedCompletion = null;
+  let batchScores = []; // accumulated per batch for pulse
+
   while (scannerState.running && seedIndex < seeds.length) {
+    // ═══════════════════════════════════════════════════════
+    // PHASE 0: Register batch with server (start action)
+    // ═══════════════════════════════════════════════════════
+    const batchStartBlockId = seeds[seedIndex];
+    serverExpectedCompletion = null;
+    batchScores = [];
+
+    try {
+      const machineIp = scannerState.machineIp;
+      const { data: startData, error: startErr } = await supabase.functions.invoke('akashic-mining', {
+        body: {
+          action: 'start',
+          machine_ip: machineIp,
+          start_block_id: Number(BigInt(batchStartBlockId) % BigInt(Number.MAX_SAFE_INTEGER)),
+          target_blocks: BATCH_SIZE
+        }
+      });
+      if (startErr) throw new Error(startErr.message || 'Edge function error');
+      if (!startData.success) throw new Error(startData.error);
+
+      scannerState.processId = startData.process_id;
+      serverBlockSpeedMs = startData.block_speed_ms;
+      serverExpectedCompletion = new Date(startData.expected_completion_time);
+
+      terminal.write({ text: `  [NET] Batch registered. PID: ${startData.process_id.substring(0, 8)}... | ${startData.is_verification ? 'VERIFY mode (25% payout)' : 'MINING mode (100% payout)'}`, class: 'term-dim' });
+      terminal.write({ text: `  [NET] Compute: ${startData.compute_speed_score} | Block speed: ${serverBlockSpeedMs}ms | ETA: ${serverExpectedCompletion.toLocaleTimeString()}`, class: 'term-dim' });
+    } catch (e) {
+      terminal.write({ text: `  [ERR] Failed to register batch: ${e.message}`, class: 'term-enemy' });
+      // Fall back to offline mode with default timing
+      serverBlockSpeedMs = 25;
+      scannerState.processId = null;
+    }
+
     // ═══════════════════════════════════════════════════════
     // Clear console before each new batch of 5 blocks
     // ═══════════════════════════════════════════════════════
@@ -645,7 +733,7 @@ async function runScanner(ctx, scannerState) {
            terminal.updateLine(chunkVizId, { text: vizSpinner.text, class: 'term-steel', segments: vizSpinner.segments });
          }
 
-         await sleep(25);
+         await sleep(serverBlockSpeedMs);
       }
 
       if (!scannerState.running) break;
@@ -721,21 +809,85 @@ async function runScanner(ctx, scannerState) {
       }
 
       terminal.write({ text: '  ' + '─'.repeat(50), class: 'term-dim' })
+
+      // ── Accumulate block score for server pulse ──
+      batchScores.push({
+        block_id: Number(BigInt(seed) % BigInt(Number.MAX_SAFE_INTEGER)),
+        score: totalScore,
+        matches_count: matches.length
+      });
     }
 
     if (!scannerState.running) break;
 
     // ═══════════════════════════════════════════════════════
-    // Negative space verification — once per batch (every 5 blocks)
+    // PHASE PULSE: Submit batch results to server
     // ═══════════════════════════════════════════════════════
     const batchNum = Math.floor(seedIndex / BATCH_SIZE);
-    terminal.write({ text: `  [BATCH-${batchNum}] Validating negative space integrity...`, class: 'term-dim' });
-    const stopNeg = terminal.startSpinner(`neg-batch-${batchNum}`, '  Calculating checksum...', { speed: 80, class: 'term-dim' });
-    await sleep(800);
-    stopNeg();
-    if (!scannerState.running) break;
 
-    terminal.write({ text: `  [BATCH-${batchNum}] Negative matrix verified.`, class: 'term-ally' })
+    if (scannerState.processId && batchScores.length > 0) {
+      // Wait until server's expected completion time minus 5% buffer
+      if (serverExpectedCompletion) {
+        const now = new Date();
+        const msUntilOk = serverExpectedCompletion.getTime() - now.getTime();
+        if (msUntilOk > 0) {
+          const bufferedWait = Math.max(0, msUntilOk - (msUntilOk * PULSE_BUFFER_RATIO));
+          terminal.write({ text: `  [NET] Rate-limiting: ${Math.round(bufferedWait / 1000)}s until pulse window opens...`, class: 'term-dim' });
+          if (bufferedWait > 0) await sleep(bufferedWait);
+        }
+      }
+
+      terminal.write({ text: `  [BATCH-${batchNum}] Submitting results to Akashic Registry...`, class: 'term-dim' });
+      const stopPulse = terminal.startSpinner(`pulse-batch-${batchNum}`, '  Transmitting...', { speed: 80, class: 'term-dim' });
+      try {
+        const { data: pulseData, error: pulseErr } = await supabase.functions.invoke('akashic-mining', {
+          body: {
+            action: 'pulse',
+            process_id: scannerState.processId,
+            block_scores: batchScores
+          }
+        });
+        stopPulse();
+        if (pulseErr) throw new Error(pulseErr.message || 'Edge function error');
+
+        if (pulseData.success) {
+          terminal.write({ text: `  [BATCH-${batchNum}] Registered! Score awarded: +${pulseData.total_score_awarded}`, class: 'term-holy term-bold' });
+          pulseData.verification_results?.forEach(vr => {
+            terminal.write({ text: `    Block #${vr.block_id}: ${vr.is_new ? 'DISCOVERED' : 'Verified'} (+${vr.score})`, class: vr.is_new ? 'term-success' : 'term-dim' });
+          });
+        } else if (pulseData.retry_after_ms) {
+          // Too early — wait the remaining time and retry once
+          terminal.write({ text: `  [NET] Pulse too early. Waiting ${Math.round(pulseData.retry_after_ms / 1000)}s...`, class: 'term-amber' });
+          await sleep(pulseData.retry_after_ms);
+          stopPulse;
+          const retryResult = await supabase.functions.invoke('akashic-mining', {
+            body: {
+              action: 'pulse',
+              process_id: scannerState.processId,
+              block_scores: batchScores
+            }
+          });
+          if (retryResult.data?.success) {
+            terminal.write({ text: `  [BATCH-${batchNum}] Registered on retry! Score: +${retryResult.data.total_score_awarded}`, class: 'term-holy term-bold' });
+          } else {
+            terminal.write({ text: `  [ERR] Pulse rejected: ${retryResult.data?.error || 'Unknown'}`, class: 'term-enemy' });
+          }
+        } else {
+          terminal.write({ text: `  [ERR] Pulse rejected: ${pulseData.error || 'Unknown'}`, class: 'term-enemy' });
+        }
+      } catch (e) {
+        stopPulse();
+        terminal.write({ text: `  [ERR] Pulse failed: ${e.message}. Results not recorded.`, class: 'term-enemy' });
+      }
+    } else {
+      // Offline mode — no server registration
+      const stopNeg = terminal.startSpinner(`neg-batch-${batchNum}`, '  Calculating checksum...', { speed: 80, class: 'term-dim' });
+      await sleep(800);
+      stopNeg();
+      if (!scannerState.running) break;
+      terminal.write({ text: `  [BATCH-${batchNum}] Negative matrix verified (offline).`, class: 'term-amber' })
+    }
+
     terminal.write({ text: '  ' + '─'.repeat(50), class: 'term-dim' })
     
     await sleep(300);

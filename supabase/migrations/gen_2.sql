@@ -800,6 +800,7 @@ CREATE POLICY "service_full_access"
     WITH CHECK (auth.jwt()->>'role' = 'service_role');
 
 -- Players can view logs where they are the actor or have the IP
+-- Uses player's IP from players table to match owner_identity (now inet) on virtual_machines
 DROP POLICY IF EXISTS "players_view_own_logs" ON public.connection_logs;
 CREATE POLICY "players_view_own_logs"
     ON public.connection_logs FOR SELECT
@@ -808,24 +809,24 @@ CREATE POLICY "players_view_own_logs"
         log_hidden = 0 AND log_deleted = 0
         AND (
             origin_actor IN (
-                SELECT ip_address::text FROM public.virtual_machines 
-                WHERE owner_identity_id = auth.uid()
+                SELECT ip_address::text FROM public.virtual_machines
+                WHERE owner_identity = (SELECT ip_address FROM public.players WHERE id = auth.uid())
                 UNION
                 SELECT id::text FROM public.players WHERE id = auth.uid()
             )
             OR target_actor IN (
-                SELECT ip_address::text FROM public.virtual_machines 
-                WHERE owner_identity_id = auth.uid()
+                SELECT ip_address::text FROM public.virtual_machines
+                WHERE owner_identity = (SELECT ip_address FROM public.players WHERE id = auth.uid())
                 UNION
                 SELECT id::text FROM public.players WHERE id = auth.uid()
             )
             OR source_ip IN (
-                SELECT ip_address::text FROM public.virtual_machines 
-                WHERE owner_identity_id = auth.uid()
+                SELECT ip_address::text FROM public.virtual_machines
+                WHERE owner_identity = (SELECT ip_address FROM public.players WHERE id = auth.uid())
             )
             OR target_ip IN (
-                SELECT ip_address::text FROM public.virtual_machines 
-                WHERE owner_identity_id = auth.uid()
+                SELECT ip_address::text FROM public.virtual_machines
+                WHERE owner_identity = (SELECT ip_address FROM public.players WHERE id = auth.uid())
             )
         )
     );
@@ -837,8 +838,8 @@ CREATE POLICY "players_insert_logs"
     TO authenticated
     WITH CHECK (
         origin_actor IN (
-            SELECT ip_address::text FROM public.virtual_machines 
-            WHERE owner_identity_id = auth.uid()
+            SELECT ip_address::text FROM public.virtual_machines
+            WHERE owner_identity = (SELECT ip_address FROM public.players WHERE id = auth.uid())
             UNION
             SELECT id::text FROM public.players WHERE id = auth.uid()
         )
@@ -851,16 +852,16 @@ CREATE POLICY "players_modify_own_logs"
     TO authenticated
     USING (
         origin_actor IN (
-            SELECT ip_address::text FROM public.virtual_machines 
-            WHERE owner_identity_id = auth.uid()
+            SELECT ip_address::text FROM public.virtual_machines
+            WHERE owner_identity = (SELECT ip_address FROM public.players WHERE id = auth.uid())
             UNION
             SELECT id::text FROM public.players WHERE id = auth.uid()
         )
     )
     WITH CHECK (
         origin_actor IN (
-            SELECT ip_address::text FROM public.virtual_machines 
-            WHERE owner_identity_id = auth.uid()
+            SELECT ip_address::text FROM public.virtual_machines
+            WHERE owner_identity = (SELECT ip_address FROM public.players WHERE id = auth.uid())
             UNION
             SELECT id::text FROM public.players WHERE id = auth.uid()
         )
