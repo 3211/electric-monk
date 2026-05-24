@@ -262,7 +262,24 @@ export async function runOnboardingTwo(terminal, player) {
     // ── Step 4: Final Instructions ──
     await writeLines(terminal, [
       { text: '  Your system is online and ready.', class: 'term-success' },
-      { text: '  Type /help to see available commands.', class: 'term-dim' },
+      { text: '', class: '' },
+      { text: '  ═══════ GETTING STARTED ═══════', class: 'term-dim' },
+      { text: '', class: '' },
+      { text: '  1) Connect to your new machine:', class: 'term-ally' },
+      { text: `     /connect ${system.ip_address || 'YOUR_VM_IP'}`, class: 'term-brass' },
+      { text: '', class: '' },
+      { text: '  2) See what programs are installed:', class: 'term-ally' },
+      { text: '     /programs', class: 'term-brass' },
+      { text: '', class: '' },
+      { text: '  3) Launch the Akashic Record Scanner:', class: 'term-ally' },
+      { text: '     /run scan_records.exe', class: 'term-brass' },
+      { text: '     (You will be prompted for CPU allocation.)', class: 'term-dim' },
+      { text: '', class: '' },
+      { text: '  4) Check your active processes:', class: 'term-ally' },
+      { text: '     /processes', class: 'term-brass' },
+      { text: '', class: '' },
+      { text: '  ════════════════════════════════', class: 'term-dim' },
+      { text: '  Type /help for all available commands.', class: 'term-dim' },
       { text: '', class: '' },
     ])
 

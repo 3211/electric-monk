@@ -67,12 +67,15 @@ async function resolveShortcut(keyword, ctx) {
  * Returns { type: 'player'|'faction'|'machine'|'unknown', data }
  */
 async function lookupIp(ip) {
+  if (!ip) return { type: 'unknown' }
+  // Strip any CIDR suffix for lookup
+  const cleanIp = typeof ip === 'string' ? ip.replace(/\/\d+$/, '') : ip
   try {
     // Check if it's a faction IP
     const { data: sects } = await supabase
       .from('sects')
       .select('id, name, ip_address, emoji, description')
-      .eq('ip_address', ip)
+      .filter('ip_address', 'eq', cleanIp)
     if (sects && sects.length > 0) {
       return { type: 'faction', data: sects[0] }
     }
@@ -81,7 +84,7 @@ async function lookupIp(ip) {
     const { data: players } = await supabase
       .from('players')
       .select('username, ip_address, sect_id')
-      .eq('ip_address', ip)
+      .filter('ip_address', 'eq', cleanIp)
     if (players && players.length > 0) {
       return { type: 'player', data: players[0] }
     }
@@ -90,7 +93,7 @@ async function lookupIp(ip) {
     const { data: vms } = await supabase
       .from('virtual_machines')
       .select('machine_id, machine_name, ip_address, owner_identity')
-      .eq('ip_address', ip)
+      .filter('ip_address', 'eq', cleanIp)
     if (vms && vms.length > 0) {
       return { type: 'machine', data: vms[0] }
     }

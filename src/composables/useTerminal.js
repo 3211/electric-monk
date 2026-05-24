@@ -560,11 +560,21 @@ export function useTerminal(id = 'default') {
   }
 
   function getPrompt() {
-    return `/${location.value}>`
+    const loc = location.value || '0.0.0.0'
+    // Strip CIDR suffix if present (e.g. 192.168.1.5/32 → 192.168.1.5)
+    const slashIdx = String(loc).indexOf('/')
+    const displayLoc = slashIdx >= 0 ? String(loc).substring(0, slashIdx) : String(loc)
+    return `/${displayLoc}>`
   }
 
   function setLocation(newLocation) {
-    location.value = newLocation
+    // Strip CIDR suffix so the prompt never shows /32
+    if (newLocation && typeof newLocation === 'string') {
+      const slashIdx = newLocation.indexOf('/')
+      location.value = slashIdx >= 0 ? newLocation.substring(0, slashIdx) : newLocation
+    } else {
+      location.value = newLocation
+    }
   }
 
   // ── Command Processing ──

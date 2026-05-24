@@ -22,8 +22,15 @@ function createPlayerState() {
   // ── Computed Conveniences ──
 
   const username = computed(() => data.username || null)
-  const ipAddress = computed(() => data.ip_address || null)
-  const location = computed(() => data.location || data.ip_address || null)
+  const ipAddress = computed(() => {
+    const ip = data.ip_address || null
+    if (ip && typeof ip === 'string') {
+      const slashIdx = ip.indexOf('/')
+      return slashIdx >= 0 ? ip.substring(0, slashIdx) : ip
+    }
+    return ip
+  })
+  const location = computed(() => data.location || ipAddress.value || null)
   const sectId = computed(() => data.sect_id || null)
   const sectName = computed(() => data.sect_name || null)
   const sectEmoji = computed(() => data.sect_emoji || null)

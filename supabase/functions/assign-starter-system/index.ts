@@ -81,10 +81,10 @@ serve(async (req: Request) => {
 
     // ── Step 0: Look up the player's IP address ──
     const playerRows = await sql`
-      SELECT ip_address::text as ip_address
-      FROM players
-      WHERE id = ${authenticatedUserId}
-    `
+    SELECT host(ip_address) as ip_address
+    FROM players
+    WHERE id = ${authenticatedUserId}
+  `
 
     if (playerRows.length === 0) {
       throw new Error("Player record not found. Complete onboarding first.")
@@ -97,9 +97,9 @@ serve(async (req: Request) => {
 
     // ── Step 1: Check if player already has a virtual machine (by IP ownership) ──
     const existingVms = await sql`
-      SELECT machine_id, machine_name, ip_address::text as ip_address
-      FROM virtual_machines
-      WHERE owner_identity::text = ${playerIp}
+    SELECT machine_id, machine_name, host(ip_address) as ip_address
+    FROM virtual_machines
+    WHERE host(owner_identity) = ${playerIp}
       ORDER BY created_at ASC
       LIMIT 1
     `
@@ -243,7 +243,7 @@ serve(async (req: Request) => {
         ARRAY[${playerIpInet}::inet],
         ARRAY[${playerIpInet}::inet]
       )
-      RETURNING machine_id, ip_address::text as ip_address, created_at,
+      RETURNING machine_id, host(ip_address) as ip_address, created_at,
                 admin_password, user_password
     `
 

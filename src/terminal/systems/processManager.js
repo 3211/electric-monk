@@ -239,6 +239,72 @@ export function buildProcessCommands() {
       }
     },
 
+    programs: {
+      help: 'List installed programs on the currently connected machine.',
+      usage: '/programs',
+      async handler(args, ctx) {
+        if (!ctx.machine_id || ctx.machine_access !== 'admin') {
+          return [{ text: '  [ERR] Not connected to a machine with access. Use /connect <vm_ip> first.', class: 'term-enemy' }]
+        }
+
+        const { terminal } = ctx
+        terminal.write({ text: '  [SYS] Querying installed programs...', class: 'term-dim' })
+
+        try {
+          const { data: programs, error } = await supabase
+            .from('virtual_programs')
+            .select('program_id, program_name, version, installed_at')
+            .eq('machine_id', ctx.machine_id)
+            .order('program_name', { ascending: true })
+
+          if (error) throw new Error(error.message)
+
+          if (!programs || programs.length === 0) {
+            return [{ text: '  [OK]  No programs installed on this machine.', class: 'term-ally' }]
+          }
+
+          const bar = '─'.repeat(58)
+          const lines = [
+            { text: `  ${bar}`, class: 'term-dim' },
+            { text: `  INSTALLED PROGRAMS`, class: 'term-brass term-bold' },
+            { text: `  ${bar}`, class: 'term-dim' },
+            { text: '', class: '' }
+          ]
+
+          for (const prog of programs) {
+            const shortId = prog.program_id.substring(0, 8)
+            const version = prog.version || '1.0.0'
+            const installed = prog.installed_at
+              ? new Date(prog.installed_at).toLocaleDateString()
+              : 'unknown'
+
+            lines.push({
+              text: `  ${prog.program_name}  (v${version})`,
+              class: 'term-ally'
+            })
+            lines.push({
+              text: `    Program ID: ${shortId}... | Installed: ${installed}`,
+              class: 'term-dim'
+            })
+            lines.push({
+              text: `    [/run ${prog.program_name} to execute]`,
+              class: 'term-steel'
+            })
+            lines.push({ text: '', class: '' })
+          }
+
+          lines.push({ text: `  ${bar}`, class: 'term-dim' })
+          lines.push({
+            text: `  To execute a program: /run <program_name>  (requires /connect <vm_ip> first)`,
+            class: 'term-muted'
+          })
+          return lines
+        } catch (e) {
+          return [{ text: `  [ERR] ${e.message}`, class: 'term-enemy' }]
+        }
+      }
+    },
+
     kill: {
       help: 'Terminate a running process by process ID. Use /processes to see PIDs.',
       usage: '/kill <pid_prefix>',
