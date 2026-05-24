@@ -238,6 +238,7 @@ export function buildProcessCommands() {
             scannerState.running = true
             scannerState.processId = selectedProc.process_id
             scannerState.machineIp = meta.machine_ip || connectedIp
+            scannerState.machineId = machineId
             scannerState.initiatorIp = meta.initiator_ip || null
             scannerState.scanMode = meta.scan_mode || 'scan'
             scannerState.totalSegments = meta.target_blocks || meta.total_blocks || 5
@@ -558,6 +559,7 @@ export function buildProcessCommands() {
           scannerState.running = true
           scannerState.processId = match.process_id
           scannerState.machineIp = meta.machine_ip || connectedIp
+          scannerState.machineId = machineId
           scannerState.initiatorIp = meta.initiator_ip || null
           scannerState.scanMode = meta.scan_mode || 'scan'
           scannerState.totalSegments = meta.target_blocks || meta.total_blocks || 5
@@ -657,6 +659,7 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct, scanM
   scannerState.running = true
   scannerState.processId = processId
   scannerState.machineIp = machineIp
+  scannerState.machineId = machineId
   scannerState.initiatorIp = playerIp
   scannerState.scanMode = scanMode
   scannerState.totalSegments = totalSegments

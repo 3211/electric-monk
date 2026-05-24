@@ -6,6 +6,7 @@ import { buildConnectionCommands } from './systems/connection'
 import { buildFactionCommands } from './systems/faction'
 import { buildPlayerCommands } from './systems/player'
 import { buildProcessCommands } from './systems/processManager'
+import { buildFileCommands } from './systems/fileManager'
 
 /**
  * Build the full command registry for a single terminal instance.
@@ -29,6 +30,7 @@ export function buildCommandRegistry(context) {
     ...buildFactionCommands(),
     ...buildPlayerCommands(),
     ...buildProcessCommands(),
+    ...buildFileCommands(),
   }
 
   // Inject registry into context so /help can enumerate all commands

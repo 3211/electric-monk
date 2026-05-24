@@ -4,6 +4,38 @@ import bibleUrl from '@/assets/bible_stripped.txt?url'
 import { supabase } from '@/lib/supabase'
 import { usePlayerState } from '@/composables/usePlayerState'
 
+// ── Akashic file generation helpers ──
+
+/** Compute the "negative" address — the mirror/inverse of a positive address */
+function computeNegativeAddress(positiveAddress) {
+  if (!BabelAPI.MODULUS) BabelAPI.init()
+  const pos = BigInt(positiveAddress)
+  const neg = (BabelAPI.MODULUS - pos + BabelAPI.INCREMENT) % BabelAPI.MODULUS
+  return neg.toString()
+}
+
+/** Create akashic record files for a completed block via the manage-files edge function */
+async function createAkashicFiles(machineId, blockId, positiveAddress, positiveText, negativeAddress, negativeText, ownerIp) {
+  try {
+    const { data } = await supabase.functions.invoke('manage-files', {
+      body: {
+        action: 'create_akashic',
+        machine_id: machineId,
+        block_id: blockId,
+        positive_address: positiveAddress,
+        negative_address: negativeAddress,
+        positive_text: positiveText,
+        negative_text: negativeText,
+        owner_ip: ownerIp,
+      }
+    })
+    return data
+  } catch (e) {
+    console.warn('[akashic] File creation failed (non-fatal):', e.message)
+    return null
+  }
+}
+
 const GLITCH_GLYPHS = "!@#$%^&*([|/\\:;_-.,])░▒▓█▄▀╔╗╚╝║═╬┼";
 const EVA_BRAILLE = "⣿⣾⣽⣻⢿⡿⣟⣯⣷";
 const EVA_BAR_WIDTH = 76;
@@ -119,6 +151,7 @@ export function buildAkashicCommands() {
           return null;
         }
         activeScannerState.machineIp = vmIp;
+        activeScannerState.machineId = playerState.machineId.value || null;
         activeScannerState.running = true;
         activeScannerState.processId = null;
         runScanner(ctx, activeScannerState).catch(console.error);
@@ -323,6 +356,30 @@ export async function runScanner(ctx, scannerState) {
   // Render initial segment visualizer
   const initViz = buildSegmentVisualizer(segmentStates, 0)
   terminal.write({ id: segmentVizId, text: initViz.text, class: 'term-steel', segments: initViz.segments })
+
+  // ── Storage pre-check: how many blocks will fit? ──
+  const BYTES_PER_BLOCK = 6400 // 2 files × 3200 chars each
+  let blocksThatFit = activeSegments
+  if (scannerState.machineId) {
+    try {
+      const { data: storageData } = await supabase.functions.invoke('manage-files', {
+        body: { action: 'storage', machine_id: scannerState.machineId, bytes_per_block: BYTES_PER_BLOCK }
+      })
+      if (storageData?.success) {
+        blocksThatFit = storageData.blocks_that_fit
+        if (blocksThatFit < activeSegments) {
+          terminal.write({ text: `  ⚠ STORAGE WARNING: Only ${blocksThatFit}/${activeSegments} blocks will fit. Scan will stop when storage is full.`, class: 'term-amber' })
+          if (blocksThatFit === 0) {
+            terminal.write({ text: `  ⛔ STORAGE FULL! Scanner cannot proceed. Use /delete to free space.`, class: 'term-enemy' })
+            scannerState.running = false
+            return
+          }
+        }
+      }
+    } catch (_) {
+      // Storage check is non-fatal — proceed with full scan
+    }
+  }
 
   // ═══════════════════════════════════════════
   // Main loop: process each segment sequentially
@@ -761,9 +818,32 @@ export async function runScanner(ctx, scannerState) {
     }
     terminal.write({ text: '  ' + '─'.repeat(50), class: 'term-dim' })
 
+    // ── Create akashic record files for this block ──
+    const blockSeedNum = Number(BigInt(seed) % BigInt(Number.MAX_SAFE_INTEGER))
+    const negativeAddress = computeNegativeAddress(address)
+    const negativeTextPos = BabelAPI.addressToText(negativeAddress)
+    const machineId = scannerState.machineId
+
+    if (machineId) {
+      terminal.write({ text: `  [FILE] Generating akashic records for Block #${blockSeedNum}...`, class: 'term-dim' })
+      const fileSpinner = terminal.startSpinner(`file-${blockId}`, '  Writing filesystem...', { speed: 60, class: 'term-dim' })
+      await createAkashicFiles(
+        machineId,
+        blockSeedNum,
+        address,
+        textPos,
+        negativeAddress,
+        negativeTextPos,
+        scannerState.initiatorIp || scannerState.machineIp
+      )
+      fileSpinner()
+      terminal.write({ text: `  [FILE] ✓ Positive: ak_*.record | ✓ Negative: ak_*.record`, class: 'term-ally' })
+      terminal.write({ text: `  [FILE]   Stored under akashic_records/B${String(blockSeedNum).substring(0,2)}/...`, class: 'term-dim' })
+    }
+
     // Accumulate score
     batchScores.push({
-      block_id: Number(BigInt(seed) % BigInt(Number.MAX_SAFE_INTEGER)),
+      block_id: blockSeedNum,
       score: totalScore,
       matches_count: matches.length
     });
@@ -771,6 +851,14 @@ export async function runScanner(ctx, scannerState) {
     // Heartbeat: update progress in process_metadata
     if (scannerState.processId && scannerState.onHeartbeat) {
       scannerState.onHeartbeat(seedIndex + 1, activeSegments)
+    }
+
+    // ── Storage check: stop mid-loop if HDD full ──
+    if (machineId && blocksThatFit > 0 && seedIndex + 1 >= blocksThatFit && seedIndex + 1 < activeSegments) {
+      terminal.write({ text: `  ⛔ STORAGE FULL — Scan stopped after ${seedIndex + 1}/${activeSegments} blocks.`, class: 'term-enemy term-bold' })
+      terminal.write({ text: `  [SYS] No more blocks will fit on your HDD. Use /delete to free space.`, class: 'term-amber' })
+      scannerState.running = false
+      break
     }
   }
 
