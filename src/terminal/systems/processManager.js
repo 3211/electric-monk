@@ -358,6 +358,61 @@ export function buildProcessCommands() {
           return [{ text: `  [ERR] ${e.message}`, class: 'term-enemy' }]
         }
       }
+    },
+
+    view: {
+      help: 'Re-hydrate a running process UI by process ID prefix. Use /processes to see PIDs.',
+      usage: '/view <pid_prefix>',
+      async handler(args, ctx) {
+        const { isConnectedToVM, machineId } = getConnState()
+        if (!isConnectedToVM) {
+          return [{ text: '  [ERR] Not connected to a machine with access.', class: 'term-enemy' }]
+        }
+
+        const pidPrefix = args[0]
+        if (!pidPrefix) {
+          return [{ text: '  [SYS] Usage: /view <pid_prefix> (first 8 chars of process ID from /processes)', class: 'term-dim' }]
+        }
+
+        const { terminal } = ctx
+
+        try {
+          const { data: processes } = await supabase.rpc('get_machine_processes', {
+            p_machine_id: machineId
+          })
+
+          const match = processes?.find(p =>
+            p.process_id.startsWith(pidPrefix) &&
+            p.status === 'running'
+          )
+
+          if (!match) {
+            return [{ text: `  [ERR] No running process found with PID prefix: ${pidPrefix}`, class: 'term-enemy' }]
+          }
+
+          const meta = match.process_metadata || {}
+          if (meta.type !== 'akashic_scan') {
+            return [{ text: `  [ERR] Process ${pidPrefix} is not an Akashic scan (type: ${meta.type || 'unknown'}). Only akashic_scan processes support /view.`, class: 'term-enemy' }]
+          }
+
+          // Re-hydrate the scanner UI
+          terminal.write({ text: `  [SYS] Re-hydrating Akashic scanner for PID ${pidPrefix}...`, class: 'term-dim' })
+
+          const scannerState = getActiveScannerState()
+          scannerState.running = true
+          scannerState.processId = match.process_id
+          scannerState.machineIp = meta.machine_ip || connectedIp
+
+          const { runScanner } = await import('../akashicScannerCommand.js')
+          runScanner({ terminal, tab: ctx.tab, registry: ctx.registry }, scannerState).catch(e => {
+            terminal.write({ text: `  [ERR] Scanner crashed: ${e.message}`, class: 'term-enemy' })
+          })
+
+          return null
+        } catch (e) {
+          return [{ text: `  [ERR] ${e.message}`, class: 'term-enemy' }]
+        }
+      }
     }
   }
 }
@@ -386,27 +441,11 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
   const startOffset = Math.floor(Math.random() * 666999111) + 1
   const seeds = generateFibonacci(startOffset, 64)
 
-  let blockSpeedMs = 25
-  let computeSpeed = 1000
-  try {
-    const { data: startData } = await supabase.functions.invoke('akashic-mining', {
-      body: {
-        action: 'start',
-        machine_ip: machineIp,
-        start_block_id: Number(BigInt(seeds[0]) % BigInt(Number.MAX_SAFE_INTEGER)),
-        target_blocks: 64
-      }
-    })
-    if (startData?.success) {
-      blockSpeedMs = startData.block_speed_ms
-      computeSpeed = startData.compute_speed_score
-    }
-  } catch (_) {
-    // Fall back to defaults
-  }
-
-  const totalDurationSec = calculateDuration(progDef.base_duration_seconds * 64, cpuAllocPct, computeSpeed)
-  const expectedEndTime = new Date(Date.now() + totalDurationSec * 1000)
+  // Hardware speed will be determined by runScanner's per-batch start calls.
+  // Estimate a rough completion time (each 5-block batch ~base_duration_seconds).
+  const batches = Math.ceil(64 / 5)  // 13 batches of 5
+  const estimatedDurationSec = calculateDuration(progDef.base_duration_seconds * batches, cpuAllocPct, 1000)
+  const expectedEndTime = new Date(Date.now() + estimatedDurationSec * 1000)
 
   terminal.write({ text: '  [SYS] Registering process...', class: 'term-dim' })
   let processId
@@ -425,7 +464,7 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
           type: 'akashic_scan',
           start_offset: startOffset,
           total_blocks: 64,
-          block_speed_ms: blockSpeedMs,
+          block_speed_ms: 0, // determined per-batch by akashic-mining start
           cpu_alloc_pct: cpuAllocPct,
           machine_ip: machineIp,
           api_key: apiKey,
@@ -469,7 +508,7 @@ async function runAkashicScan(ctx, progDef, installedProgram, cpuAllocPct) {
       type: 'akashic_scan',
       start_offset: startOffset,
       total_blocks: totalBlocks,
-      block_speed_ms: blockSpeedMs,
+      block_speed_ms: 0, // per-batch speed varies
       cpu_alloc_pct: cpuAllocPct,
       machine_ip: machineIp,
       api_key: apiKey,

@@ -142,8 +142,9 @@ export function buildAkashicCommands() {
       }
     },
     'stop': {
-      help: 'Stop the Akashic scanner',
+      help: 'Stop the Akashic scanner (only available during active scan)',
       usage: '/stop',
+      hidden: true,
       handler(args, ctx) {
         if (activeScannerState.running) {
           activeScannerState.running = false;
@@ -155,8 +156,9 @@ export function buildAkashicCommands() {
       }
     },
     'end': {
-      help: 'Stop the Akashic scanner',
+      help: 'Stop the Akashic scanner (only available during active scan)',
       usage: '/end',
+      hidden: true,
       handler(args, ctx) {
         if (activeScannerState.running) {
           activeScannerState.running = false;
@@ -165,42 +167,6 @@ export function buildAkashicCommands() {
           ctx.terminal.write({ text: '  [SYS] No scanner running.', class: 'term-dim' });
         }
         return null;
-      }
-    },
-    'akashic-status': {
-      help: 'Check status of active Akashic mining operations.',
-      usage: '/akashic-status',
-      async handler(args, ctx) {
-        const playerState = usePlayerState();
-        const vmIp = playerState.get('virtual_machine_ip', null);
-        if (!vmIp) {
-          ctx.terminal.write({ text: '  [ERR] No virtual machine found.', class: 'term-enemy' });
-          return;
-        }
-
-        ctx.terminal.write({ text: '  [SYS] Querying Akashic registry...', class: 'term-dim' });
-        try {
-          const { data, error } = await supabase.functions.invoke('akashic-mining', {
-            body: { action: 'status', machine_ip: vmIp }
-          });
-          if (error) throw new Error(error.message || 'Edge function error');
-          if (!data.success) throw new Error(data.error);
-
-          if (data.scans.length === 0) {
-            ctx.terminal.write({ text: '  [OK]  No active mining operations.', class: 'term-ally' });
-          } else {
-            ctx.terminal.write({ text: `  [OK]  ${data.scans.length} active scan(s) found:`, class: 'term-ally' });
-            data.scans.forEach(scan => {
-              const progressPct = Math.round(scan.progress * 100);
-              ctx.terminal.write({
-                text: `    PID: ${scan.process_id.substring(0, 8)}... | Blocks: ${scan.target_blocks} | Progress: ${progressPct}% | ${scan.is_verification ? 'VERIFY' : 'MINING'}`,
-                class: 'term-brass'
-              });
-            });
-          }
-        } catch (e) {
-          ctx.terminal.write({ text: `  [ERR] ${e.message}`, class: 'term-enemy' });
-        }
       }
     }
   }
