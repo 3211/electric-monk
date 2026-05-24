@@ -193,6 +193,11 @@ async function runScanner(ctx, scannerState) {
 
   while (scannerState.running && seedIndex < seeds.length) {
     // ═══════════════════════════════════════════════════════
+    // Clear console before each new batch of 5 blocks
+    // ═══════════════════════════════════════════════════════
+    terminal.clear();
+
+    // ═══════════════════════════════════════════════════════
     // New batch — release the bar (allow glitching on first chunk)
     // ═══════════════════════════════════════════════════════
     barLocked = false;
@@ -220,7 +225,9 @@ async function runScanner(ctx, scannerState) {
       // Mark this slot as active
       batchStates[batchSlot] = 'active';
 
-      terminal.write({ text: `  [BLK-${blockId}] Locating Address: 0x${address.substring(0, 16)}...`, class: 'term-brass' })
+      const addrPrefix = address.substring(0, 8);
+      const addrSuffix = address.substring(address.length - 8);
+      terminal.write({ text: `  [BLK-${blockId}] Locating Address: 0x${addrPrefix}...${addrSuffix}`, class: 'term-brass' })
       
       const progBar = terminal.createProgressBar(`prog-${blockId}`, {
         width: 20,
@@ -293,6 +300,15 @@ async function runScanner(ctx, scannerState) {
       // Eva-style Braille loading bar
       const evaBarId = `eva-bar-${blockId}`;
       terminal.write({ id: evaBarId, text: `  [${'░'.repeat(EVA_BAR_WIDTH)}]`, class: 'term-dim' });
+
+      // ── Raw Decoder reveal state — each char: unrevealed → cycling → locked ──
+      const RAW_DECODER_WIDTH = chunkSize;
+      const CYCLE_FRAMES = 8;
+      const rawDecoderState = Array.from({ length: RAW_DECODER_WIDTH }, () => ({
+        state: 'unrevealed',  // 'unrevealed' | 'cycling' | 'locked'
+        cycleFrame: 0,
+        finalHex: '',
+      }));
 
       // ── Scanning zone constants ──
       const HEAD_WIDTH   = 18;
@@ -553,30 +569,67 @@ async function runScanner(ctx, scannerState) {
             terminal.updateLine(lineIds[y], { text: targetStr, segments });
          }
 
-         // ── Raw Decoder Bar — scrolling hex + braille ──
+         // ── Raw Decoder Bar — Yellow Braille → Green Cycling Hex → Green Locked Hex ──
          {
             const hexChars   = "0123456789ABCDEF";
             const brailChars = "⣿⣾⣽⣻⢿⡿⣟⣯⣷";
+ 
+            const progressRatio = tracerPos / BabelAPI.PAGE_LENGTH;
+ 
+            // Update reveal state — jagged front using per-char jitter
+            for (let x = 0; x < RAW_DECODER_WIDTH; x++) {
+               const posRatio = x / RAW_DECODER_WIDTH;
+               const jitter = pseudoRand(frameSeed + 70000, x) * 0.15;
+               const revealThreshold = progressRatio - jitter;
+ 
+               if (rawDecoderState[x].state === 'unrevealed' && posRatio <= revealThreshold) {
+                  rawDecoderState[x].state = 'cycling';
+                  rawDecoderState[x].cycleFrame = 0;
+                  const absP = Math.floor(posRatio * BabelAPI.PAGE_LENGTH);
+                  const c = textPos[Math.min(absP, BabelAPI.PAGE_LENGTH - 1)] || '_';
+                  rawDecoderState[x].finalHex = hexChars[c.charCodeAt(0) % 16];
+               }
+ 
+               if (rawDecoderState[x].state === 'cycling') {
+                  rawDecoderState[x].cycleFrame++;
+                  if (rawDecoderState[x].cycleFrame >= CYCLE_FRAMES) {
+                     rawDecoderState[x].state = 'locked';
+                  }
+               }
+            }
+ 
+            // Force-reveal remaining when scan nearly complete
+            if (progressRatio >= 0.99) {
+               for (let x = 0; x < RAW_DECODER_WIDTH; x++) {
+                  if (rawDecoderState[x].state === 'unrevealed') {
+                     rawDecoderState[x].state = 'cycling';
+                     rawDecoderState[x].cycleFrame = 0;
+                     const absP = Math.floor((x / RAW_DECODER_WIDTH) * BabelAPI.PAGE_LENGTH);
+                     const c = textPos[Math.min(absP, BabelAPI.PAGE_LENGTH - 1)] || '_';
+                     rawDecoderState[x].finalHex = hexChars[c.charCodeAt(0) % 16];
+                  }
+               }
+            }
+ 
             let rawSegs = [];
             let rCls = null, rTxt = "";
             const pushR = (ch, cl) => {
                if (rCls === cl) { rTxt += ch; }
                else { if (rTxt.length) rawSegs.push({ text: rTxt, class: rCls }); rCls = cl; rTxt = ch; }
             };
-
-            for (let x = 0; x < chunkSize; x++) {
-               let absP = (tracerPos + x) % BabelAPI.PAGE_LENGTH;
-               if (absP < tracerPos) {
-                  let c = textPos[Math.min(absP, BabelAPI.PAGE_LENGTH - 1)] || '_';
-                  pushR(hexChars[c.charCodeAt(0) % 16], 'term-steel');
-               } else if (absP < tracerPos + HEAD_WIDTH) {
-                  pushR(brailChars[Math.floor(pseudoRand(frameSeed + 5000, absP) * brailChars.length)], 'term-holy');
+ 
+            for (let x = 0; x < RAW_DECODER_WIDTH; x++) {
+               const st = rawDecoderState[x];
+               if (st.state === 'locked') {
+                  pushR(st.finalHex, 'term-success');
+               } else if (st.state === 'cycling') {
+                  pushR(hexChars[Math.floor(pseudoRand(frameSeed + 80000 + st.cycleFrame, x) * hexChars.length)], 'term-success');
                } else {
-                  pushR(hexChars[Math.floor(pseudoRand(frameSeed + 6000, absP) * hexChars.length)], 'term-enemy');
+                  pushR(brailChars[Math.floor(pseudoRand(frameSeed + 5000, x) * brailChars.length)], 'term-amber');
                }
             }
             if (rTxt.length) rawSegs.push({ text: rTxt, class: rCls });
-            terminal.updateLine(rawDecoderId, { text: '─'.repeat(chunkSize), segments: rawSegs });
+            terminal.updateLine(rawDecoderId, { text: '─'.repeat(RAW_DECODER_WIDTH), segments: rawSegs });
          }
 
          // ── Score tick ──
