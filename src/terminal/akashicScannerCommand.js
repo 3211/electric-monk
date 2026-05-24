@@ -58,26 +58,33 @@ function rollTargetPhrase(bibleWords, seedInt) {
 }
 
 /**
- * Build the batch progress visualizer string.
+ * Build the batch progress visualizer with colored segments.
  * @param {Array<'pending'|'active'|'complete'>} batchStates - 5-element array
  * @param {number} spinnerFrame - incremented each frame for active slot animation
- * @returns {string} e.g. "[ X ] . [ / ] . [ o ] . [ o ] . [ o ]"
+ * @returns {{ text: string, segments: Array<{ text: string, class: string }> }}
  */
 function buildBatchVisualizer(batchStates, spinnerFrame) {
-  const parts = [];
+  const segments = [];
   for (let i = 0; i < BATCH_SIZE; i++) {
     const state = batchStates[i];
-    let glyph;
+    let glyph, cls;
     if (state === 'complete') {
       glyph = 'X';
+      cls = 'term-success';      // Green
     } else if (state === 'active') {
       glyph = SPINNER_CHARS[spinnerFrame % SPINNER_CHARS.length];
+      cls = 'term-enemy';        // Red
     } else {
       glyph = 'o';
+      cls = 'term-amber';        // Yellow
     }
-    parts.push(`[ ${glyph} ]`);
+    if (i > 0) {
+      segments.push({ text: ' . ', class: 'term-dim' });
+    }
+    segments.push({ text: `[ ${glyph} ]`, class: cls });
   }
-  return parts.join(' . ');
+  const text = segments.map(s => s.text).join('');
+  return { text, segments };
 }
 
 /**
@@ -181,19 +188,22 @@ async function runScanner(ctx, scannerState) {
 
   let seedIndex = 0;
 
+  // ── Eva bar lock state (shared across blocks in a batch) ──
+  let barLocked = false;
+
   while (scannerState.running && seedIndex < seeds.length) {
     // ═══════════════════════════════════════════════════════
-    // Roll a new target phrase for this batch of 5 blocks
+    // New batch — release the bar (allow glitching on first chunk)
     // ═══════════════════════════════════════════════════════
+    barLocked = false;
+
+    // Roll a new target phrase for this batch of 5 blocks
     const batchSeed = seeds[seedIndex];
     const targetPhrase = rollTargetPhrase(bibleWords, batchSeed);
-    terminal.write({ text: `  [PHRASE] Rolling target: "${targetPhrase.phrase.substring(0, 60)}${targetPhrase.phrase.length > 60 ? '...' : ''}" (${targetPhrase.wordCount} words)`, class: 'term-brass' });
 
     // Batch visualizer state
     const batchStates = Array(BATCH_SIZE).fill('pending');
     let batchSpinnerFrame = 0;
-    const batchVizId = `batch-viz-${seedIndex}`;
-    terminal.write({ id: batchVizId, text: `  CHUNK  ${buildBatchVisualizer(batchStates, batchSpinnerFrame)}`, class: 'term-steel' });
 
     // ═══════════════════════════════════════════════════════
     // Process up to BATCH_SIZE blocks with the same target phrase
@@ -202,10 +212,13 @@ async function runScanner(ctx, scannerState) {
       const seed = seeds[seedIndex];
       const blockId = (seedIndex + 1).toString().padStart(2, '0')
       const address = seed.toString()
+
+      // ── Per-block chunk viz ID (appears below Isolated bar) ──
+      const chunkVizId = `chunk-viz-${blockId}`;
+      const phraseLineId = `phrase-${blockId}`;
       
       // Mark this slot as active
       batchStates[batchSlot] = 'active';
-      terminal.updateLine(batchVizId, { text: `  CHUNK  ${buildBatchVisualizer(batchStates, batchSpinnerFrame)}`, class: 'term-steel' });
 
       terminal.write({ text: `  [BLK-${blockId}] Locating Address: 0x${address.substring(0, 16)}...`, class: 'term-brass' })
       
@@ -224,6 +237,14 @@ async function runScanner(ctx, scannerState) {
       if (!scannerState.running) { progBar.remove(); break; }
       progBar.finish({ class: 'term-ally', label: '  Isolated   ' })
       await sleep(200);
+
+      // ═══════════════════════════════════════════════════════
+      // Phrase + Chunk Status appear BELOW the "Isolated" bar
+      // ═══════════════════════════════════════════════════════
+      terminal.write({ id: phraseLineId, text: `  [PHRASE] Rolling target: "${targetPhrase.phrase.substring(0, 60)}${targetPhrase.phrase.length > 60 ? '...' : ''}" (${targetPhrase.wordCount} words)`, class: 'term-brass' });
+      
+      const viz = buildBatchVisualizer(batchStates, batchSpinnerFrame);
+      terminal.write({ id: chunkVizId, text: viz.text, class: 'term-steel', segments: viz.segments });
 
       const textPos = BabelAPI.addressToText(address)
       const { score, matches, overlay } = await scoreDecryptedText(textPos, uniqueBibleWords, bibleWords, 0)
@@ -316,10 +337,20 @@ async function runScanner(ctx, scannerState) {
       let currentScrollLine  = 0;
 
       // ── Eva-style Braille loading bar updater ──
-      function updateEvaBar(progress, fSeed) {
+      function updateEvaBar(progress, fSeed, locked) {
         let filledCount = Math.floor(progress * EVA_BAR_WIDTH);
         let halfWidth = Math.floor(EVA_BAR_WIDTH / 2);
-        let gap = Math.floor(evaGlitch.gapSize);
+
+        // When locked, suppress glitch — bar is solid green
+        let gap;
+        let isGlitching;
+        if (locked) {
+          gap = 0;
+          isGlitching = false;
+        } else {
+          gap = Math.floor(evaGlitch.gapSize);
+          isGlitching = evaGlitch.active;
+        }
 
         let segments = [];
         let curCls = null, curTxt = "";
@@ -335,7 +366,7 @@ async function runScanner(ctx, scannerState) {
         for (let i = 0; i < leftEnd; i++) {
           if (i < filledCount) {
             let bri = Math.floor(pseudoRand(fSeed + 8000, i) * EVA_BRAILLE.length);
-            pushSeg(EVA_BRAILLE[bri], evaGlitch.active ? 'term-enemy' : 'term-success');
+            pushSeg(EVA_BRAILLE[bri], isGlitching ? 'term-enemy' : 'term-success');
           } else {
             pushSeg('░', 'term-dim');
           }
@@ -350,7 +381,7 @@ async function runScanner(ctx, scannerState) {
         for (let i = rightStart; i < EVA_BAR_WIDTH; i++) {
           if (i < filledCount) {
             let bri = Math.floor(pseudoRand(fSeed + 10000, i) * EVA_BRAILLE.length);
-            pushSeg(EVA_BRAILLE[bri], evaGlitch.active ? 'term-enemy' : 'term-success');
+            pushSeg(EVA_BRAILLE[bri], isGlitching ? 'term-enemy' : 'term-success');
           } else {
             pushSeg('░', 'term-dim');
           }
@@ -368,44 +399,46 @@ async function runScanner(ctx, scannerState) {
       while (tracerPos < BabelAPI.PAGE_LENGTH && scannerState.running) {
          frameSeed++;
 
-         // ── Eva bar glitch state machine ──
-         if (evaGlitch.active) {
-           evaGlitch.frame++;
-           if (evaGlitch.phase === 0) {
-             evaGlitch.gapSize = Math.min(evaGlitch.maxGap, evaGlitch.gapSize + evaGlitch.splitSpeed);
-             if (evaGlitch.gapSize >= evaGlitch.maxGap) {
-               evaGlitch.phase = 1;
-               evaGlitch.stallFrames = 8 + Math.floor(Math.random() * 16);
+         // ── Eva bar glitch state machine (skipped when locked) ──
+         if (!barLocked) {
+           if (evaGlitch.active) {
+             evaGlitch.frame++;
+             if (evaGlitch.phase === 0) {
+               evaGlitch.gapSize = Math.min(evaGlitch.maxGap, evaGlitch.gapSize + evaGlitch.splitSpeed);
+               if (evaGlitch.gapSize >= evaGlitch.maxGap) {
+                 evaGlitch.phase = 1;
+                 evaGlitch.stallFrames = 8 + Math.floor(Math.random() * 16);
+               }
+             } else if (evaGlitch.phase === 1) {
+               evaGlitch.stallFrames--;
+               if (evaGlitch.stallFrames <= 0) {
+                 evaGlitch.phase = 2;
+               }
+             } else if (evaGlitch.phase === 2) {
+               evaGlitch.gapSize = Math.max(0, evaGlitch.gapSize - evaGlitch.repairSpeed);
+               if (evaGlitch.gapSize <= 0) {
+                 evaGlitch.active = false;
+                 evaGlitch.gapSize = 0;
+                 evaGlitch.phase = 0;
+                 evaGlitch.nextGlitchAt = evaGlitch.frame + 45 + Math.floor(Math.random() * 70);
+               }
              }
-           } else if (evaGlitch.phase === 1) {
-             evaGlitch.stallFrames--;
-             if (evaGlitch.stallFrames <= 0) {
-               evaGlitch.phase = 2;
-             }
-           } else if (evaGlitch.phase === 2) {
-             evaGlitch.gapSize = Math.max(0, evaGlitch.gapSize - evaGlitch.repairSpeed);
-             if (evaGlitch.gapSize <= 0) {
-               evaGlitch.active = false;
-               evaGlitch.gapSize = 0;
+           } else {
+             evaGlitch.frame++;
+             if (evaGlitch.frame >= evaGlitch.nextGlitchAt) {
+               evaGlitch.active = true;
                evaGlitch.phase = 0;
-               evaGlitch.nextGlitchAt = evaGlitch.frame + 45 + Math.floor(Math.random() * 70);
+               evaGlitch.gapSize = 0;
              }
-           }
-         } else {
-           evaGlitch.frame++;
-           if (evaGlitch.frame >= evaGlitch.nextGlitchAt) {
-             evaGlitch.active = true;
-             evaGlitch.phase = 0;
-             evaGlitch.gapSize = 0;
            }
          }
 
-         // ── Update Eva bar ──
+         // ── Update Eva bar (pass barLocked to suppress glitch visuals) ──
          let evaProgress = Math.min(1, tracerPos / BabelAPI.PAGE_LENGTH);
-         updateEvaBar(evaProgress, frameSeed);
+         updateEvaBar(evaProgress, frameSeed, barLocked);
 
-         // ── Pause scan while glitching ──
-         if (!evaGlitch.active) {
+         // ── Pause scan while glitching (never paused when locked) ──
+         if (barLocked || !evaGlitch.active) {
            tracerPos += TRACER_STEP;
          }
 
@@ -555,7 +588,8 @@ async function runScanner(ctx, scannerState) {
          // ── Animate batch visualizer spinner for active slot ──
          batchSpinnerFrame++;
          if (batchSpinnerFrame % 4 === 0) {
-           terminal.updateLine(batchVizId, { text: `  CHUNK  ${buildBatchVisualizer(batchStates, batchSpinnerFrame)}`, class: 'term-steel' });
+           const vizSpinner = buildBatchVisualizer(batchStates, batchSpinnerFrame);
+           terminal.updateLine(chunkVizId, { text: vizSpinner.text, class: 'term-steel', segments: vizSpinner.segments });
          }
 
          await sleep(25);
@@ -596,7 +630,13 @@ async function runScanner(ctx, scannerState) {
 
       // Mark this slot as complete
       batchStates[batchSlot] = 'complete';
-      terminal.updateLine(batchVizId, { text: `  CHUNK  ${buildBatchVisualizer(batchStates, batchSpinnerFrame)}`, class: 'term-steel' });
+      const vizComplete = buildBatchVisualizer(batchStates, batchSpinnerFrame);
+      terminal.updateLine(chunkVizId, { text: vizComplete.text, class: 'term-steel', segments: vizComplete.segments });
+
+      // ── Lock bar green after first chunk in batch completes ──
+      if (batchSlot === 0) {
+        barLocked = true;
+      }
 
       // ── Target phrase hit announcement ──
       if (targetHitCount > 0) {
