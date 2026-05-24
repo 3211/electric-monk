@@ -264,7 +264,7 @@ export function buildProcessCommands() {
         try {
           const { data: programs, error } = await supabase
             .from('virtual_programs')
-            .select('program_id, program_name, version, installed_at')
+            .select('program_id, program_name, installed_at')
             .eq('machine_id', machineId)
             .order('program_name', { ascending: true })
 
@@ -284,7 +284,7 @@ export function buildProcessCommands() {
 
           for (const prog of programs) {
             const shortId = prog.program_id.substring(0, 8)
-            const version = prog.version || '1.0.0'
+            const version = '1.0.0'
             const installed = prog.installed_at
               ? new Date(prog.installed_at).toLocaleDateString()
               : 'unknown'

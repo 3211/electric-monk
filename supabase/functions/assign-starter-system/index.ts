@@ -247,6 +247,19 @@ serve(async (req: Request) => {
                 admin_password, user_password
     `
 
+    // ── Step 3.5: Install default starter programs ──
+    try {
+      await sql`
+        INSERT INTO virtual_programs (machine_id, program_name, program_type, config_data)
+        VALUES (${newVm.machine_id}, 'scan_records.exe', 'system', '{"category":"akashic_mining","description":"Scan and decrypt Akashic Records"}')
+        ON CONFLICT (machine_id, program_name) DO NOTHING
+      `
+      console.log(`[assign-starter-system] Installed scan_records.exe on ${newVm.ip_address}`)
+    } catch (err) {
+      console.error('[assign-starter-system] Failed to install default programs:', err)
+      // Non-fatal: VM still works, just won't have scan_records.exe preinstalled
+    }
+
     const system: ProvisionedSystem = {
       machine_id: newVm.machine_id,
       machine_name: machineName,
