@@ -3,6 +3,7 @@ export function testCommands() {
     'test2': {
       help: 'Demo: Interactive terminal features (spinner, progress bar, readLine, menu).',
       usage: '/test2',
+      hidden: true,
       async handler(args, ctx) {
         const { terminal, tab } = ctx
         ctx.tab.setTitle("Test 2")

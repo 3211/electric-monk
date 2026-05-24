@@ -78,8 +78,10 @@ export function buildGlobalCommands() {
     },
 
     moveto: {
+      //todo: delete, this is replaced with /connect
       help: 'Move to a different location. (Stub — navigation not yet wired to the backend.)',
       usage: '/moveto <location>',
+      hidden: true,
       handler(args, _ctx) {
         const dest = args[0]
         if (!dest) {
@@ -101,6 +103,7 @@ export function buildGlobalCommands() {
 
     'test-interactive': {
       help: 'Demo: Interactive terminal features (spinner, progress bar, readLine).',
+      hidden: true,
       usage: '/test-interactive',
       async handler(args, ctx) {
         const { terminal } = ctx
