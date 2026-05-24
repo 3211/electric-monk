@@ -172,7 +172,7 @@ export function buildConnectionCommands() {
             { text: '', class: '' },
             { text: `  Player: ${lookup.data.username}`, class: 'term-ally' },
             { text: `  IP: ${resolvedIp}`, class: 'term-dim' },
-            { text: isSelf ? '  [SELF] You are viewing your own profile.', class: 'term-steel' : '' },
+            { text: isSelf ? '  [SELF] You are viewing your own profile.' : '', class: 'term-steel' },
             { text: '', class: '' },
             { text: '  Type /disconnect to return.', class: 'term-dim' }
           ]
