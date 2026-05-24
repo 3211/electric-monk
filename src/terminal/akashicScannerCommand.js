@@ -3,6 +3,8 @@ import { BabelAPI, scoreDecryptedText } from './akashic'
 import bibleUrl from '@/assets/bible_stripped.txt?url'
 
 const GLITCH_GLYPHS = "!@#$%^&*([|/\\:;_-.,])░▒▓█▄▀╔╗╚╝║═╬┼";
+const EVA_BRAILLE = "⣿⣾⣽⣻⢿⡿⣟⣯⣷";
+const EVA_BAR_WIDTH = 76;
 
 // ── Deterministic pseudo-random (0–1) per frame+position ──
 function pseudoRand(seed, pos) {
@@ -149,11 +151,28 @@ async function runScanner(ctx, scannerState) {
     const rawDecoderId = `raw-decoder-${blockId}`;
     terminal.write({ id: rawDecoderId, text: `  ═══ RAW DECODER ═══`, class: 'term-dim' });
 
+    // Eva-style Braille loading bar
+    const evaBarId = `eva-bar-${blockId}`;
+    terminal.write({ id: evaBarId, text: `  [${'░'.repeat(EVA_BAR_WIDTH)}]`, class: 'term-dim' });
+
     // ── Scanning zone constants ──
     const HEAD_WIDTH   = 18;
     const JITTER_BAND  = 140;
     const RED_BAND     = 200;
     const FAR_DIM      = 300;
+
+    // Eva bar glitch state machine
+    const evaGlitch = {
+      active: false,
+      phase: 0,
+      gapSize: 0,
+      maxGap: 14,
+      frame: 0,
+      stallFrames: 0,
+      splitSpeed: 0.45,
+      repairSpeed: 0.7,
+      nextGlitchAt: 55 + Math.floor(Math.random() * 90),
+    };
     const TRACER_STEP  = 16;
 
     // Pre-calculate best streak
@@ -172,9 +191,104 @@ async function runScanner(ctx, scannerState) {
 
     let currentScrollLine  = 0;
 
+    // ── Eva-style Braille loading bar updater ──
+    function updateEvaBar(progress, fSeed) {
+      let filledCount = Math.floor(progress * EVA_BAR_WIDTH);
+      let halfWidth = Math.floor(EVA_BAR_WIDTH / 2);
+      let gap = Math.floor(evaGlitch.gapSize);
+
+      let segments = [];
+      let curCls = null, curTxt = "";
+
+      const pushSeg = (ch, cls) => {
+        if (curCls === cls) { curTxt += ch; }
+        else { if (curTxt.length) segments.push({ text: curTxt, class: curCls }); curCls = cls; curTxt = ch; }
+      };
+
+      // Left bracket
+      pushSeg('[', 'term-dim');
+
+      let leftEnd = halfWidth - Math.floor(gap / 2);
+      for (let i = 0; i < leftEnd; i++) {
+        if (i < filledCount) {
+          let bri = Math.floor(pseudoRand(fSeed + 8000, i) * EVA_BRAILLE.length);
+          pushSeg(EVA_BRAILLE[bri], evaGlitch.active ? 'term-enemy' : 'term-success');
+        } else {
+          pushSeg('░', 'term-dim');
+        }
+      }
+
+      // Gap — glitch glyphs when disconnected
+      for (let i = 0; i < gap; i++) {
+        let gl = GLITCH_GLYPHS[Math.floor(pseudoRand(fSeed + 9000, i) * GLITCH_GLYPHS.length)];
+        pushSeg(gl, 'term-enemy');
+      }
+
+      let rightStart = halfWidth + Math.ceil(gap / 2);
+      for (let i = rightStart; i < EVA_BAR_WIDTH; i++) {
+        if (i < filledCount) {
+          let bri = Math.floor(pseudoRand(fSeed + 10000, i) * EVA_BRAILLE.length);
+          pushSeg(EVA_BRAILLE[bri], evaGlitch.active ? 'term-enemy' : 'term-success');
+        } else {
+          pushSeg('░', 'term-dim');
+        }
+      }
+
+      pushSeg(']', 'term-dim');
+      if (curTxt.length) segments.push({ text: curTxt, class: curCls });
+
+      terminal.updateLine(evaBarId, {
+        text: `  [${'░'.repeat(EVA_BAR_WIDTH)}]`,
+        segments
+      });
+    }
+
     while (tracerPos < BabelAPI.PAGE_LENGTH && scannerState.running) {
        frameSeed++;
-       tracerPos += TRACER_STEP;
+
+       // ── Eva bar glitch state machine ──
+       if (evaGlitch.active) {
+         evaGlitch.frame++;
+         if (evaGlitch.phase === 0) {
+           // Splitting — gap grows
+           evaGlitch.gapSize = Math.min(evaGlitch.maxGap, evaGlitch.gapSize + evaGlitch.splitSpeed);
+           if (evaGlitch.gapSize >= evaGlitch.maxGap) {
+             evaGlitch.phase = 1;
+             evaGlitch.stallFrames = 8 + Math.floor(Math.random() * 16);
+           }
+         } else if (evaGlitch.phase === 1) {
+           // Held open — stall
+           evaGlitch.stallFrames--;
+           if (evaGlitch.stallFrames <= 0) {
+             evaGlitch.phase = 2;
+           }
+         } else if (evaGlitch.phase === 2) {
+           // Repairing — gap shrinks
+           evaGlitch.gapSize = Math.max(0, evaGlitch.gapSize - evaGlitch.repairSpeed);
+           if (evaGlitch.gapSize <= 0) {
+             evaGlitch.active = false;
+             evaGlitch.gapSize = 0;
+             evaGlitch.phase = 0;
+             evaGlitch.nextGlitchAt = evaGlitch.frame + 45 + Math.floor(Math.random() * 70);
+           }
+         }
+       } else {
+         evaGlitch.frame++;
+         if (evaGlitch.frame >= evaGlitch.nextGlitchAt) {
+           evaGlitch.active = true;
+           evaGlitch.phase = 0;
+           evaGlitch.gapSize = 0;
+         }
+       }
+
+       // ── Update Eva bar ──
+       let evaProgress = Math.min(1, tracerPos / BabelAPI.PAGE_LENGTH);
+       updateEvaBar(evaProgress, frameSeed);
+
+       // ── Pause scan while glitching ──
+       if (!evaGlitch.active) {
+         tracerPos += TRACER_STEP;
+       }
 
        // ── Scroll window (tracer at row 5) ──
        let tracerLine = Math.floor(tracerPos / chunkSize);
