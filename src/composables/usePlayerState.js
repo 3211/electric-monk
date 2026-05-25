@@ -1,4 +1,5 @@
-import { reactive, computed } from 'vue'
+import { reactive, computed, ref } from 'vue'
+import { supabase } from '@/lib/supabase'
 
 /**
  * usePlayerState Composable (Singleton Pattern)
@@ -15,9 +16,18 @@ import { reactive, computed } from 'vue'
 
 let sharedState = null
 
+const HOME_STORAGE_KEY = 'hwo_home_ip'
+
 function createPlayerState() {
   /** @type {Record<string, any>} — duck-typed data bag */
   const data = reactive({})
+
+  /**
+   * The IP that new terminal tabs should default to.
+   * Updated on boot, /connect, and /disconnect.
+   * Reactive so prompt updates propagate across the dock.
+   */
+  const defaultConnectionIp = ref('0.0.0.0')
 
   // ── Connection State (single source of truth for all modules) ──
   // Written by: connection.js (/connect, /disconnect), onboarding_two.js (auto-connect)
@@ -116,6 +126,54 @@ function createPlayerState() {
     connectionState.machine_id = null
     connectionState.machine_access = null
     connectionState.machine_name = null
+    // Reset default connection IP
+    defaultConnectionIp.value = '0.0.0.0'
+  }
+
+  /**
+   * Resolve the IP a terminal should show by default.
+   *
+   * Priority:
+   *   1. localStorage.hwo_home_ip (user ran /sethome)
+   *   2. Oldest virtual machine IP (from supabase)
+   *   3. "0.0.0.0" — pre-onboarding, no valid connection yet
+   *   4. Player's holy IP — post-onboarding fallback
+   *
+   * Called on boot (after hydrate), on /disconnect, and when
+   * new tabs need a starting location.
+   *
+   * @returns {Promise<string>} the resolved default IP
+   */
+  async function resolveDefaultIp() {
+    // 1. Check localStorage for explicitly set home IP
+    try {
+      const storedHome = localStorage.getItem(HOME_STORAGE_KEY)
+      if (storedHome && typeof storedHome === 'string' && storedHome.trim()) {
+        return storedHome.trim()
+      }
+    } catch (_) {}
+
+    // 2. Check if player has VMs — return the OLDEST VM's IP
+    const playerIp = data.ip_address
+    if (playerIp && typeof playerIp === 'string') {
+      try {
+        const { data: vms, error } = await supabase
+          .from('virtual_machines')
+          .select('ip_address, created_at')
+          .eq('owner_identity', playerIp)
+          .order('created_at', { ascending: true })
+          .limit(1)
+        if (!error && vms && vms.length > 0 && vms[0].ip_address) {
+          return vms[0].ip_address
+        }
+      } catch (_) {}
+    }
+
+    // 3. Pre-onboarding — player doesn't even have a holy IP yet
+    if (!playerIp) return '0.0.0.0'
+
+    // 4. Fallback: player's holy IP (post-onboarding, no VMs — edge case)
+    return playerIp
   }
 
   /**
@@ -173,6 +231,8 @@ function createPlayerState() {
     data,
     // Connection state (reactive — read/write via setConnection/clearConnection)
     connectionState,
+    // Default connection IP for new tabs / boot
+    defaultConnectionIp,
 
     // Computed conveniences
     username,
@@ -200,6 +260,7 @@ function createPlayerState() {
     flush,
     has,
     snapshot,
+    resolveDefaultIp,
 
     // Connection state methods
     setConnection,

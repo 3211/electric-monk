@@ -139,8 +139,14 @@ export async function runBootSequence(terminal, duration = 3500) {
   const bibleLoad = loadSacredTexts();
   
   const ps = usePlayerState();
-  const dbLoad = checkOnboardingStatus(supabase).then(({ player }) => {
-    if (player) ps.hydrate(player);
+  const dbLoad = checkOnboardingStatus(supabase).then(async ({ player }) => {
+    if (player) {
+      ps.hydrate(player);
+      // Resolve and stash the default IP for this session
+      // This ensures no stale data from a previous user's session
+      const defaultIp = await ps.resolveDefaultIp();
+      ps.defaultConnectionIp.value = defaultIp;
+    }
   });
 
   terminal.clear();
@@ -156,6 +162,11 @@ export async function runBootSequence(terminal, duration = 3500) {
 
   await Promise.all([bibleLoad, dbLoad]);
   await sleep(300);
+
+  // Set boot terminal's location now that we've resolved the default IP
+  if (ps.defaultConnectionIp.value && ps.defaultConnectionIp.value !== '0.0.0.0') {
+    terminal.setLocation(ps.defaultConnectionIp.value);
+  }
 
   const needsOnboarding = !ps.username.value || !ps.sectId.value;
 

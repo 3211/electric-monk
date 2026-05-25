@@ -101,11 +101,10 @@ onMounted(() => {
         
         // ── Final: Normal terminal setup (only if no full welcome was shown) ──
         if (hasBasicOnboarding && playerState.get('has_virtual_computer') && phase2Result === 'exists') {
-          if (playerState.get('virtual_machine_ip')) {
-            terminal.setLocation(playerState.get('virtual_machine_ip'))
-          } else if (playerState.ipAddress.value) {
-            terminal.setLocation(playerState.ipAddress.value)
-          }
+          // Resolve the correct default IP (oldest VM or home) and sync everything
+          const defaultIp = await playerState.resolveDefaultIp()
+          terminal.setLocation(defaultIp)
+          playerState.defaultConnectionIp.value = defaultIp
           terminal.writeAll([
             { text: '', class: '' },
             { text: '  Welcome to Holy War Online. Type /help for help.', class: 'term-brass' },
@@ -184,10 +183,9 @@ function _injectTabContext(term, paneId, tabId) {
   // Expose directly on the instance to guarantee easy access from external JS systems
   term.tab = tabContext
 
+  // New tabs inherit the global default connection IP — NOT the holy IP
   const ps = usePlayerState()
-  if (ps.ipAddress.value) {
-    term.setLocation(ps.ipAddress.value)
-  }
+  term.setLocation(ps.defaultConnectionIp.value || '0.0.0.0')
 
   term.startup()
 }

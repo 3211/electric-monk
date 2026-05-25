@@ -210,7 +210,8 @@ export function buildPlayerCommands() {
       help: 'View your own profile and machine list. Shortcut for /connect me.',
       usage: '/me',
       async handler(args, ctx) {
-        const playerIp = usePlayerState().get('ip_address', null)
+        const playerState = usePlayerState()
+        const playerIp = playerState.get('ip_address', null)
         if (!playerIp) {
           return [{ text: '  [ERR] No player IP assigned.', class: 'term-enemy' }]
         }
@@ -220,9 +221,11 @@ export function buildPlayerCommands() {
           return [{ text: '  [ERR] Could not load profile.', class: 'term-enemy' }]
         }
 
+        // Use the proper connection state APIs so all modules stay in sync
+        playerState.setConnection({ ip: playerIp, type: 'player', machineName: 'My Terminal' })
         ctx.tab.setTitle('My Terminal')
-        ctx.connected_ip = playerIp
-        ctx.connection_type = 'player'
+        ctx.terminal.setLocation(playerIp)
+        playerState.defaultConnectionIp.value = playerIp
         return renderMePage(profile)
       }
     }

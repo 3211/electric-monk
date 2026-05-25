@@ -179,12 +179,20 @@ export function buildConnectionCommands() {
           playerState.setConnection({ ip: resolvedIp, type: 'faction', machineName: `Faction: ${lookup.data.name}` })
           ctx.tab.setTitle(`Faction: ${lookup.data.name}`)
 
+          // Update THIS terminal's prompt and the global default for new tabs
+          terminal.setLocation(resolvedIp)
+          playerState.defaultConnectionIp.value = resolvedIp
+
           await logConnection(playerIp, resolvedIp, `Connected to faction: ${lookup.data.name}`)
 
           const result = await showFactionHomepage(ctx, lookup.data)
           if (result === '__disconnect__') {
             playerState.clearConnection()
             ctx.tab.setTitle('Terminal')
+            // Reset THIS terminal to home, but leave defaultConnectionIp
+            // so new tabs still open to the last-connected location
+            const homeIp = await playerState.resolveDefaultIp()
+            terminal.setLocation(homeIp)
             ctx.terminal.write({ text: '  [SYS] Disconnected. Returned to home terminal.', class: 'term-steel' })
           }
           return null
@@ -194,6 +202,10 @@ export function buildConnectionCommands() {
           const isSelf = resolvedIp === playerIp
           playerState.setConnection({ ip: resolvedIp, type: 'player', machineName: isSelf ? 'My Terminal' : `Player: ${lookup.data.username}` })
           ctx.tab.setTitle(isSelf ? 'My Terminal' : `Player: ${lookup.data.username}`)
+
+          // Update THIS terminal's prompt and the global default for new tabs
+          terminal.setLocation(resolvedIp)
+          playerState.defaultConnectionIp.value = resolvedIp
 
           await logConnection(playerIp, resolvedIp, `Connected to player: ${lookup.data.username}`)
 
@@ -221,6 +233,10 @@ export function buildConnectionCommands() {
             access: isOwner ? 'admin' : 'pending',
             machineName: lookup.data.machine_name
           })
+
+          // Update THIS terminal's prompt and the global default for new tabs
+          terminal.setLocation(resolvedIp)
+          playerState.defaultConnectionIp.value = resolvedIp
 
           await logConnection(playerIp, resolvedIp,
             `Connected to VM: ${lookup.data.machine_name} (access: ${isOwner ? 'admin' : 'pending'})`)
@@ -255,7 +271,7 @@ export function buildConnectionCommands() {
     disconnect: {
       help: 'Disconnect from the current remote session.',
       usage: '/disconnect',
-      handler(args, ctx) {
+      async handler(args, ctx) {
         const playerState = usePlayerState()
         const prevIp = playerState.connectedIp.value
 
@@ -265,6 +281,11 @@ export function buildConnectionCommands() {
 
         playerState.clearConnection()
         ctx.tab.setTitle('Terminal')
+
+        // Reset THIS terminal's location back to home
+        // but keep defaultConnectionIp so new tabs still open to last connect
+        const homeIp = await playerState.resolveDefaultIp()
+        ctx.terminal.setLocation(homeIp)
 
         return [
           { text: `  [NET] Disconnected from ${prevIp}.`, class: 'term-dim' },
@@ -279,18 +300,19 @@ export function buildConnectionCommands() {
       async handler(args, ctx) {
         const { terminal } = ctx
         const playerState = usePlayerState()
-        const storedHome = localStorage.getItem(HOME_STORAGE_KEY)
-        const playerIp = playerState.get('ip_address', null)
 
-        if (!storedHome) {
-          if (!playerIp) {
-            return [{ text: '  [ERR] No home terminal set and no player IP found.', class: 'term-enemy' }]
-          }
-          return ctx.registry['connect'].handler(['me'], ctx)
+        // Resolve home IP fresh each time
+        const homeIp = await playerState.resolveDefaultIp()
+
+        if (!homeIp) {
+          return [{ text: '  [ERR] No home terminal could be resolved.', class: 'term-enemy' }]
         }
 
-        terminal.write({ text: `  [NET] Navigating home: ${storedHome}...`, class: 'term-dim' })
-        return ctx.registry['connect'].handler([storedHome], ctx)
+        // Update global default so new tabs open to home
+        playerState.defaultConnectionIp.value = homeIp
+
+        terminal.write({ text: `  [NET] Navigating home: ${homeIp}...`, class: 'term-dim' })
+        return ctx.registry['connect'].handler([homeIp], ctx)
       }
     },
 
@@ -316,6 +338,8 @@ export function buildConnectionCommands() {
         }
 
         localStorage.setItem(HOME_STORAGE_KEY, connectedIp)
+        // Sync the global default so new tabs open to the new home
+        playerState.defaultConnectionIp.value = connectedIp
         return [{ text: `  [OK]  Home terminal set to ${connectedIp}.`, class: 'term-ally' }]
       }
     },

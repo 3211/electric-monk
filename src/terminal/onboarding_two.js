@@ -198,6 +198,8 @@ export async function runOnboardingTwo(terminal, player) {
     if (!assignData.was_newly_created) {
       if (system.ip_address) {
         terminal.setLocation(system.ip_address)
+        // Sync global default so new tabs open to this VM
+        playerState.defaultConnectionIp.value = system.ip_address
       }
       playerState.setConnection({
         ip: system.ip_address,
@@ -293,6 +295,8 @@ export async function runOnboardingTwo(terminal, player) {
     // Update terminal location to the new VM IP
     if (system.ip_address) {
       terminal.setLocation(system.ip_address)
+      // Sync global default so new tabs open to this VM
+      playerState.defaultConnectionIp.value = system.ip_address
     }
 
     // Auto-connect to the newly provisioned VM so /programs, /run, etc work immediately

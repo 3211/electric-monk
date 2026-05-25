@@ -370,6 +370,8 @@ export async function runOnboarding(terminal, player) {
     if (statusData && statusData.ip_address) {
       playerState.hydrate(statusData)
       terminal.setLocation(statusData.ip_address)
+      // Sync global default — this is the best we have until VM assignment
+      playerState.defaultConnectionIp.value = statusData.ip_address
     }
 
     terminal.busy = false
