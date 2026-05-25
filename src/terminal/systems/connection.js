@@ -91,7 +91,7 @@ async function resolveShortcut(keyword, ctx) {
     if (match) return match.ip_address
   } catch (_) {}
 
-  return kw // Assume it's a raw IP
+  return null // Not a recognized name and not an IP — unresolvable
 }
 
 /**
